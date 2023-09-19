@@ -1,0 +1,20 @@
+{
+  "workspace": {
+    "name": "seed-homelab-workspace",
+    "url": "git@github.com:seed-lab4x/seed-homelab-workspace.git"
+  },
+  "seed": {
+    "path": ".seed",
+    "url": "../seed-module-subrepo.git",
+    "customize": true
+  },
+  "config": {
+    "name": ".config",
+    "url": "../seed-homelab-config.git",
+    "path": ".config",
+    "branch": "main",
+    "customize": {
+      "prompt": true
+    }
+  }
+}
