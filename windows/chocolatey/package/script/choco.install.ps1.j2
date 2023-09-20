@@ -1,0 +1,14 @@
+$_script_dir = Split-Path -parent $MyInvocation.MyCommand.Definition
+
+{% for config in configs %}
+choco install -y $_script_dir/{{ config.group }}.config
+{%   for package in config.packages %}
+
+choco install -y `
+{%     if package.ignore_checksums | default(true) %}
+    --ignore-checksums `
+{%     endif %}
+    {{ package.name }}
+{%   endfor %}
+
+{% endfor %}
