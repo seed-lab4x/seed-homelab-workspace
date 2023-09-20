@@ -1,0 +1,37 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../winget/{{ inventory_hostname }}"
+
+    - name: template packages
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ winget.groups | default([],true) }}"
+        group_vars: "{{ winget_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | rejectattr('value.packages','equalto',None)
+          | map(attribute='value.packages')
+          | flatten }}"
+        packages_all:
+          - "{{ winget.packages | default([],true) }}"
+          - "{{ group_vars }}"
+        packages: "{{ packages_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/winget.install.ps1.j2"
+        dest: "{{ inventory_dir }}/../winget/{{ inventory_hostname }}/winget.install.ps1"
