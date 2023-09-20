@@ -1,0 +1,22 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../slmgr/{{ inventory_hostname }}"
+
+    - name: template slmgr pwsh file
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/slmgr.run.ps1.j2"
+        dest: "{{ inventory_dir }}/../slmgr/{{ inventory_hostname }}/slmgr.run.ps1"
