@@ -1,0 +1,35 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: windows
+  tasks:
+
+    - name: enable optional feature
+      loop: "{{ optional_feature.optional_features | default([],true) }}"
+      vars:
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      ansible.windows.win_optional_feature: "{{ args }}"
+      register: feature_enable
+      until: feature_enable is succeeded
+
+    - name: enable group optional feature
+      vars:
+        group_names: "{{ optional_feature.groups | default([],true) }}"
+        group_vars: "{{ optional_feature_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.optional_features','defined')
+          | rejectattr('value.optional_features','equalto',None)
+          | map(attribute='value.optional_features')
+          | flatten }}"
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_optional_feature: "{{ args }}"
+      register: feature_enable
+      until: feature_enable is succeeded
