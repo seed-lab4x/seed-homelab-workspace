@@ -1,0 +1,71 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}"
+
+    - name: print chocolatey install command
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+
+          Use this for install chocolatey
+          //////////////////////////////////////////////////
+          Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+          //////////////////////////////////////////////////
+
+    - name: template packages script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ chocolatey.groups | default([],true) }}"
+        group_vars: "{{ chocolatey_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | rejectattr('value.packages','equalto',None) }}"
+        group_packages_all:
+          - group: default
+            packages: "{{ chocolatey.packages | default([],true)
+              | selectattr('ignore_checksums','defined') }}"
+          - "{{ group_vars
+              | community.general.json_query('[].{group:key,packages:value.packages[?ignore_checksums]}') }}"
+        configs: "{{ group_packages_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/choco.install.ps1.j2"
+        dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.install.ps1"
+
+    - name: template group packages config
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ chocolatey.groups | default([],true) }}"
+        group_vars: "{{ chocolatey_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | rejectattr('value.packages','equalto',None) }}"
+        group_packages_all:
+          - group: default
+            packages: "{{ chocolatey.packages | default([],true)
+              | selectattr('ignore_checksums','undefined') }}"
+          - "{{ group_vars
+              | community.general.json_query('[].{group:key,packages:value.packages[?ignore_checksums == `null`]}') }}"
+        configs: "{{ group_packages_all | flatten }}"
+        packages: "{{ item.packages }}"
+      loop: "{{ configs }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/package.config.j2"
+        dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/{{ item.group }}.config"

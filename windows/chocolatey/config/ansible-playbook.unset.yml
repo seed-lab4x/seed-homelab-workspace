@@ -1,0 +1,34 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: unset
+  hosts: windows
+  tasks:
+
+    - name: unset config
+      loop: "{{ chocolatey.configs | default([],true) }}"
+      vars:
+        combine:
+          state: absent
+        args: "{{ item | combine(combine, recursive=True) }}"
+      chocolatey.chocolatey.win_chocolatey_config: "{{ args }}"
+      register: config_unset
+      until: config_unset is succeeded
+
+    - name: unset group config
+      vars:
+        group_names: "{{ chocolatey.groups | default([],true) }}"
+        group_vars: "{{ chocolatey_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.configs','defined')
+          | map(attribute='value.configs')
+          | flatten }}"
+        combine:
+          state: absent
+        args: "{{ item | combine(combine, recursive=True) }}"
+      loop: "{{ group_vars }}"
+      chocolatey.chocolatey.win_chocolatey_config: "{{ args }}"
+      register: config_unset
+      until: config_unset is succeeded
