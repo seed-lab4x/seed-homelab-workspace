@@ -1,0 +1,57 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: delete
+  hosts: windows
+  tasks:
+
+    - name: delete ipv4
+      loop: "{{ netsh.port_range.excluded.ipv4 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int ipv4 delete excludedportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_excluded_delete
+      until: range_excluded_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group ipv4
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.excluded.ipv4','defined')
+          | rejectattr('value.port_range.excluded.ipv4','equalto',None)
+          | map(attribute='value.port_range.excluded.ipv4')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int ipv4 add excludedportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_excluded_delete
+      until: range_excluded_delete is succeeded
+      ignore_errors: true
+
+    - name: delete ipv6
+      loop: "{{ netsh.port_range.excluded.ipv6 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int ipv6 add excludedportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_excluded_delete
+      until: range_excluded_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group ipv6
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.excluded.ipv6','defined')
+          | rejectattr('value.port_range.excluded.ipv6','equalto',None)
+          | map(attribute='value.port_range.excluded.ipv6')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int ipv6 add excludedportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_excluded_delete
+      until: range_excluded_delete is succeeded
+      ignore_errors: true

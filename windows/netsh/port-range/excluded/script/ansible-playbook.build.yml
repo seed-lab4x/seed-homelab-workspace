@@ -1,0 +1,81 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../netsh/{{ inventory_hostname }}"
+
+    - name: template excluded add script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.excluded','defined')
+          | rejectattr('value.port_range.excluded','equalto',None)
+          | map(attribute='value.port_range.excluded') }}"
+        group_ports_ipv4_all:
+          - "{{ netsh.port_range.excluded.ipv4 | default([],true) }}"
+          - "{{ group_vars
+              | selectattr('ipv4','defined')
+              | rejectattr('ipv4','equalto',None)
+              | map(attribute='ipv4')
+              | flatten }}"
+        group_ports_ipv6_all:
+          - "{{ netsh.port_range.excluded.ipv4 | default([],true) }}"
+          - "{{ group_vars
+              | selectattr('ipv6','defined')
+              | rejectattr('ipv6','equalto',None)
+              | map(attribute='ipv6')
+              | flatten }}"
+        ports:
+          ipv4: "{{ group_ports_ipv4_all | flatten }}"
+          ipv6: "{{ group_ports_ipv6_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/excluded.add.ps1.j2"
+        dest: "{{ inventory_dir }}/../netsh/{{ inventory_hostname }}/port-range.excluded.add.ps1"
+
+    - name: template excluded delete script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.excluded','defined')
+          | rejectattr('value.port_range.excluded','equalto',None)
+          | map(attribute='value.port_range.excluded') }}"
+        group_ports_ipv4_all:
+          - "{{ netsh.port_range.excluded.ipv4 | default([],true) }}"
+          - "{{ group_vars
+              | selectattr('ipv4','defined')
+              | rejectattr('ipv4','equalto',None)
+              | map(attribute='ipv4')
+              | flatten }}"
+        group_ports_ipv6_all:
+          - "{{ netsh.port_range.excluded.ipv4 | default([],true) }}"
+          - "{{ group_vars
+              | selectattr('ipv6','defined')
+              | rejectattr('ipv6','equalto',None)
+              | map(attribute='ipv6')
+              | flatten }}"
+        ports:
+          ipv4: "{{ group_ports_ipv4_all | flatten }}"
+          ipv6: "{{ group_ports_ipv6_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/excluded.delete.ps1.j2"
+        dest: "{{ inventory_dir }}/../netsh/{{ inventory_hostname }}/port-range.excluded.delete.ps1"

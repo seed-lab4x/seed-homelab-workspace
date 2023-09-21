@@ -1,0 +1,61 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: set
+  hosts: windows
+  tasks:
+
+    - name: set ipv4
+      vars:
+        item: "{{ netsh.port_range.dynamic.ipv4 }}"
+      when: netsh.port_range.dynamic.ipv4 is defined
+      ansible.windows.win_command: |
+        netsh int ipv4 set dynamicportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_dynamic_set
+      until: range_dynamic_set is succeeded
+      ignore_errors: true
+
+    - name: set group ipv4
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.dynamic.ipv4','defined')
+          | rejectattr('value.port_range.dynamic.ipv4','equalto',None)
+          | map(attribute='value.port_range.dynamic.ipv4')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int ipv4 set dynamicportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_dynamic_set
+      until: range_dynamic_set is succeeded
+      ignore_errors: true
+
+    - name: set ipv6
+      vars:
+        item: "{{ netsh.port_range.dynamic.ipv6 }}"
+      when: netsh.port_range.dynamic.ipv6 is defined
+      ansible.windows.win_command: |
+        netsh int ipv6 set dynamicportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_dynamic_set
+      until: range_dynamic_set is succeeded
+      ignore_errors: true
+
+    - name: set group ipv6
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_range.dynamic.ipv6','defined')
+          | rejectattr('value.port_range.dynamic.ipv6','equalto',None)
+          | map(attribute='value.port_range.dynamic.ipv6')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int ipv6 set dynamicportrange protocol={{ item.protocol }} startport={{ item.startport }} numberofports={{ item.numberofports }} store={{ item.store }}
+      register: range_dynamic_set
+      until: range_dynamic_set is succeeded
+      ignore_errors: true
