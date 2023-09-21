@@ -1,0 +1,107 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: delete
+  hosts: windows
+  tasks:
+
+    - name: delete v4tov4 port proxy
+      loop: "{{ netsh.port_proxy.v4tov4 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v4tov4 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group v4tov4 port proxy
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_proxy.v4tov4','defined')
+          | rejectattr('value.port_proxy.v4tov4','equalto',None)
+          | map(attribute='value.port_proxy.v4tov4')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v4tov4 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete v4tov6 port proxy
+      loop: "{{ netsh.port_proxy.v4tov6 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v4tov6 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group v4tov6 port proxy
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_proxy.v4tov6','defined')
+          | rejectattr('value.port_proxy.v4tov6','equalto',None)
+          | map(attribute='value.port_proxy.v4tov6')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v4tov6 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete v6tov4 port proxy
+      loop: "{{ netsh.port_proxy.v6tov4 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v6tov4 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group v6tov4 port proxy
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_proxy.v6tov4','defined')
+          | rejectattr('value.port_proxy.v6tov4','equalto',None)
+          | map(attribute='value.port_proxy.v6tov4')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v6tov4 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete v6tov6 port proxy
+      loop: "{{ netsh.port_proxy.v6tov6 | default([],true) }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v6tov6 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
+
+    - name: delete group v6tov6 port proxy
+      vars:
+        group_names: "{{ netsh.groups | default([],true) }}"
+        group_vars: "{{ netsh_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.port_proxy.v6tov6','defined')
+          | rejectattr('value.port_proxy.v6tov6','equalto',None)
+          | map(attribute='value.port_proxy.v6tov6')
+          | flatten }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command: |
+        netsh int portproxy delete v6tov6 listenport={{ item.listenport }} listenaddress={{ item.listenaddress }} connectport={{ item.connectport }} connectaddress={{ item.connectaddress }}
+      register: proxy_delete
+      until: proxy_delete is succeeded
+      ignore_errors: true
