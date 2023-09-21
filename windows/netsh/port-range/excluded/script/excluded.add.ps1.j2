@@ -1,0 +1,8 @@
+{% for port in ports.ipv4 %}
+netsh int ipv4 add excludedportrange protocol={{ port.protocol }} startport={{ port.startport }} numberofports={{ port.numberofports }} store={{ port.store }}
+{% endfor %}
+
+{% for port in ports.ipv6 %}
+netsh int ipv6 add excludedportrange protocol={{ port.protocol }} startport={{ port.startport }} numberofports={{ port.numberofports }} store={{ port.store }}
+{% endfor %}
+ 
