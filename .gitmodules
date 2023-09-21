@@ -1,0 +1,4 @@
+[submodule ".config"]
+	path = .config
+	url = ../seed-homelab-config.git
+	branch = main
