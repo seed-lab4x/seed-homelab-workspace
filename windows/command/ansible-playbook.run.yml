@@ -1,0 +1,70 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: windows
+  tasks:
+
+    - name: run command
+      loop: "{{ command.commands | default([],true) }}"
+      vars:
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      ansible.windows.win_command:
+      args: "{{ args }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug command
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['windows'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.command_run.stdout | default('',true) }}
+          {{ host.value.command_run.stderr | default('',true) }}
+          {% endfor %}
+
+    - name: run group command
+      vars:
+        group_names: "{{ command.groups | default([],true) }}"
+        group_vars: "{{ command_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.commands','defined')
+          | rejectattr('value.commands','equalto',None)
+          | map(attribute='value.commands')
+          | flatten }}"
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_command:
+      args: "{{ args }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug group command
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['windows'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.command_run.stdout | default('',true) }}
+          {{ host.value.command_run.stderr | default('',true) }}
+          {% endfor %}
+
