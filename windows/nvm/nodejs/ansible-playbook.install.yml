@@ -1,0 +1,42 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: mkdir nvm.root
+      ansible.windows.win_file:
+        path: "{{ nvm.root }}"
+        state: directory
+
+    - name: set nvm root
+      ansible.windows.win_command:
+        cmd: "nvm root {{ nvm.root }}"
+
+    - name: test nvm
+      ansible.windows.win_command:
+        cmd: nvm version
+      register: nvm_version
+
+    - name: print nvm
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['windows'])
+          | selectattr('value.nvm_version.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.nvm_version.stdout | default('',true) }}
+          {{ host.value.nvm_version.stderr | default('',true) }}
+          {% endfor %}
+
+    - name: install nodejs
+      loop: "{{ nvm.nodejs }}"
+      ansible.windows.win_command:
+        cmd: "nvm install {{ item }}"
