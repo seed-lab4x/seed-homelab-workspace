@@ -1,0 +1,42 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: mkdir nvs.node
+      ansible.windows.win_file:
+        path: "{{ nvs.node }}"
+        state: directory
+
+    - name: stat nvs node
+      ansible.windows.win_stat:
+        path: '%LOCALAPPDATA%\nvs\node'
+      register: node_stat
+
+    - name: mv nvs node
+      when:
+        - node_stat.stat.exists
+        - node_stat.stat.lnk_target is undefined
+      ansible.windows.win_copy:
+        remote_src: true
+        src: "{{ node_stat.stat.path }}\\"
+        dest: "{{ nvs.node }}"
+
+    - name: remove nvs node
+      ansible.windows.win_file:
+        path: '%LOCALAPPDATA%\nvs\node'
+        state: absent
+
+    - name: link nvs node
+      ansible.windows.win_command:
+        cmd: "cmd.exe /k mklink /j node {{ nvs.node }}"
+        chdir: '%LOCALAPPDATA%\nvs'
+
+    - name: install nodejs
+      loop: "{{ nvs.nodejs }}"
+      ansible.windows.win_command:
+        cmd: "nvs.cmd add {{ item }}"
+        chdir: '%LOCALAPPDATA%\nvs'
