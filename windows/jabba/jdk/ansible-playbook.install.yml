@@ -1,0 +1,59 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: env JABBA_HOME
+      when: jabba.home is defined
+      ansible.windows.win_environment:
+        name: JABBA_HOME
+        value: "{{ jabba.home }}"
+        level: user
+        state: present
+
+    - name: env jabba path
+      when: jabba.home is defined
+      ansible.windows.win_path:
+        name: PATH
+        elements: "%JABBA_HOME%\\bin"
+        scope: user
+        state: present
+
+    - name: install jabba
+      ansible.windows.win_powershell:
+        script: |
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Invoke-Expression (
+            Invoke-WebRequest {{ jabba.url | default('https://github.com/shyiko/jabba/raw/master/install.ps1') }} -UseBasicParsing
+          ).Content
+
+    - name: test jabba
+      ansible.windows.win_command:
+        cmd: jabba --version
+        chdir: "{{ jabba.home | default('%USERPROFILE%/.jabba') }}/bin"
+      register: jabba_version
+
+    - name: print jabba
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['windows'])
+          | selectattr('value.jabba_version.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.jabba_version.stdout | default('',true) }}
+          {{ host.value.jabba_version.stderr | default('',true) }}
+          {% endfor %}
+
+    - name: install jdk
+      loop: "{{ jabba.jdk }}"
+      ansible.windows.win_command:
+        cmd: "jabba install {{ item }}"
+        chdir: "{{ jabba.home | default('%USERPROFILE%/.jabba') }}/bin"
