@@ -1,0 +1,31 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: configure
+  hosts: edgeos
+  tasks:
+
+    - name: configure config
+      community.network.edgeos_config:
+        lines: "{{ config.lines | default([],true) }}"
+      register: config_configure
+      until: config_configure is succeeded
+
+    - name: configure group config
+      vars:
+        group_names: "{{ config.groups | default([],true) }}"
+        group_vars: "{{ config_groups | default({},true)
+          | dict2items
+          | selectattr('key','equalto',group_name)
+          | selectattr('value.lines','defined')
+          | rejectattr('value.lines','equalto',None)
+          | map(attribute='value.lines') }}"
+        lines: "{{ group_vars | first }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      community.network.edgeos_config:
+        lines: "{{ lines }}"
+      register: config_configure
+      until: config_configure is succeeded
