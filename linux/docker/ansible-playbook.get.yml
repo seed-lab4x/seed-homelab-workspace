@@ -1,0 +1,53 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    # fix https://github.com/docker/for-linux/issues/1349#issuecomment-1096928058
+    - name: install docker package
+      become: true
+      loop:
+        - docker-ce
+        - docker-ce-cli
+        - containerd.io
+        - docker-compose-plugin
+        - docker-ce-rootless-extras
+        - docker-buildx-plugin
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      register: package_install
+      ignore_errors: true
+
+    - when: package_install is not succeeded
+      block:
+      - name: download get docker
+        ansible.builtin.get_url:
+          url: "https://get.docker.com"
+          dest: "~/get-docker.sh"
+        register: docker_get
+
+      - name: shell get docker
+        become: true
+        ansible.builtin.shell: "bash {{ docker_get.dest }}"
+        register: docker_sh
+        ignore_errors: true
+
+      - name: print get docker
+        vars:
+          linux_hostvars: "{{ hostvars | dict2items
+            | selectattr('key','in',groups['linux'])
+            | selectattr('value.docker_sh','defined') }}"
+        ansible.builtin.pause:
+          seconds: 1
+          prompt: |
+            {% for host in linux_hostvars %}
+
+            [{{ host.key }}] =>
+            --------------------------------------------------
+            {{ host.value.docker_sh.stdout | default('',true) }}
+            {{ host.value.docker_sh.stderr | default('',true) }}
+            {% endfor %}
