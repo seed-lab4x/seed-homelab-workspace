@@ -1,0 +1,35 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  tasks:
+
+    - name: fact package
+      vars:
+        nodejs: "{{ [package.nodejs | default(nvm.nodejs,true)] | flatten }}"
+        append: "{{ package.packages | default([],true)
+          | product(nodejs)
+          | map('zip', ['package', 'nodejs'])
+          | map('map', 'reverse')
+          | map('community.general.dict') }}"
+        list: "{{ _list | default([],true) }}"
+      loop: "{{ nvm.package | default([],true) }}"
+      loop_control:
+        loop_var: package
+      ansible.builtin.set_fact:
+        _list: "{{ list + append }}"
+
+    - name: install package
+      loop: "{{ _list | default([],true) }}"
+      vars:
+        nodejs: "{{ item.nodejs }}"
+        package: "{{ item.package }}"
+        default:
+          executable: "{{ ansible_env.HOME }}/.nvm/versions/node/v{{ nodejs }}/bin/npm"
+          state: present
+        args: "{{ default | combine(package, recursive=True) }}"
+      environment:
+        PATH: "{{ ansible_env.PATH }}:{{ ansible_env.HOME }}/.nvm/versions/node/v{{ nodejs }}/bin"
+      community.general.npm: "{{ args }}"

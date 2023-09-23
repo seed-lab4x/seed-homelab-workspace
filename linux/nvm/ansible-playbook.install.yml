@@ -1,0 +1,40 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ nvm.mode | default('normal',true) }}"
+      when: nvm is defined
+      block:
+      - name: role nvm
+        vars:
+          nvm_version: "{{ nvm.version | default('0.39.3',true) }}"
+          nvm_git_repository: "{{ nvm.repository | default('https://github.com/creationix/nvm.git',true) }}"
+          nvm_install_deps: false
+        when: mode == 'role'
+        ansible.builtin.include_role:
+          name: stephdewit.nvm
+          apply:
+            environment:
+              # cant use '~/.nvm'
+              NVM_DIR: "{{ nvm.root | default(ansible_env.HOME ~ '/.nvm',true) }}"
+
+      - name: clone nvm
+        vars:
+          nvm_version: "{{ nvm.version | default('0.39.3',true) }}"
+          nvm_git_repository: "{{ nvm.repository | default('https://github.com/creationix/nvm.git',true) }}"
+        when: mode == 'normal'
+        ansible.builtin.git:
+          repo: "{{ nvm_git_repository }}"
+          dest: "~/.nvm"
+          version: "v{{ nvm_version }}"
+
+    - name: create default-packages file
+      when: nvm.default_packages is defined
+      ansible.builtin.copy:
+        content: "{{ nvm.default_packages }}"
+        dest: "~/.nvm/default-packages"
