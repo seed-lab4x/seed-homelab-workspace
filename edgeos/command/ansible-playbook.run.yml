@@ -1,0 +1,65 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: edgeos
+  tasks:
+
+    - name: run command
+      community.network.edgeos_command:
+        commands: "{{ command.commands | default([],true) }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug command
+      vars:
+        edgeos_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['edgeos'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in edgeos_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.command_run.stdout | default('',true) }}
+          {{ host.value.command_run.stderr | default('',true) }}
+          {% endfor %}
+
+    - name: run group command
+      vars:
+        group_names: "{{ command.groups | default([],true) }}"
+        group_vars: "{{ command_groups | default({},true)
+          | dict2items
+          | selectattr('key','equalto',group_name)
+          | selectattr('value.commands','defined')
+          | rejectattr('value.commands','equalto',None)
+          | map(attribute='value.commands') }}"
+        commands: "{{ group_vars | first }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      community.network.edgeos_command:
+        commands: "{{ commands }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug group command
+      vars:
+        edgeos_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['edgeos'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in edgeos_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {%   for item in host.value.command_run.results %}
+          {{ item.stdout | default('',true) }}
+          {{ item.stderr | default('',true) }}
+          {%   endfor %}
+          {% endfor %}
