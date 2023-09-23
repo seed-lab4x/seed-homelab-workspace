@@ -1,0 +1,9 @@
+# code: language=ansible
+---
+
+- name: public-keys.set|configure authentication public-keys
+  loop: "{{ public_keys }}"
+  community.network.edgeos_config:
+    lines:
+      - set system login user {{ item.user }} authentication public-keys {{ item.name }} type {{ item.type }}
+      - set system login user {{ item.user }} authentication public-keys {{ item.name }} key {{ item.key }}
