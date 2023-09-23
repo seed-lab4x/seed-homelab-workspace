@@ -1,0 +1,16 @@
+# code: language=ansible
+---
+
+- name: seed-ssh.approve|edgeos|authorized key
+  vars:
+    parts_keypair_path:
+      - "{{ ssh.dir }}"
+      - "{{ ssh.name }}"
+      - "id_rsa.pub"
+    local_pub_path: "{{ parts_keypair_path | path_join }}"
+    public_keys:
+      - name: seed
+        user: "{{ hostvars[inventory_hostname].ansible_user | default('root',true) }}"
+        type: ssh-rsa
+        key: "{{ (lookup('file', local_pub_path) | split)[1] }}"
+  include_tasks: ../user/public-keys/ansible-tasks.set.yml
