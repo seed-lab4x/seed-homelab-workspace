@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: download get zerotier
+      environment: "{{ zerotier.script.env | default({},true) }}"
+      ansible.builtin.get_url:
+        url: "{{ zerotier.install.url | default('https://install.zerotier.com',true) }}"
+        dest: "~/get-zerotier.sh"
+      register: zerotier_get
+
+    - name: shell get zerotier
+      become: true
+      ansible.builtin.shell: "bash {{ zerotier_get.dest }}"
+      register: zerotier_sh
+      ignore_errors: true
+
+    - name: print get zerotier
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['linux'])
+          | selectattr('value.zerotier_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.zerotier_sh.stdout | default('',true) }}
+          {{ host.value.zerotier_sh.stderr | default('',true) }}
+          {% endfor %}
