@@ -1,0 +1,74 @@
+#!/usr/bin/env -S ansible-playbook --skip-tags sdkman_privilege -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ sdkman.mode | default('normal',true) }}"
+      block:
+      - name: role sdk
+        vars:
+          sdkman_user: "{{ ansible_user_id }}"
+          sdkman_group: "{{ ansible_user_id }}"
+          sdkman_auto_answer: true
+          sdkman_update: true
+          sdkman_install_packages: "{{ sdkman.packages }}"
+          sdkman_defaults: "{{ sdkman.defaults }}"
+          sdkman_flush_caches_before:
+            - temp
+          sdkman_flush_caches_after:
+            - archives
+            - broadcast
+            - candidates
+            - temp
+          sdkman_offline_mode: false
+          sdkman_update_alternatives: []
+        when:
+          - mode == 'role'
+          - sdkman.packages | default([],true) | length > 0
+        ansible.builtin.include_role:
+          name: comcast.sdkman
+
+      - when:
+          - mode == 'normal'
+          - sdkman.packages | default([],true) | length > 0
+        block:
+        - name: install sdk
+          vars:
+            packages: "{{ sdkman.packages | default([],true) }}"
+          loop: "{{ packages if(mode == 'normal') else [] }}"
+          loop_control:
+            loop_var: install
+          ansible.builtin.shell: /bin/bash -c "source ~/.sdkman/bin/sdkman-init.sh && sdk install {{ install.candidate }} {{ install.version }}"
+
+        - name: default sdk
+          vars:
+            defaults: "{{ sdkman.defaults | default({},true) | dict2items }}"
+          loop: "{{ defaults if(mode == 'normal') else [] }}"
+          loop_control:
+            loop_var: default
+          ansible.builtin.shell: /bin/bash -c "source ~/.sdkman/bin/sdkman-init.sh && sdk default {{ default.key }} {{ default.value }}"
+
+    - name: list sdk
+      ansible.builtin.shell: /bin/bash -c "source ~/.sdkman/bin/sdkman-init.sh && sdk current"
+      register: sdkman_list
+      ignore_errors: true
+
+    - name: print sdk
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['linux'])
+          | selectattr('value.sdkman_list','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.sdkman_list.stdout | default('',true) }}
+          {{ host.value.sdkman_list.stderr | default('',true) }}
+          {% endfor %}
