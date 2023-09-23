@@ -1,0 +1,59 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ nvm.mode | default('',true) }}"
+        nodejs: "{{ nvm.nodejs | default([],true) }}"
+      block:
+      - name: role nodejs
+        vars:
+          nvm_node_version: "{{ node_version }}"
+          nvm_version: "{{ nvm.version | default('0.39.3',true) }}"
+          nvm_git_repository: "{{ nvm.repository | default('https://github.com/creationix/nvm.git',true) }}"
+          nvm_install_deps: false
+        loop: "{{ nodejs if(mode == 'role') else [] }}"
+        loop_control:
+          loop_var: node_version
+        ansible.builtin.include_role:
+          name: stephdewit.nvm
+          apply:
+            environment:
+              # cant use '~/.nvm'
+              NVM_DIR: "{{ nvm.root | default(ansible_env.HOME ~ '/.nvm',true) }}"
+
+      - name: install nodejs
+        loop: "{{ nodejs if(mode == 'normal') else [] }}"
+        loop_control:
+          loop_var: node_version
+        ansible.builtin.shell: /bin/bash -c "source ~/.nvm/nvm.sh && nvm install {{ node_version }}"
+
+    - name: default nodejs
+      when: nvm.default is defined
+      ansible.builtin.shell: /bin/bash -c "source ~/.nvm/nvm.sh && nvm alias default {{ nvm.default }}"
+
+    # https://gist.github.com/komuw/b3b5d24977d4df7bd549
+    - name: list nodejs
+      ansible.builtin.shell: /bin/bash -c "source ~/.nvm/nvm.sh && nvm ls"
+      register: nodejs_list
+      ignore_errors: true
+
+    - name: print nodejs
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['linux'])
+          | selectattr('value.nodejs_list','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.nodejs_list.stdout | default('',true) }}
+          {{ host.value.nodejs_list.stderr | default('',true) }}
+          {% endfor %}
