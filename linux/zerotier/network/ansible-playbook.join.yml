@@ -1,0 +1,66 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: join
+  hosts: linux
+  tasks:
+
+  - name: join network
+    become: true
+    loop: "{{ zerotier.networks | default([],true) }}"
+    loop_control:
+      loop_var: network_id
+    ansible.builtin.shell: "zerotier-cli join {{ network_id }}"
+    register: zerotier_join
+    ignore_errors: true
+
+  - when: zerotier.token is defined
+    block:
+    - name: get client id
+      become: true
+      ansible.builtin.shell: zerotier-cli info | awk '{print $3}'
+      register: zerotier_id
+
+    - name: shell authorized zerotier
+      vars:
+        is_authorized: "{{ zerotier.token is defined and zerotier_id is succeeded }}"
+        client_id: "{{ zerotier_id.stdout }}"
+      loop: "{{ zerotier.networks if(is_authorized) else [] }}"
+      loop_control:
+        loop_var: network_id
+      ansible.builtin.shell: |
+        curl -X POST -d '{"config": {"authorized": true}}' -H "Authorization: bearer {{ zerotier.token }}" https://my.zerotier.com/api/v1/network/{{ network_id }}/member/{{ client_id }}
+      register: zerotier_authorized
+      ignore_errors: true
+
+  - name: print network
+    vars:
+      linux_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['linux'])
+        | selectattr('value.zerotier_join','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in linux_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {%   for item in host.value.zerotier_join.results %}
+        {%     if item.stdout is defined %}
+        {{ item.network_id }}: {{ item.stdout | default('',true) }}
+        {%     elif item.stderr is defined %}
+        {{ item.network_id }}: {{ item.stderr | default('',true) }}
+        {%     endif %}
+        {%   endfor %}
+        {%   if host.value.zerotier_id.stdout is defined %}
+        {{ host.value.zerotier_id.stdout }}@
+        {%     for item in host.value.zerotier_authorized.results %}
+        {%       if item.stdout is defined %}
+        {{ item.network_id }}: {{ item.stdout | default('',true) }}
+        {%       elif item.stderr is defined %}
+        {{ item.network_id }}: {{ item.stderr | default('',true) }}
+        {%       endif %}
+        {%     endfor %}
+        {%   endif %}
+        {% endfor %}
