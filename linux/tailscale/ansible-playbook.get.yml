@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: download get tailscale
+      environment: "{{ tailscale.script.env | default({},true) }}"
+      ansible.builtin.get_url:
+        url: "{{ tailscale.script.url | default('https://tailscale.com/install.sh',true) }}"
+        dest: "~/get-tailscale.sh"
+      register: tailscale_get
+
+    - name: shell get tailscale
+      become: true
+      ansible.builtin.shell: "bash {{ tailscale_get.dest }}"
+      register: tailscale_sh
+      ignore_errors: true
+
+    - name: print get tailscale
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['linux'])
+          | selectattr('value.tailscale_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.tailscale_sh.stdout | default('',true) }}
+          {{ host.value.tailscale_sh.stderr | default('',true) }}
+          {% endfor %}

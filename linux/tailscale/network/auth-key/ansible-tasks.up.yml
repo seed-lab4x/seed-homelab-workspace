@@ -1,0 +1,29 @@
+# code: language=ansible
+---
+
+- name: authkey.up|up network
+  become: true
+  vars:
+    flags: "{{ tailscale.network.flags | default('',true) }}"
+  ansible.builtin.shell: "tailscale up --authkey={{ tailscale.authkey }} {{ flags }}"
+  register: tailscale_up
+  ignore_errors: true
+
+- name: authkey.up|print network
+  vars:
+    linux_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['linux'])
+      | selectattr('value.tailscale_up','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in linux_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.tailscale_up.stdout is defined %}
+      {{ host.value.tailscale_up.stdout }}
+      {% elif host.value.tailscale_up.stderr is defined %}
+      {{ host.value.tailscale_up.stderr }}
+      {% endif %}
+      {% endfor %}
