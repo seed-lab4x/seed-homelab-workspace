@@ -1,0 +1,60 @@
+#!/usr/bin/env -S ansible-playbook --skip-tags sdkman_privilege -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ sdkman.mode | default('normal',true) }}"
+      when: sdkman is defined
+      block:
+      - name: role sdkman
+        vars:
+          sdkman_user: "{{ ansible_user_id }}"
+          sdkman_group: "{{ ansible_user_id }}"
+          sdkman_auto_answer: true
+          sdkman_update: true
+          sdkman_flush_caches_before:
+            - temp
+          sdkman_flush_caches_after:
+            - archives
+            - broadcast
+            - candidates
+            - temp
+          sdkman_offline_mode: false
+          sdkman_update_alternatives: []
+        when: mode == 'role'
+        ansible.builtin.include_role:
+          name: comcast.sdkman
+
+      - when: mode == 'normal'
+        block:
+        - name: download get sdkman
+          ansible.builtin.get_url:
+            url: "https://get.sdkman.io"
+            dest: "~/get-sdkman.sh"
+          register: sdkman_get
+
+        - name: shell get sdkman
+          # become: true
+          ansible.builtin.shell: "bash {{ sdkman_get.dest }}"
+          register: sdkman_sh
+          ignore_errors: true
+
+        - name: print get sdkman
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',groups['linux'])
+              | selectattr('value.sdkman_sh.skipped','equalto',false) }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.sdkman_sh.stdout | default('',true) }}
+              {{ host.value.sdkman_sh.stderr | default('',true) }}
+              {% endfor %}
