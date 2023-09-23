@@ -1,0 +1,35 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: download get netbird
+      ansible.builtin.get_url:
+        url: "https://pkgs.netbird.io/install.sh"
+        dest: "~/get-netbird.sh"
+      register: netbird_get
+
+    - name: shell get netbird
+      become: true
+      ansible.builtin.shell: "bash {{ netbird_get.dest }}"
+      register: netbird_sh
+      ignore_errors: true
+
+    - name: print get netbird
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['linux'])
+          | selectattr('value.netbird_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.netbird_sh.stdout | default('',true) }}
+          {{ host.value.netbird_sh.stderr | default('',true) }}
+          {% endfor %}
