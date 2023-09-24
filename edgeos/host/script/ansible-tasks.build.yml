@@ -1,0 +1,85 @@
+# code: language=ansible
+---
+
+- name: host.build|build
+  delegate_to: localhost
+  connection: local
+  vars:
+    content:
+      - configure
+      - "{{ lines }}"
+      - commit
+      - save
+  when: lines | type_debug == 'list'
+  ansible.builtin.copy:
+    content: "{{ content | flatten | join('\n') }}"
+    dest: "{{ dest }}"
+  register: host_build
+  until: host_build is succeeded
+
+- when:
+    - lines | type_debug == 'dict'
+    - lines.csv is defined
+  block:
+  - name: host.build|read csv file
+    delegate_to: localhost
+    connection: local
+    community.general.read_csv:
+      path: "{{ lines.csv }}"
+    register: csv_read
+
+  - when: lines.batch | default(-1,true) | int == -1
+    block:
+    - name: host.build|all|fact rendering template
+      vars:
+        template: "{{ lines.template | default(lines.csv + '.j2',true) }}"
+        items: "{{ csv_read.list }}"
+        rendered: "{{ lookup('template', template) }}"
+      ansible.builtin.set_fact:
+        lines_all: "{{ rendered | split('\n') | select() }}"
+
+  - vars:
+      is_batch_mode: "{{ lines.batch | default(-1,true) | int != -1 }}"
+    when: is_batch_mode
+    block:
+    - name: host.build|batch|fact rendering template
+      loop: "{{ csv_read.list if(is_batch_mode) else [] }}"
+      loop_control:
+        loop_var: item
+      vars:
+        template: "{{ lines.template | default(lines.csv + '.j2',true) }}"
+        rendered: "{{ lookup('template', template) }}"
+        append: "{{ rendered | default('',true) | split('\n') | select() }}"
+        list: "{{ lines_batch | default([],true) }}"
+      ansible.builtin.set_fact:
+        # multiple lines for each rendered put list as onc item for batch not truncated in the middle.
+        lines_batch: "{{ list + [append] }}"
+
+    - name: host.build|batch|append commit command
+      vars:
+        batch_range: "{{ range(0, (lines_batch|length), (batch_size|int)) | list }}"
+        batch_size: "{{ lines.batch }}"
+        batch_lines: "{{ lines_batch[index:(index + (batch_size|int))] | flatten }}"
+        commit:
+          - commit
+        append: "{{ batch_lines + commit }}"
+        list: "{{ lines_all | default([],true) }}"
+      loop: "{{ batch_range if(is_batch_mode) else [] }}"
+      loop_control:
+        loop_var: index
+      ansible.builtin.set_fact:
+        lines_all: "{{ list + append }}"
+
+  - name: host.build|build
+    delegate_to: localhost
+    connection: local
+    vars:
+      content:
+        - configure
+        - "{{ lines_all }}"
+        - save
+    ansible.builtin.copy:
+      content: "{{ content | flatten | join('\n') }}"
+      dest: "{{ dest }}"
+    register: host_build
+    until: host_build is succeeded
