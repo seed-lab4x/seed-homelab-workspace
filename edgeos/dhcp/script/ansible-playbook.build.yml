@@ -1,0 +1,32 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: edgeos
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../dhcp/{{ inventory_hostname }}"
+
+    - name: build dhcp
+      vars:
+        lines: "{{ dhcp.lines | default([],true) }}"
+        dest: "{{ inventory_dir }}/../dhcp/{{ inventory_hostname }}/dhcp.configure.sh"
+      include_tasks: ansible-tasks.build.yml
+
+    - name: build group dhcp
+      vars:
+        group_names: "{{ dhcp.groups | default([],true) }}"
+        group_var: "{{ dhcp_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+        dest: "{{ inventory_dir }}/../dhcp/{{ inventory_hostname }}/dhcp.{{ group_name }}.configure.sh"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.build.yml
