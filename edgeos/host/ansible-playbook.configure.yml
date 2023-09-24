@@ -1,0 +1,22 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: configure
+  hosts: edgeos
+  tasks:
+
+    - name: configure host
+      vars:
+        lines: "{{ host.lines | default([],true) }}"
+      include_tasks: ansible-tasks.configure.yml
+
+    - name: configure group host
+      vars:
+        group_names: "{{ host.groups | default([],true) }}"
+        group_var: "{{ host_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.configure.yml

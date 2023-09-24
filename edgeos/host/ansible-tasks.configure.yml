@@ -1,0 +1,64 @@
+# code: language=ansible
+---
+
+- name: host.configure|configure
+  when: lines | type_debug == 'list'
+  community.network.edgeos_config:
+    lines: "{{ lines }}"
+  register: host_configure
+  until: host_configure is succeeded
+
+- when:
+    - lines | type_debug == 'dict'
+    - lines.csv is defined
+  block:
+  - name: host.configure|read csv file
+    delegate_to: localhost
+    connection: local
+    community.general.read_csv:
+      path: "{{ lines.csv }}"
+    register: csv_read
+
+  - when: lines.batch | default(-1,true) | int == -1
+    block:
+    - name: host.configure|all|fact rendering template
+      vars:
+        template: "{{ lines.template | default(lines.csv + '.j2',true) }}"
+        items: "{{ csv_read.list }}"
+        rendered: "{{ lookup('template', template) }}"
+      ansible.builtin.set_fact:
+        lines_all: "{{ rendered | split('\n') | select() }}"
+
+    - name: host.configure|all|configure
+      community.network.edgeos_config:
+        lines: "{{ lines_all }}"
+        save: true
+
+  - vars:
+      is_batch_mode: "{{ lines.batch | default(-1,true) | int != -1 }}"
+    when: is_batch_mode
+    block:
+    - name: host.configure|batch|fact rendering template
+      loop: "{{ csv_read.list if(is_batch_mode) else [] }}"
+      loop_control:
+        loop_var: item
+      vars:
+        template: "{{ lines.template | default(lines.csv + '.j2',true) }}"
+        rendered: "{{ lookup('template', template) }}"
+        append: "{{ rendered | default('',true) | split('\n') | select() }}"
+        list: "{{ lines_batch | default([],true) }}"
+      ansible.builtin.set_fact:
+        # multiple lines for each rendered put list as onc item for batch not truncated in the middle.
+        lines_batch: "{{ list + [append] }}"
+
+    - name: host.configure|batch|configure
+      vars:
+        batch_range: "{{ range(0, (lines_batch|length), (batch_size|int)) | list }}"
+        batch_size: "{{ lines.batch }}"
+        batch_lines: "{{ lines_batch[index:(index + (batch_size|int))] | flatten }}"
+      loop: "{{ batch_range if(is_batch_mode) else [] }}"
+      loop_control:
+        loop_var: index
+      community.network.edgeos_config:
+        lines: "{{ batch_lines }}"
+        save: true
