@@ -1,0 +1,32 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: edgeos
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../dns/{{ inventory_hostname }}"
+
+    - name: build dns
+      vars:
+        lines: "{{ dns.lines | default([],true) }}"
+        dest: "{{ inventory_dir }}/../dns/{{ inventory_hostname }}/dns.configure.sh"
+      include_tasks: ansible-tasks.build.yml
+
+    - name: build group dns
+      vars:
+        group_names: "{{ dns.groups | default([],true) }}"
+        group_var: "{{ dns_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+        dest: "{{ inventory_dir }}/../dns/{{ inventory_hostname }}/dns.{{ group_name }}.configure.sh"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.build.yml
