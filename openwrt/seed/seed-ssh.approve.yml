@@ -1,0 +1,21 @@
+# code: language=ansible
+---
+
+- name: seed-ssh.approve|openwrt|role openwrt
+  vars:
+    openwrt_install_recommended_packages: false
+  ansible.builtin.include_role:
+    name: gekmihesg.openwrt
+
+- name: seed-ssh.approve|openwrt|authorized key
+  vars:
+    parts_keypair_path:
+      - "{{ ssh.dir }}"
+      - "{{ ssh.name }}"
+      - "id_rsa.pub"
+    local_pub_path: "{{ parts_keypair_path | path_join }}"
+  ansible.builtin.lineinfile:
+    path: /etc/dropbear/authorized_keys
+    line: "{{ lookup('file', local_pub_path) }}"
+    create: yes
+    mode: '0600'
