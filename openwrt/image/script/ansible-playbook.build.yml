@@ -1,0 +1,27 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: build script
+      vars:
+        builder: "{{ image.builder | default({},true) }}"
+        resizer: "{{ image.resizer | default({},true) }}"
+        converter: "{{ image.converter | default({},true) }}"
+      include_tasks: ansible-tasks.build.yml
+
+    - name: build group script
+      vars:
+        group_names: "{{ image.groups | default([],true) }}"
+        group_var: "{{ image_groups[group_name] | default({},true) }}"
+        builder: "{{ group_var.builder | default({},true) }}"
+        resizer: "{{ group_var.resizer | default({},true) }}"
+        converter: "{{ group_var.converter | default({},true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.build.yml

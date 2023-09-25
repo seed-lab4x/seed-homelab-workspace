@@ -1,0 +1,51 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: install build package
+      run_once: true
+      become: true
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.package:
+        name:
+          - build-essential
+          - libncurses5-dev
+          - libncursesw5-dev
+          - zlib1g-dev
+          - gawk
+          - git
+          - gettext
+          - libssl-dev
+          - xsltproc
+          - rsync
+          - wget
+          - unzip
+          - python3
+          # for image-builder
+          - file
+        state: present
+      register: package_install
+      until: package_install is succeeded
+
+    - name: build image
+      vars:
+        builder: "{{ image.builder | default({},true) }}"
+      when: image.builder is defined
+      include_tasks: ansible-tasks.build.yml
+
+    - name: build group image
+      vars:
+        group_names: "{{ image.groups | default([],true) }}"
+        group_var: "{{ image_groups[group_name] | default({},true) }}"
+        builder: "{{ group_var.builder | default({},true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      when: group_var.builder is defined
+      include_tasks: ansible-tasks.build.yml

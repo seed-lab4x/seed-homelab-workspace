@@ -1,0 +1,122 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: image.resize|rescue|fail tasks
+    when:
+      - resizer | default(None) != None
+      - _resizer.size is defined
+      - _resizer.files is defined
+      - _resizer.files | length > 0
+    ansible.builtin.fail:
+      msg: "resize image fail. exclude attr undefined."
+
+  block:
+  - name: image.resize|assert defined
+    ansible.builtin.assert:
+      that:
+        - resizer | default(None) != None
+      msg: "var eval fail {{ resizer }}"
+      quiet: true
+
+  - name: image.resize|fact resizer
+    vars:
+      default:
+        path: "{{ image.builder.output.dest | default(resizer.path,true) }}"
+        regex: '.*\.img\.gz$'
+        size: '512M'
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _resizer: "{{ default | combine(resizer | default({},true), recursive=True) }}"
+
+  - name: image.resize|find resizer file
+    ansible.builtin.find:
+      paths: "{{ _resizer.path }}"
+      file_type: file
+      use_regex: yes
+      patterns: "{{ _resizer.regex }}"
+    register: resizer_file_find
+
+  - name: image.resize|fact resizer files
+    vars:
+      list: "{{ _resizer.files | default([],true) }}"
+      append: "{{ resizer_file_find.files | map(attribute='path') }}"
+      attr:
+        files: "{{ list + append }}"
+    ansible.builtin.set_fact:
+      _resizer: "{{ _resizer | combine(attr | default({},true), recursive=True) }}"
+
+  - name: image.resize|fact resizer archives
+    vars:
+      files: "{{ _resizer.files | reject('search','.*\\.gz$') }}"
+      archives: "{{ _resizer.files | select('search','.*\\.gz$') }}"
+      unarchives: "{{ archives | map('regex_replace', '\\.gz', '') }}"
+      attr:
+        files: "{{ files + unarchives }}"
+        archives: "{{ archives }}"
+    ansible.builtin.set_fact:
+      _resizer: "{{ _resizer | combine(attr | default({},true), recursive=True) }}"
+
+  - name: image.resize|unarchive archives
+    loop: "{{ _resizer.archives }}"
+    ansible.builtin.shell:
+      cmd: "gzip -dkqf {{ item }} || true"
+    # not support .gz with out tar
+    # ansible.builtin.unarchive:
+    #   src: "{{ item }}"
+    #   dest: "{{ _resizer.path }}"
+    register: resizer_archive_unarchive
+
+  - name: image.resize|resize files
+    loop: "{{ _resizer.files | default([],true) }}"
+    ansible.builtin.shell:
+      cmd: "qemu-img resize -f raw {{ item }} {{ _resizer.size }}"
+    register: resizer_image_resize
+
+  - when: _resizer.output.dest is defined
+    block:
+    - name: image.resize|mkdir output
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _resizer.output.dest }}"
+
+    - name: image.resize|move output
+      loop: "{{ _resizer.files if(_resizer.output.dest is defined) else [] }}"
+      ansible.builtin.shell:
+        cmd: "mv {{ item }} {{ _resizer.output.dest }}"
+      register: resizer_output_move
+
+  always:
+  - name: image.resize|always|print resizer resize
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.resizer_image_resize','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {%   for item in host.value.resizer_image_resize.results %}
+        {{ item.item }}: {{ item.stdout | default('',true) }}{{ item.stderr | default('',true) }}
+        {%   endfor %}
+        {% endfor %}
+
+  - name: image.resize|always|print resizer output
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.resizer_output_move','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {%   for item in host.value.resizer_output_move.results %}
+        {{ item.item }}
+        {%   endfor %}
+        {% endfor %}

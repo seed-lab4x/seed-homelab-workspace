@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: resize
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: install resize package
+      run_once: true
+      become: true
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.package:
+        name:
+          - qemu-utils
+          - gzip
+        state: present
+      register: package_install
+      until: package_install is succeeded
+
+    - name: resize image
+      vars:
+        resizer: "{{ image.resizer | default({},true) }}"
+      when: image.resizer is defined
+      include_tasks: ansible-tasks.resize.yml
+
+    - name: resize group image
+      vars:
+        group_names: "{{ image.groups | default([],true) }}"
+        group_var: "{{ image_groups[group_name] | default({},true) }}"
+        resizer: "{{ group_var.resizer | default({},true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      when: group_var.resizer is defined
+      include_tasks: ansible-tasks.resize.yml
