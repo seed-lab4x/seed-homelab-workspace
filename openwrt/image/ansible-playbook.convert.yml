@@ -1,0 +1,37 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: convert
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: install convert package
+      run_once: true
+      become: true
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.package:
+        name:
+          - qemu-utils
+        state: present
+      register: package_install
+      until: package_install is succeeded
+
+    - name: convert image
+      vars:
+        converter: "{{ image.converter | default({},true) }}"
+      when: image.converter is defined
+      include_tasks: ansible-tasks.convert.yml
+
+    - name: convert group image
+      vars:
+        group_names: "{{ image.groups | default([],true) }}"
+        group_var: "{{ image_groups[group_name] | default({},true) }}"
+        converter: "{{ group_var.converter | default({},true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      when: group_var.converter is defined
+      include_tasks: ansible-tasks.convert.yml

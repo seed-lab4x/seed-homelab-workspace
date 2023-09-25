@@ -1,0 +1,122 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: image.convert|rescue|fail tasks
+    when:
+      - converter | default(None) != None
+      - _converter.type is defined
+      - _converter.files is defined
+      - _converter.files | length > 0
+    ansible.builtin.fail:
+      msg: "convert image fail. exclude attr undefined."
+
+  block:
+  - name: image.convert|assert defined
+    ansible.builtin.assert:
+      that:
+        - converter | default(None) != None
+      msg: "var eval fail {{ converter }}"
+      quiet: true
+
+  - name: image.convert|fact _converter
+    vars:
+      default:
+        path: "{{ image.builder.output.dest | default(converter.path,true) }}"
+        regex: '.*\.img\.gz$'
+        type: 'vmdk'
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _converter: "{{ default | combine(converter | default({},true), recursive=True) }}"
+
+  - name: image.convert|find converter file
+    ansible.builtin.find:
+      paths: "{{ _converter.path }}"
+      file_type: file
+      use_regex: yes
+      patterns: "{{ _converter.regex }}"
+    register: converter_file_find
+
+  - name: image.convert|fact files attr
+    vars:
+      list: "{{ _converter.files | default([],true) }}"
+      append: "{{ converter_file_find.files | map(attribute='path') }}"
+      attr:
+        files: "{{ list + append }}"
+    ansible.builtin.set_fact:
+      _converter: "{{ _converter | combine(attr | default({},true), recursive=True) }}"
+
+  - name: image.convert|fact unarchive attr
+    vars:
+      files: "{{ _converter.files | reject('search','.*\\.gz$') }}"
+      archives: "{{ _converter.files | select('search','.*\\.gz$') }}"
+      unarchives: "{{ archives | map('regex_replace', '\\.gz', '') }}"
+      attr:
+        files: "{{ files + unarchives }}"
+        archives: "{{ archives }}"
+    ansible.builtin.set_fact:
+      _converter: "{{ _converter | combine(attr | default({},true), recursive=True) }}"
+
+  - name: image.convert|unarchive archives
+    loop: "{{ _converter.archives }}"
+    ansible.builtin.shell:
+      cmd: "gzip -dkqf {{ item }} || true"
+    # not support .gz with out tar
+    # ansible.builtin.unarchive:
+    #   src: "{{ item }}"
+    #   dest: "{{ _converter.path }}"
+    register: converter_archive_unarchive
+
+  - name: image.convert|convert files
+    loop: "{{ _converter.files | default([],true) }}"
+    ansible.builtin.shell:
+      cmd: "qemu-img convert -f raw -O {{ _converter.type }} {{ item }} {{ item | regex_replace('.img$','.' ~ _converter.type) }} && echo {{ item | regex_replace('.img$','.' ~ _converter.type) }}"
+    register: converter_image_convert
+
+  - when: _converter.output.dest is defined
+    block:
+    - name: image.resize|mkdir output
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _converter.output.dest }}"
+
+    - name: image.resize|move output
+      loop: "{{ converter_image_convert.results if(_converter.output.dest is defined) else [] }}"
+      ansible.builtin.shell:
+        cmd: "mv {{ item.stdout }} {{ _converter.output.dest }}"
+      register: converter_output_move
+
+  always:
+  - name: image.resize|always|print converter convert
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.converter_image_convert','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {%   for item in host.value.converter_image_convert.results %}
+        {{ item.item }}: {{ item.stdout | default('',true) }}{{ item.stderr | default('',true) }}
+        {%   endfor %}
+        {% endfor %}
+
+  - name: image.resize|always|print converter output
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.converter_output_move','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {%   for item in host.value.converter_output_move.results %}
+        {{ item.item }}
+        {%   endfor %}
+        {% endfor %}

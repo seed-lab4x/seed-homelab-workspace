@@ -1,0 +1,19 @@
+BUILDER_RELEASE={{ builder.release }}
+BUILDER_TARGET={{ builder.target }}
+BUILDER_URL={{ builder.url }}
+BUILDER_PATH={{ builder.path }}
+
+{% if builder.config is defined %}
+{%   for key in builder.config.keys() %}
+BUILDER_CONFIG_{{ key }}={{ builder.config[key] }}
+{%   endfor %}
+{% endif %}
+
+{% for key in builder.option.keys() %}
+BUILDER_OPTION_{{ key }}="{{ builder.option[key] | replace('\n',' ') | replace(' ','\n ') }}"
+{% endfor %}
+
+{% if builder.output.path is defined and builder.output.dest is defined %}
+BUILDER_OUTPUT_PATH={{ builder.output.path }}
+BUILDER_OUTPUT_DEST={{ builder.output.dest }}
+{% endif %}

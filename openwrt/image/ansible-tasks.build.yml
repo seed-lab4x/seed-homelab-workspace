@@ -1,0 +1,231 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: image.build|rescue|fail tasks
+    when:
+      - builder | default(None) != None
+      - _builder.release is defined
+      - _builder.target is defined
+      - _builder.option is defined
+    ansible.builtin.fail:
+      msg: "build image fail. exclude attr undefined."
+
+  block:
+  - name: image.build|assert defined
+    ansible.builtin.assert:
+      that:
+        - builder | default(None) != None
+        - builder.release is defined
+        - builder.target is defined
+        - builder.option is defined
+      msg: "var eval fail {{ builder }}"
+      quiet: true
+
+  - name: image.build|fact builder by snapshots
+    when: builder.release == 'snapshots'
+    vars:
+      dl_name: "openwrt-imagebuilder-{{ builder.target }}.Linux-x86_64"
+      dl_file: "{{ dl_name }}.tar.xz"
+      dl_path: "snapshots/targets/{{ builder.target | regex_replace('-', '/') }}"
+      default:
+        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
+        file: "~/.openwrt/{{ dl_file }}"
+        name: "{{ dl_name }}"
+        path: "{{ inventory_dir }}/../image/{{ inventory_hostname }}"
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+
+  - name: image.build|fact builder by release
+    when: builder.release != 'snapshots'
+    vars:
+      dl_name: "openwrt-imagebuilder-{{ builder.release }}-{{ builder.target }}.Linux-x86_64"
+      dl_file: "{{ dl_name }}.tar.xz"
+      dl_path: "releases/{{ builder.release }}/targets/{{ builder.target | regex_replace('-', '/') }}"
+      default:
+        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
+        file: "~/.openwrt/{{ dl_file }}"
+        name: "{{ dl_name }}"
+        path: "{{ inventory_dir }}/../image/{{ inventory_hostname }}"
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+
+  - name: image.build|stat builder dir
+    ansible.builtin.stat:
+      path: "{{ _builder.path }}/{{ _builder.name }}"
+    register: builder_dir_stat
+
+  - when: not builder_dir_stat.stat.exists
+    block:
+    - name: image.build|stat builder file
+      ansible.builtin.stat:
+        path: "{{ _builder.file }}"
+      register: builder_file_stat
+
+    - name: image.build|mkdir builder file
+      when: not builder_file_stat.stat.exists
+      run_once: true
+      ansible.builtin.file:
+        path: "~/.openwrt"
+        state: directory
+
+    - name: image.build|download builder file
+      when: not builder_file_stat.stat.exists
+      ansible.builtin.get_url:
+        url: "{{ _builder.url }}"
+        dest: "{{ _builder.file }}"
+
+    - name: image.build|mkdir builder path
+      ansible.builtin.file:
+        path: "{{ _builder.path }}"
+        state: directory
+
+    - name: image.build|unarchive builder file
+      ansible.builtin.unarchive:
+        src: "{{ _builder.file }}"
+        dest: "{{ _builder.path }}"
+
+    - name: image.build|stat builder unarchive
+      ansible.builtin.stat:
+        path: "{{ _builder.path }}/{{ _builder.name }}"
+      register: builder_unarchive_stat
+
+  - name: image.build|fact builder dir
+    vars:
+      dir_attr:
+        dir: "{{ builder_dir_stat.stat.path | default(builder_unarchive_stat.stat.path,true) }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ _builder | combine(dir_attr, recursive=True) }}"
+
+  - name: image.build|make builder info
+    ansible.builtin.shell:
+      cmd: make info
+      chdir: "{{ _builder.dir }}"
+    register: builder_info_make
+
+  - name: image.build|print builder info
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.builder_info_make','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.builder_info_make.stdout | default('',true) }}
+        {{ host.value.builder_info_make.stderr | default('',true) }}
+        {% endfor %}
+
+  - name: image.build|stat original .config
+    ansible.builtin.stat:
+      path: "{{ _builder.dir }}/.config.original"
+    register: builder_config_original_stat
+
+  - name: image.build|backup original .config
+    when: not builder_config_original_stat.stat.exists
+    ansible.builtin.copy:
+      src: "{{ _builder.dir }}/.config"
+      dest: "{{ _builder.dir }}/.config.original"
+
+  - when: _builder.config is defined
+    block:
+    - name: image.build|restore original .config
+      when: builder_config_original_stat.stat.exists
+      ansible.builtin.copy:
+        src: "{{ _builder.dir }}/.config.original"
+        dest: "{{ _builder.dir }}/.config"
+
+    - name: image.build|mark builder .config
+      ansible.builtin.lineinfile:
+        path: "{{ _builder.dir }}/.config"
+        insertafter: EOF
+        line: "# auto generated by seed"
+        create: true
+
+    - name: image.build|comment builder .config
+      loop: "{{ _builder.config | dict2items }}"
+      ansible.builtin.replace:
+        path: "{{ _builder.dir }}/.config"
+        regexp: '(^ *{{ item.key }})'
+        replace: '# \1'
+
+    - name: image.build|append builder .config
+      loop: "{{ _builder.config | dict2items }}"
+      ansible.builtin.lineinfile:
+        path: "{{ _builder.dir }}/.config"
+        insertafter: EOF
+        line: "{{ item.key }}={{ item.value }}"
+
+  - name: image.build|fact builder command
+    vars:
+      option: "{{ item.key }}='{{ item.value | replace('\n',' ') }}'"
+      command_attr:
+        command: "{{ _builder.command | default('make image',true) }} {{ option }}"
+    loop: "{{ _builder.option | dict2items }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ _builder | combine(command_attr, recursive=True) }}"
+
+  - name: image.build|make image
+    ansible.builtin.shell:
+      # cmd: "{{ _builder.command }} > {{ _builder.dir }}/log-{{ _builder.id }}.image.log"
+      cmd: "{{ _builder.command }}"
+      chdir: "{{ _builder.dir }}"
+    register: builder_image_make
+
+  - when: _builder.output.dest is defined
+    block:
+    # - name: image.build|mkdir output
+    #   ansible.builtin.file:
+    #     state: directory
+    #     path: "{{ _builder.output.dest }}"
+
+    - name: image.build|copy output
+      when:
+        - _builder.output.path is defined
+      ansible.builtin.copy:
+        src: "{{ _builder.dir }}/{{ _builder.output.path }}"
+        dest: "{{ _builder.output.dest }}"
+      register: builder_output_copy
+
+    - name: image.build|remove output
+      when: builder_output_copy.src is defined
+      ansible.builtin.file:
+        state: absent
+        path: "{{ builder_output_copy.src }}"
+
+  always:
+  - name: image.build|always|print make image
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.builder_image_make','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.builder_image_make.stdout | default('',true) }}
+        {{ host.value.builder_image_make.stderr | default('',true) }}
+        {% endfor %}
+
+  - name: image.build|always|print copy output
+    vars:
+      openwrt_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['openwrt'])
+        | selectattr('value.builder_output_copy','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in openwrt_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.builder_output_copy.dest | default('',true) }}
+        {% endfor %}

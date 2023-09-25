@@ -1,0 +1,116 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: script.build|builder|rescue|fail tasks
+    when:
+      - builder | default(None) != None
+      - _builder.release is defined
+      - _builder.target is defined
+      - _builder.option is defined
+    ansible.builtin.fail:
+      msg: "build 'build' script fail. exclude attr undefined."
+
+  block:
+  - name: script.build|builder|assert defined
+    ansible.builtin.assert:
+      that:
+        - builder | default(None) != None
+        - builder.release is defined
+        - builder.target is defined
+        - builder.option is defined
+      msg: "var eval fail {{ builder }}"
+      quiet: true
+
+  - name: script.build|builder|fact _builder by snapshots
+    when: builder.release == 'snapshots'
+    vars:
+      dl_name: "openwrt-imagebuilder-{{ builder.target }}.Linux-x86_64"
+      dl_file: "{{ dl_name }}.tar.xz"
+      dl_path: "snapshots/targets/{{ builder.target | regex_replace('-', '/') }}"
+      default:
+        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
+        file: "~/.openwrt/{{ dl_file }}"
+        name: "{{ dl_name }}"
+        dir: "{{ inventory_dir }}/../image/{{ inventory_hostname }}"
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+
+  - name: script.build|builder|fact _builder by release
+    when: builder.release != 'snapshots'
+    vars:
+      dl_name: "openwrt-imagebuilder-{{ builder.release }}-{{ builder.target }}.Linux-x86_64"
+      dl_file: "{{ dl_name }}.tar.xz"
+      dl_path: "releases/{{ builder.release }}/targets/{{ builder.target | regex_replace('-', '/') }}"
+      default:
+        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
+        file: "~/.openwrt/{{ dl_file }}"
+        name: "{{ dl_name }}"
+        path: "{{ inventory_dir }}/../image/{{ inventory_hostname }}"
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+
+  - name: script.build|builder|mkdir output
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _builder.output.dest }}"
+
+  - name: script.build|builder|template config file
+    vars:
+      builder: "{{ _builder }}"
+      dest_default: "{{ _builder.path }}/{{ _builder.release }}/script/image.build.config"
+      dest_output: "{{ [_builder.output.dest,'image.build.config'] | path_join }}"
+    ansible.builtin.template:
+      src: "{{ playbook_dir }}/image.build.config.j2"
+      dest: "{{ dest_output if(_builder.output.dest is defined) else dest_default }}"
+
+  - name: script.build|builder|template sh file
+    vars:
+      builder: "{{ _builder }}"
+      dest_default: "{{ _builder.path }}/{{ _builder.release }}/script/image.build.sh"
+      dest_output: "{{ [_builder.output.dest,'image.build.sh'] | path_join }}"
+    ansible.builtin.template:
+      src: "{{ playbook_dir }}/image.build.sh.j2"
+      dest: "{{ dest_output if(_builder.output.dest is defined) else dest_default }}"
+
+# TODO resizer script
+
+# - rescue:
+#   - name: script.build|resizer|rescue|fail tasks
+#     when:
+#       - resizer | default(None) != None
+#       - _resizer.size is defined
+#       - _resizer.files is defined
+#       - _resizer.files | length > 0
+#     ansible.builtin.fail:
+#       msg: "build 'resize' script fail. exclude attr undefined."
+
+#   block:
+#   - name: script.build|resizer|assert defined
+#     ansible.builtin.assert:
+#       that:
+#         - resizer | default(None) != None
+#       msg: "var eval fail {{ resizer }}"
+#       quiet: true
+
+# TODO converter script
+
+# - rescue:
+#   - name: script.build|converter|rescue|fail tasks
+#     when:
+#       - converter | default(None) != None
+#       - _converter.type is defined
+#       - _converter.files is defined
+#       - _converter.files | length > 0
+#     ansible.builtin.fail:
+#       msg: "build 'convert' script fail. exclude attr undefined."
+
+#   block:
+#   - name: script.build|converter|assert defined
+#     ansible.builtin.assert:
+#       that:
+#         - converter | default(None) != None
+#       msg: "var eval fail {{ converter }}"
+#       quiet: true
