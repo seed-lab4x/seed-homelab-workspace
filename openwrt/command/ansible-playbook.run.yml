@@ -1,0 +1,73 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: openwrt
+  tasks:
+
+    - name: run command
+      vars:
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      loop: "{{ command.commands | default([],true) }}"
+      ansible.builtin.command:
+      args: "{{ args }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug command
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['openwrt'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {%   for item in host.value.command_run.results %}
+          {{ item.stdout | default('',true) }}
+          {{ item.stderr | default('',true) }}
+          {%   endfor %}
+          {% endfor %}
+
+    - name: run group command
+      vars:
+        group_names: "{{ command.groups | default([],true) }}"
+        group_vars: "{{ command_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.commands','defined')
+          | rejectattr('value.commands','equalto',None)
+          | map(attribute='value.commands')
+          | flatten }}"
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      loop: "{{ group_vars }}"
+      ansible.builtin.command:
+      args: "{{ args }}"
+      register: command_run
+      until: command_run is succeeded
+
+    - name: debug group command
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['openwrt'])
+          | selectattr('value.command_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {%   for item in host.value.command_run.results %}
+          {{ item.stdout | default('',true) }}
+          {{ item.stderr | default('',true) }}
+          {%   endfor %}
+          {% endfor %}
