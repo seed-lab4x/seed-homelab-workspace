@@ -1,0 +1,65 @@
+# code: language=ansible
+---
+
+- name: seed-python.init|openwrt|fact _python
+  vars:
+    python_optional:
+      opkg:
+        - sudo
+        - python3
+        - python3-pip
+      pip:
+        - jsondiff==2.0.0
+        - jmespath==1.0.1
+        # bug for https://github.com/yaml/pyyaml/issues/724
+        - PyYAML==5.3.1
+        - lxml==4.9.2
+        # bug for https://github.com/docker/docker-py/issues/3113
+        - requests==2.28.1
+    python_param: "{{ python_optional | combine(python | default({},true), recursive=True) }}"
+  ansible.builtin.set_fact:
+    _python: "{{ python_param }}"
+
+- name: seed-python.init|openwrt|role openwrt
+  vars:
+    openwrt_install_recommended_packages: false
+  ansible.builtin.include_role:
+    name: gekmihesg.openwrt
+
+- name: seed-python.init|openwrt|replace opkg distfeeds
+  when: _python.opkg_host is defined
+  ansible.builtin.shell: "sed -i.bak 's|//downloads.openwrt.org|//{{ _python.opkg_host }}/openwrt|g' /etc/opkg/distfeeds.conf"
+  register: opkg_distfeeds_replace
+  until: opkg_distfeeds_replace is succeeded
+
+- name: seed-python.init|openwrt|install opkg package
+  loop: "{{ _python.opkg }}"
+  opkg:
+    update_cache: true
+    name: "{{ item }}"
+  ignore_errors: yes
+  register: opkg_package_install
+  until: opkg_package_install is succeeded
+
+- name: seed-python.init|openwrt|set pip index
+  when: _python.pip_index is defined
+  ansible.builtin.shell: pip3 config set global.index-url {{ _python.pip_index }}
+  register: pip_index_set
+  until: pip_index_set is succeeded
+
+- name: seed-python.init|openwrt|update pip itself
+  ansible.builtin.shell: python -m pip install -U pip
+  register: pip_itself_update
+  until: pip_itself_update is succeeded
+
+- name: seed-python.init|openwrt|install pip package
+  loop: "{{ _python.pip }}"
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: present
+  register: pip_package_install
+  until: pip_package_install is succeeded
+
+- name: seed-python.init|openwrt|unfact _python
+  ansible.builtin.set_fact:
+    _python: !!null
