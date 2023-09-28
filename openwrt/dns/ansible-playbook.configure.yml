@@ -1,0 +1,22 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: configure
+  hosts: openwrt
+  tasks:
+
+    - name: configure dns
+      vars:
+        lines: "{{ dns.lines | default([],true) }}"
+      include_tasks: ansible-tasks.configure.yml
+
+    - name: configure group dns
+      vars:
+        group_names: "{{ dns.groups | default([],true) }}"
+        group_var: "{{ dns_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.configure.yml
