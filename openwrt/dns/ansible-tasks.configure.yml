@@ -1,0 +1,40 @@
+# code: language=ansible
+---
+
+- name: dns.configure|configure
+  when:
+    - lines | type_debug == 'list'
+    - lines | length > 0
+  ansible.builtin.shell:
+    cmd: "{{ lines | join('; ') }}; "
+  register: dns_configure
+  until: dns_configure is succeeded
+
+- when:
+    - lines | type_debug == 'dict'
+    - lines.csv is defined
+  block:
+  - name: dns.configure|read csv file
+    delegate_to: localhost
+    connection: local
+    community.general.read_csv:
+      path: "{{ lines.csv }}"
+    register: csv_read
+
+  - name: dns.configure|fact rendering template
+    vars:
+      template: "{{ lines.template | default(lines.csv + '.j2',true) }}"
+      items: "{{ csv_read.list }}"
+      item: "{{ items[1] }}"
+      rendered: "{{ lookup('template', template) }}"
+    ansible.builtin.set_fact:
+      lines_all: "{{ rendered | split('\n') | select() }}"
+
+  - name: dns.configure|configure
+    when:
+      - lines_all | type_debug == 'list'
+      - lines_all | length > 0
+    ansible.builtin.shell:
+      cmd: "{{ lines_all | join('; ') }}; "
+    register: dns_configure
+    until: dns_configure is succeeded
