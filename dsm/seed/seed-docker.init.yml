@@ -1,0 +1,102 @@
+# code: language=ansible
+---
+
+- name: seed-docker.init|dsm|init _docker
+  vars:
+    docker_optional:
+      pip:
+        - jsondiff==2.0.0
+        - jmespath==1.0.1
+        # bug for https://github.com/yaml/pyyaml/issues/724
+        - PyYAML==5.3.1
+        - lxml==4.9.2
+        # bug for https://github.com/docker/docker-py/issues/3113
+        - requests==2.28.1
+        - docker==6.0.1
+        - docker-compose==1.29.2
+    docker_param: "{{ docker_optional | combine(docker | default({},true), recursive=True) }}"
+  ansible.builtin.set_fact:
+    _docker: "{{ docker_param }}"
+
+- name: seed-docker.init|dsm|ensurepip pip
+  become: true
+  ansible.builtin.shell: python3 -m ensurepip
+  register: pip_install
+  until: pip_install is succeeded
+
+- name: seed-docker.init|dsm|config pip index
+  when: _docker.pip_index is defined
+  ansible.builtin.shell: python3 -m pip config set global.index-url {{ _docker.pip_index }}
+
+- vars:
+    pip_mode: "{{ _docker.pip_mode | default('shell',true) }}"
+  block:
+  - name: seed-docker.init|dsm|shell|install pip package
+    loop: "{{ _docker.pip if(pip_mode == 'shell') else [] }}"
+    ansible.builtin.shell: "python3 -m pip install {{ item }}"
+    register: pip_package_install
+    until: pip_package_install is succeeded
+
+  - name: seed-docker.init|dsm|ansible|install pip package
+    loop: "{{ _docker.pip if(pip_mode == 'ansible') else [] }}"
+    ansible.builtin.pip:
+      name: "{{ item }}"
+      state: latest
+    register: pip_package_install
+    until: pip_package_install is succeeded
+
+- name: seed-docker.init|dsm|gather fact
+  ansible.builtin.setup:
+
+- name: seed-docker.init|dsm|check docker command
+  ansible.builtin.shell: "command -v docker"
+  register: docker_command_check
+  ignore_errors: true
+
+- when: docker_command_check.stdout | default(None,true) == None
+  block:
+  - name: seed-docker.init|dsm|get dsm version
+    ansible.builtin.shell: source /etc/VERSION && echo $majorversion
+    register: dsm_version_get
+    ignore_errors: true
+
+  - name: seed-docker.init|dsm|install docker spk from server
+    become: true
+    vars:
+      package: "{{ 'ContainerManager' if(dsm_version_get.stdout | int >= 7) else 'Docker' }}"
+    environment:
+      PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+    ansible.builtin.shell: "synopkg install_from_server {{ package }}"
+    ignore_errors: true
+
+- name: seed-docker.init|dsm|stat docker sock
+  become: true
+  ansible.builtin.stat:
+    path: /var/run/docker.sock
+  register: docker_sock_stat
+  ignore_errors: true
+
+- when: docker_sock_stat.stat.gr_name != 'docker'
+  block:
+  - name: seed-docker.init|dsm|add docker group
+    become: true
+    environment:
+      PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+    ansible.builtin.shell: "synogroup --add docker"
+    ignore_errors: true
+
+  - name: seed-docker.init|dsm|add user to docker group
+    become: true
+    environment:
+      PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+    ansible.builtin.shell: "synogroup --member docker {{ ansible_user_id }}"
+
+  - name: seed-docker.init|dsm|chown docker api
+    become: true
+    environment:
+      PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+    ansible.builtin.shell: "chown root:docker /var/run/docker.sock"
+
+- name: seed-docker.init|dsm|unfact _docker
+  ansible.builtin.set_fact:
+    _docker: !!null
