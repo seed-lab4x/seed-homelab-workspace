@@ -1,0 +1,28 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: shared
+  hosts: dsm
+  tasks:
+
+    - name: create sysvinit script
+      become: true
+      ansible.builtin.copy:
+        content: |
+          #!/bin/sh -e
+        dest: /usr/local/etc/rc.d/shared-mount.sh
+        owner: root
+        mode: 0755
+
+    - name: append sysvinit script
+      become: true
+      loop: "{{ mount.shared }}"
+      ansible.builtin.lineinfile:
+        path: /usr/local/etc/rc.d/shared-mount.sh
+        line: sudo mount --make-shared {{ item }}
+
+    - name: run sysvinit script
+      become: true
+      ansible.builtin.shell:
+        cmd: bash -c /usr/local/etc/rc.d/shared-mount.sh

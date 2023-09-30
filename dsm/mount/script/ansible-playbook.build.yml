@@ -1,0 +1,24 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: dsm
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../mount/{{ inventory_hostname }}"
+
+    - name: template mount script
+      delegate_to: localhost
+      connection: local
+      vars:
+        shareds: "{{ mount.shared | default([],true) }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/mount.shared.sh.j2"
+        dest: "{{ inventory_dir }}/../mount/{{ inventory_hostname }}/mount.shared.sh"
