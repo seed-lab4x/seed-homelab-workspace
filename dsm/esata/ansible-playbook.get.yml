@@ -1,0 +1,30 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: shared
+  hosts: dsm
+  tasks:
+
+    - name: get esata
+      vars:
+        register: esata
+      include_tasks: ansible-tasks.get.yml
+
+    - name: print esata
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.esata','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          ---------------------------------------------------------------------------
+          | count/max | location         | value(bin)       | value(hex) | name     |
+          | --------- | ---------------- | ---------------- | ---------- | -------- |
+          | {{ host.value.esata.internal.count }}/{{ host.value.esata.max }}       | {{ host.value.esata.internal.location }} | {{ host.value.esata.internal.bin }} | {{ host.value.esata.internal.hex }}       | internal |
+          | {{ host.value.esata.esata.count }}         | {{ host.value.esata.esata.location }} | {{ host.value.esata.esata.bin }} | {{ host.value.esata.esata.hex }}       | esata    |
+          {% endfor %}

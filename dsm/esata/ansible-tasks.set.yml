@@ -1,0 +1,79 @@
+# code: language=ansible
+---
+
+- name: esata.set|fact param
+  ansible.builtin.set_fact:
+    _portcfg: "{{ portcfg }}"
+
+- name: esata.set|fact bin attr
+  vars:
+    attr:
+      internal:
+        bin: "{{ _portcfg.internal.location | replace('+','1') | replace('_','0') }}"
+      esata:
+        bin: "{{ _portcfg.esata.location | replace('+','1') | replace('_','0') }}"
+  when:
+    - _portcfg.internal.location is defined
+    - _portcfg.esata.location is defined
+  ansible.builtin.set_fact:
+    _portcfg: "{{ _portcfg | combine(attr | default({},true), recursive=True) }}"
+
+- name: esata.set|fact hex attr
+  vars:
+    attr:
+      internal:
+        hex: "{{ '{:#04x}'.format(_portcfg.internal.bin | int(base=2)) }}"
+      esata:
+        hex: "{{ '{:#04x}'.format(_portcfg.esata.bin | int(base=2)) }}"
+  when:
+    - _portcfg.internal.bin is defined
+    - _portcfg.esata.bin is defined
+  ansible.builtin.set_fact:
+    _portcfg: "{{ _portcfg | combine(attr | default({},true), recursive=True) }}"
+
+- name: esata.set|fact count attr
+  vars:
+    attr:
+      max: "{{ '{0:016b}'.format(_portcfg.internal.hex | int(base=16)) | regex_findall('1') | length }}"
+      internal:
+        count: "{{ '{0:016b}'.format(_portcfg.internal.hex | int(base=16)) | regex_findall('1') | length }}"
+      esata:
+        count: "{{ '{0:016b}'.format(_portcfg.esata.hex | int(base=16)) | regex_findall('1') | length }}"
+  ansible.builtin.set_fact:
+    _portcfg: "{{ _portcfg | combine(attr | default({},true), recursive=True) }}"
+
+- name: esata.set|assert attr
+  ansible.builtin.assert:
+    that:
+      - _portcfg.max is defined
+      - _portcfg.internal.hex is defined
+      - _portcfg.esata.hex is defined
+    msg: "missing attr in portcfg"
+    quiet: true
+
+- name: esata.set|replace portcfg esata
+  become: true
+  ansible.builtin.replace:
+    path: /etc.defaults/synoinfo.conf
+    regexp: 'esataportcfg.*'
+    replace: 'esataportcfg="{{ _portcfg.esata.hex }}"'
+    backup: yes
+  register: portcfg_esata_set
+
+- name: esata.set|replace portcfg internal
+  become: true
+  ansible.builtin.replace:
+    path: /etc.defaults/synoinfo.conf
+    regexp: 'internalportcfg.*'
+    replace: 'internalportcfg="{{ _portcfg.internal.hex }}"'
+    backup: yes
+  register: portcfg_internal_set
+
+- name: esata.set|replace maxdisks
+  become: true
+  ansible.builtin.replace:
+    path: /etc.defaults/synoinfo.conf
+    regexp: 'maxdisks.*'
+    replace: 'maxdisks="{{ _portcfg.max }}"'
+    backup: yes
+  register: maxdisks_set
