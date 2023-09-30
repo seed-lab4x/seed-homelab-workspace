@@ -1,0 +1,51 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: shared
+  hosts: dsm
+  tasks:
+
+    - name: get esata before
+      vars:
+        register: before
+      include_tasks: ansible-tasks.get.yml
+
+    - name: set esata
+      vars:
+        portcfg: "{{ esata.portcfg }}"
+      include_tasks: ansible-tasks.set.yml
+
+    - name: get esata after
+      vars:
+        register: after
+      include_tasks: ansible-tasks.get.yml
+
+    - name: print disk
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.before','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          ---------------------------------------------------------------------------
+          before:
+          | count/max | location         | value(bin)       | value(hex) | name     |
+          | --------- | ---------------- | ---------------- | ---------- | -------- |
+          | {{ host.value.before.internal.count }}/{{ host.value.before.max }}       | {{ host.value.before.internal.location }} | {{ host.value.before.internal.bin }} | {{ host.value.before.internal.hex }}       | internal |
+          | {{ host.value.before.esata.count }}         | {{ host.value.before.esata.location }} | {{ host.value.before.esata.bin }} | {{ host.value.before.esata.hex }}       | esata    |
+          after:
+          | count/max | location         | value(bin)       | value(hex) | name     |
+          | --------- | ---------------- | ---------------- | ---------- | -------- |
+          | {{ host.value.after.internal.count }}/{{ host.value.after.max }}       | {{ host.value.after.internal.location }} | {{ host.value.after.internal.bin }} | {{ host.value.after.internal.hex }}       | internal |
+          | {{ host.value.after.esata.count }}         | {{ host.value.after.esata.location }} | {{ host.value.after.esata.bin }} | {{ host.value.after.esata.hex }}       | esata    |
+          {% endfor %}
+
+          !!!!!
+          This is a dangerous operation, check the log output to make sure the settings are correct.
+          Then reboot system
+          !!!!!

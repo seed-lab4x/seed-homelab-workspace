@@ -1,0 +1,39 @@
+# code: language=ansible
+---
+
+- name: esata.get|get maxdisks
+  ansible.builtin.shell: get_key_value /etc.defaults/synoinfo.conf maxdisks || true
+  register: maxdisks_get
+
+- name: esata.get|get portcfg internal
+  ansible.builtin.shell: get_key_value /etc.defaults/synoinfo.conf internalportcfg || true
+  register: portcfg_internal_get
+
+- name: esata.get|get portcfg esata
+  ansible.builtin.shell: get_key_value /etc.defaults/synoinfo.conf esataportcfg || true
+  register: portcfg_esata_get
+
+- name: esata.get|fact cfg
+  ansible.builtin.set_fact:
+    _portcfg:
+      max: "{{ maxdisks_get.stdout }}"
+      internal:
+        hex: "{{ portcfg_internal_get.stdout }}"
+        bin: "{{ '{0:016b}'.format(portcfg_internal_get.stdout | int(base=16)) }}"
+      esata:
+        hex: "{{ portcfg_esata_get.stdout }}"
+        bin: "{{ '{0:016b}'.format(portcfg_esata_get.stdout | int(base=16)) }}"
+
+- name: esata.get|fact register
+  vars:
+    attr:
+      internal:
+        count: "{{ _portcfg.internal.bin | regex_findall('1') | length }}"
+        location: "{{ _portcfg.internal.bin | replace('1','+') | replace('0','_') }}"
+      esata:
+        count: "{{ _portcfg.esata.bin | regex_findall('1') | length }}"
+        location: "{{ _portcfg.esata.bin | replace('1','+') | replace('0','_') }}"
+  when: register is defined
+  ansible.builtin.set_fact:
+    "{{ register }}": "{{ _portcfg | combine(attr | default({},true), recursive=True) }}"
+    _portcfg: !!null
