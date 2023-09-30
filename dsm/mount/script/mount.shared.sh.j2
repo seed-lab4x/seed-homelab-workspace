@@ -1,0 +1,6 @@
+#!/bin/sh -e
+{% if shareds is defined and shareds | type_debug == 'list' %}
+{%    for item in shareds %}
+sudo mount --make-shared {{ item }}
+{%    endfor %}
+{% endif %}
