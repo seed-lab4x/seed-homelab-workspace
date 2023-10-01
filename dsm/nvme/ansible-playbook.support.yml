@@ -1,0 +1,151 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: support
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+  tasks:
+
+    - name: slurp dsm hw version
+      ansible.builtin.slurp:
+        src: /proc/sys/kernel/syno_hw_version
+      register: dsm_hw_version_slurp
+
+    - name: get dsm major version
+      ansible.builtin.shell: get_key_value /etc/VERSION majorversion || true
+      register: dsm_major_version_get
+      failed_when: dsm_major_version_get.stdout != '7'
+
+    - block:
+      # same as 'sudo nvme id-ctrl /dev/nvme0n1'
+      - name: slurp nvme model
+        vars:
+          name: "{{ item | replace('/dev/','') }}"
+        loop: "{{ nvme.pool.part }}"
+        ansible.builtin.slurp:
+          src: "/sys/block/{{ name }}/device/model"
+        register: nvme_model_slurp
+
+      - name: slurp nvme firmware
+        vars:
+          name: "{{ item | replace('/dev/','') }}"
+        loop: "{{ nvme.pool.part }}"
+        ansible.builtin.slurp:
+          src: "/sys/block/{{ name }}/device/firmware_rev"
+        register: nvme_firmware_slurp
+
+      - name: fact nvme info
+        vars:
+          dict_model: "{{ nvme_model_slurp.results | community.general.json_query('[].{key:item,value:{model:content}}') | items2dict }}"
+          dict_firmware: "{{ nvme_firmware_slurp.results | community.general.json_query('[].{key:item,value:{firmware:content}}') | items2dict }}"
+          dict_info: "{{ dict_model | combine(dict_firmware | default({},true), recursive=True) }}"
+          list: "{{ _nvme_info | default([],true) }}"
+          append:
+            dev: "{{ item.key }}"
+            model: "{{ item.value.model | b64decode | replace('\n$','') | trim }}"
+            firmware: "{{ item.value.firmware | b64decode | replace('\n$','') | trim }}"
+        loop: "{{ dict_info | dict2items }}"
+        ansible.builtin.set_fact:
+          _nvme_info: "{{ list + [append] }}"
+
+    - vars:
+        db_file: "/var/lib/disk-compatibility/{{ dsm_hw_version_slurp.content | b64decode | replace('\n','') | trim | lower }}_host_v{{ dsm_major_version_get.stdout }}.db"
+      block:
+      - name: stat current db
+        ansible.builtin.stat:
+          path: "{{ db_file }}"
+        register: db_current_stat
+        failed_when: not db_current_stat.stat.exists
+
+      - name: slurp current db
+        ansible.builtin.slurp:
+          src: "{{ db_file }}"
+        register: db_current_read
+
+      - name: fact current var
+        vars:
+          current: "{{ db_current_read.content | b64decode | from_json }}"
+        ansible.builtin.set_fact:
+          _db_file:
+            file: "{{ db_current_read.source }}"
+            current: "{{ current }}"
+
+      - name: fact change attr
+        vars:
+          attr_current:
+            disk_compatbility_info: |
+              {
+                "{{ item.model }}": {
+                  "{{ item.firmware }}": {
+                      "compatibility_interval": [
+                          {
+                              "barebone_installable": true,
+                              "compatibility": "support",
+                              "fw_dsm_update_status_notify": false,
+                              "not_yet_rolling_status": "support",
+                              "smart_attr_ignore": false,
+                              "smart_test_ignore": false
+                          }
+                      ]
+                  },
+                  "default": {
+                      "compatibility_interval": [
+                          {
+                              "barebone_installable": true,
+                              "compatibility": "support",
+                              "fw_dsm_update_status_notify": false,
+                              "not_yet_rolling_status": "support",
+                              "smart_attr_ignore": false,
+                              "smart_test_ignore": false
+                          }
+                      ]
+                  }
+                }
+              }
+          attr_db_file:
+            change: "{{ _db_file.current | combine(attr_current | default({},true), recursive=True) }}"
+        loop: "{{ _nvme_info | default([],true) }}"
+        when: _db_file.current.disk_compatbility_info.keys() is not contains(item.model)
+        ansible.builtin.set_fact:
+          _db_file: "{{ _db_file | combine(attr_db_file | default({},true), recursive=True) }}"
+
+    - when: _db_file.change is defined
+      block:
+      - name: stat original db
+        ansible.builtin.stat:
+          path: "{{ _db_file.file }}.original"
+        register: lib_original_stat
+
+      - name: backup original db
+        become: true
+        when: not lib_original_stat.stat.exists
+        ansible.builtin.copy:
+          remote_src: true
+          src: "{{ _db_file.file }}"
+          dest: "{{ _db_file.file }}.original"
+
+      - name: write change db
+        become: true
+        ansible.builtin.copy:
+          content: "{{ _db_file.change | to_json }}"
+          dest: "{{ _db_file.file }}.support-nvme.json"
+        register: db_file_write
+
+      - name: replace change db
+        become: true
+        ansible.builtin.copy:
+          remote_src: true
+          src: "{{ db_file_write.dest }}"
+          dest: "{{ _db_file.file }}"
+        register: db_file_replace
+
+    - name: print note
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          !!!!!
+          This is a dangerous operation, check the log output to make sure the settings are correct.
+          Then reboot system
+          !!!!!

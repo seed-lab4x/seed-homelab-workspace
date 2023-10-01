@@ -1,0 +1,104 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+  tasks:
+
+    - name: check part
+      become: true
+      loop: "{{ nvme.pool.part }}"
+      ansible.builtin.shell:
+        cmd: synopartition --check {{ item }} || true
+      register: part_check
+      failed_when: part_check.stdout is not contains('unrecognised partition')
+
+    - name: make part
+      become: true
+      loop: "{{ nvme.pool.part }}"
+      ansible.builtin.shell:
+        cmd: synopartition --part --force {{ item }} 12
+      register: part_make
+
+    - vars:
+        mode: "{{ nvme.pool.mode | default('role',true) }}"
+      block:
+      - name: fact param
+        vars:
+          # only use dsm supported attr
+          keys_to_keep:
+            - name
+            - level
+            - devices
+            - filesystem
+          values_to_keep: "{{ keys_to_keep | map('extract', item) | list }}"
+          item_to_keep: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+          attr_to_combine:
+            state: present
+          list: "{{ _mdadm_arrays | default([],true) }}"
+          append: "{{ item_to_keep | combine(attr_to_combine | default({},true), recursive=True) }}"
+        loop: "{{ nvme.pool.mdadm | default([],true) }}"
+        ansible.builtin.set_fact:
+          _mdadm_arrays: "{{ list + [append] }}"
+
+      - name: role mdadm
+        vars:
+          # dsm donot need update this
+          update_initramfs: echo skip
+          # dsm donot have mdadm.conf
+          mdadm_conf: /tmp/seed.dsm.nvme.mkfs.mdadm.conf
+          mdadm_arrays: "{{ _mdadm_arrays }}"
+        when: mode == 'role'
+        ansible.builtin.include_role:
+          name: mrlesmithjr.mdadm
+          apply:
+            become: true
+
+      # - name: shell mdadm
+      #   become: true
+      #   loop: "{{ nvme.pool.mdadm }}"
+      #   when: mode == 'normal'
+      #   ansible.builtin.shell:
+      #     cmd: "yes | mdadm --create /dev/{{ item.name }} --level={{ item.level }} --chunk={{ item.chunk_size | default(512K) }} --metadata={{ item.raid_metadata_version | default(1.2) }} --raid-devices={{ item.devices | count }} {{ item.devices | join (' ') }}"
+      #   register: mdadm_created
+
+      - name: unfact param
+        ansible.builtin.set_fact:
+          _mdadm_arrays: !!null
+
+    # same with 'sudo synosetkeyvalue /etc.defaults/synoinfo.conf support_disk_compatibility no'
+    - name: set synoinfo
+      become: true
+      ansible.builtin.replace:
+        path: /etc.defaults/synoinfo.conf
+        regexp: 'support_disk_compatibility.*'
+        replace: 'support_disk_compatibility="no"'
+        backup: yes
+      register: disk_compatibility_set
+
+    - name: get mdstat
+      ansible.builtin.shell:
+        cmd: "cat /proc/mdstat"
+      register: mdstat_get
+
+    - name: print mdstat
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.mdstat_get','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          ---------------------------------------------------------------------------
+          {{ host.value.mdstat_get.stdout }}
+
+          !!!!!
+          This is a dangerous operation, check the log output to make sure the settings are correct.
+          Then reboot system
+          !!!!!

@@ -1,0 +1,123 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+  tasks:
+
+    - vars:
+        hex_for_search: "{{ '803E00B801000000752.488B' | lower }}"
+        hex_for_replace: "{{ '803E00B8010000009090488B' | lower }}"
+      block:
+      - name: read current lib
+        ansible.builtin.shell: od -An -v -t x1 /usr/lib/libhwcontrol.so.1
+        register: lib_current_read
+
+      - name: fact current var
+        vars:
+          current: "{{ lib_current_read.stdout | replace('\n','') | replace(' ','') }}"
+          search: "{{ current | regex_search(hex_for_search, ignorecase=True) }}"
+          replace: "{{ current | regex_search(hex_for_replace, ignorecase=True) }}"
+        ansible.builtin.set_fact:
+          _lib_file:
+            current: "{{ current }}"
+            search: "{{ search }}"
+            replace: "{{ replace }}"
+
+      - when:
+          - _lib_file.search | length > 0
+          - _lib_file.replace | length == 0
+        block:
+        - name: fact change attr
+          vars:
+            attr_to_combine:
+              change: "{{ _lib_file.current | regex_replace(hex_for_search, hex_for_replace, ignorecase=True) }}"
+          ansible.builtin.set_fact:
+            _lib_file: "{{ _lib_file | combine(attr_to_combine | default({},true), recursive=True) }}"
+
+        - name: stat original lib
+          ansible.builtin.stat:
+            path: "/usr/lib/libhwcontrol.so.1.original"
+          register: lib_original_stat
+
+        - name: backup original lib
+          become: true
+          when: not lib_original_stat.stat.exists
+          ansible.builtin.copy:
+            remote_src: true
+            src: "/usr/lib/libhwcontrol.so.1"
+            dest: "/usr/lib/libhwcontrol.so.1.original"
+
+        - name: write hex lib
+          become: true
+          ansible.builtin.copy:
+            content: "{{ _lib_file.change }}"
+            dest: "/usr/lib/libhwcontrol.so.1.nvme-pool-enable.hex"
+
+        - name: write change lib
+          become: true
+          ansible.builtin.shell: cat "/usr/lib/libhwcontrol.so.1.nvme-pool-enable.hex" | xxd -r -p > /usr/lib/libhwcontrol.so.1
+          register: lib_file_write
+
+    - name: get support_m2_pool
+      become: true
+      ansible.builtin.shell: get_key_value /etc.defaults/synoinfo.conf support_m2_pool || true
+      register: support_m2_pool_get
+
+    - when: support_m2_pool_get.stdout == ''
+      block:
+      - name: add support_m2_pool
+        become: true
+        ansible.builtin.lineinfile:
+          path: /etc.defaults/synoinfo.conf
+          line: |
+            support_m2_pool="yes"
+          create: true
+          backup: true
+
+    - when: support_m2_pool_get.stdout == 'no'
+      block:
+      - name: replace support_m2_pool
+        become: true
+        ansible.builtin.replace:
+          path: /etc.defaults/synoinfo.conf
+          regexp: 'support_m2_pool.*'
+          replace: 'support_m2_pool="yes"'
+          backup: yes
+        register: support_m2_pool_set
+
+    - name: list nvme drives
+      become: true
+      ansible.builtin.shell: find /run/synostorage/disks/nvme*/m2_pool_support
+      register: nvme_drives_list
+      ignore_errors: true
+
+    - name: set support_m2_pool
+      become: true
+      loop: "{{ nvme_drives_list.stdout_lines | default([],true) }}"
+      ansible.builtin.copy:
+        content: '1'
+        dest: "{{ item }}"
+      register: support_m2_pool_set
+
+    # same with 'sudo synosetkeyvalue /etc.defaults/synoinfo.conf support_disk_compatibility no'
+    - name: set synoinfo
+      become: true
+      ansible.builtin.replace:
+        path: /etc.defaults/synoinfo.conf
+        regexp: 'support_disk_compatibility.*'
+        replace: 'support_disk_compatibility="no"'
+        backup: yes
+      register: disk_compatibility_set
+
+    - name: print note
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          !!!!!
+          This is a dangerous operation, check the log output to make sure the settings are correct.
+          Then reboot system
+          !!!!!
