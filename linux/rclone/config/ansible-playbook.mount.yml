@@ -1,0 +1,24 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: mount
+  hosts: linux
+  tasks:
+
+    - name: mount config
+      vars:
+        mode: "{{ rclone.mode | default('role',true) }}"
+        config: "{{ rclone.config | default([],true) }}"
+      include_tasks: ansible-tasks.mount.yml
+
+    - name: mount group config
+      vars:
+        group_names: "{{ rclone.groups | default([],true) }}"
+        group_var: "{{ rclone_groups[group_name] | default({},true) }}"
+        mode: "{{ rclone.mode | default('role',true) }}"
+        config: "{{ group_var.config }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.mount.yml

@@ -1,0 +1,32 @@
+# code: language=ansible
+---
+
+- name: config.umount|disable systemd service
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.shell: "systemctl --user disable --now rclone-{{ group_name | default('default',true) }}-{{ item.remote }}@{{ ansible_user_id }}.service"
+  ignore_errors: true
+
+- name: config.umount|unmount fusermount
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.shell: "fusermount -u {{ item.point }}"
+  ignore_errors: true
+
+- name: config.umount|umount path
+  become: true
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.posix.mount:
+    state: unmounted
+    path: "{{ item.point }}"
+  register: path_umount
+  until: path_umount is succeeded
+
+- name: config.umount|remove systemd service
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.file:
+    state: absent
+    dest: "$HOME/.config/systemd/user/rclone-{{ group_name | default('default',true) }}-{{ item.remote }}@{{ ansible_user_id }}.service"
+  register: systemd_remove
+
+- name: config.umount|reload systemd service
+  ansible.builtin.shell: "systemctl --user daemon-reload"
+  register: systemd_reload
