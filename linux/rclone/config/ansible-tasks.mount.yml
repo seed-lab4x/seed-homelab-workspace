@@ -1,0 +1,88 @@
+# code: language=ansible
+---
+
+- when:
+    - config.conf is defined
+  block:
+  - name: config.mount|role config
+    vars:
+      # user this to copy config
+      rclone_config_location: "{{ config.dest }}"
+      rclone_config_owner:
+        OWNER: "{{ ansible_user_id }}"
+        GROUP: users
+      rclone_configs: "{{ config.conf }}"
+    ansible.builtin.include_role:
+      name: stefangweichinger.ansible_rclone
+
+- when:
+    - config.src is defined
+  block:
+  - name: config.mount|mkdir config
+    ansible.builtin.file:
+      state: directory
+      path: "{{ config.dest | dirname }}"
+
+  - name: config.mount|copy config
+    vars:
+      args:
+        src: "{{ config.src }}"
+        dest: "{{ config.dest }}"
+    ansible.builtin.copy: "{{ args }}"
+    register: config_copy
+    until: config_copy is succeeded
+
+- when:
+    - config.mounts | default([],true) | length > 0
+  block:
+  - name: config.mount|mkdir mount
+    loop: "{{ config.mounts | default([],true) }}"
+    ansible.builtin.file:
+      state: directory
+      path: "{{ item.point }}"
+
+  - name: config.mount|create systemd service
+    loop: "{{ config.mounts | default([],true) }}"
+    ansible.builtin.copy:
+      dest: "$HOME/.config/systemd/user/rclone-{{ group_name | default('default',true) }}-{{ item.remote }}@{{ ansible_user_id }}.service"
+      content: |
+        # User service for Rclone mounting
+        #
+        # Place in ~/.config/systemd/user/
+        # File must include the '@' (ex rclone@.service)
+        # As your normal user, run
+        #   systemctl --user daemon-reload
+        # You can now start/enable each remote by using rclone@<remote>
+        #   systemctl --user enable --now rclone@dropbox
+
+        [Unit]
+        Description=rclone: Remote FUSE filesystem for cloud storage config %i
+        Documentation=man:rclone(1)
+        After=network-online.target
+        Wants=network-online.target
+
+        [Service]
+        Type=notify
+        ExecStartPre=-/usr/bin/mkdir -p {{ item.point }}
+        ExecStart= \
+          rclone mount \
+            {{ item.remote }}:{{ item.path | default('',true) }} {{ item.point }} \
+            --config={{ config.dest }} \
+            {{ item.flags | default('',true) }}
+        ExecStop=/bin/fusermount -u {{ item.point }}
+        {% for env in item.env | default({},true) | dict2items %}
+        Environment={{ env.key }}={{ env.value }}
+        {% endfor %}
+
+        [Install]
+        WantedBy=default.target
+    register: systemd_append
+
+  - name: config.mount|reload systemd service
+    ansible.builtin.shell: "systemctl --user daemon-reload"
+    register: systemd_reload
+
+  - name: config.mount|enable systemd service
+    loop: "{{ config.mounts | default([],true) }}"
+    ansible.builtin.shell: "systemctl --user enable --now rclone-{{ group_name | default('default',true) }}-{{ item.remote }}@{{ ansible_user_id }}.service"
+    register: systemd_enable
