@@ -1,0 +1,147 @@
+# code: language=ansible
+---
+
+- name: opkg.install|stat current opt
+  ansible.builtin.stat:
+    path: /opt
+  register: opt_current_stat
+
+- name: opkg.install|setup current mounts
+  ansible.builtin.setup:
+    gather_subset:
+      - mounts
+
+- when:
+    - opt_current_stat.stat.exists
+    - not opt_current_stat.stat.islnk
+    - ansible_mounts | selectattr('mount','equalto','/opt') | length == 0
+  block:
+  - name: opkg.install|stat original opt
+    ansible.builtin.stat:
+      path: /opt.original
+    register: opt_original_stat
+
+  - name: opkg.install|backup original opt
+    when: not opt_original_stat.stat.exists
+    become: true
+    ansible.builtin.copy:
+      remote_src: true
+      src: /opt
+      dest: /opt.original
+
+- when:
+    - ansible_mounts | selectattr('mount','equalto','/opt') | length == 0
+  block:
+  - name: opkg.install|delete current opt
+    become: true
+    ansible.builtin.file:
+      state: absent
+      path: /opt
+
+  - name: opkg.install|mkdir current opt
+    become: true
+    ansible.builtin.file:
+      state: directory
+      path: /opt
+
+- name: opkg.install|mkdir entware opt
+  become: true
+  ansible.builtin.file:
+    state: directory
+    path: "{{ opkg.entware.root | default('/volume1/@Entware/opt') }}"
+
+- vars:
+    use_mount: "{{ opkg.entware.mount | default(true) }}"
+    use_link: "{{ opkg.entware.link | default(true) }}"
+  block:
+  - name: opkg.install|mount entware opt
+    become: true
+    when: use_mount
+    ansible.posix.mount:
+      state: mounted
+      fstype: none
+      src: "{{ opkg.entware.root | default('/volume1/@Entware/opt') }}"
+      path: /opt
+      opts: bind
+    register: opt_entware_mount
+    ignore_errors: true
+
+  - name: opkg.install|link entware opt
+    become: true
+    when: use_link and (not use_mount or opt_entware_mount is failed)
+    ansible.builtin.shell: "ln -s {{ opkg.entware.root | default('/volume1/@Entware/opt') }} /opt"
+    register: opt_entware_link
+
+- name: opkg.install|stat entware opt
+  ansible.builtin.stat:
+    path: /volume1/@Entware/opt/etc/entware_release
+  register: opt_entware_stat
+
+- when: not opt_entware_stat.stat.exists
+  block:
+  - name: opkg.install|get machine uname
+    when: opkg.entware.url is undefined
+    ansible.builtin.shell: uname -m
+    register: uname_machine_get
+
+  - name: opkg.install|download get entware
+    vars:
+      list:
+        - match: aarch64
+          arch: aarch64
+          version: k3.10
+        - match: armv5
+          arch: armv5sf
+          version: k3.2
+        - match: armv7
+          arch: armv7sf
+          version: k3.2
+        - match: x86_64
+          arch: x64
+          version: k3.2
+      uname_match: "{{ list | selectattr('match','in',uname_machine_get.stdout) | first }}"
+      default: "https://bin.entware.net/{{ uname_match.arch }}-{{ uname_match.version }}/installer/generic.sh"
+    ansible.builtin.get_url:
+      url: "{{ opkg.entware.url | default(default,true) }}"
+      dest: "~/get-entware.sh"
+    register: entware_get
+
+  - name: opkg.install|shell get entware
+    become: true
+    ansible.builtin.shell: "bash {{ entware_get.dest }}"
+    register: entware_sh
+    ignore_errors: true
+
+  - name: opkg.install|print get entware
+    vars:
+      dsm_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['dsm'])
+        | selectattr('value.entware_sh','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in dsm_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.entware_sh.stdout | default('',true) }}
+        {{ host.value.entware_sh.stderr | default('',true) }}
+        {% endfor %}
+
+- name: opkg.install|append sysvinit script
+  become: true
+  ansible.builtin.blockinfile:
+    path: /usr/local/etc/rc.d/entware-opkg.sh
+    create: true
+    mode: 0755
+    marker: "# seed.dsm/opkg.install: Start Entware"
+    block: |
+      /opt/etc/init.d/rc.unslung start
+
+- name: opkg.install|block in profile
+  become: true
+  ansible.builtin.blockinfile:
+    path: /etc/profile
+    marker: "# seed.dsm/opkg.install: Load Entware Profile"
+    block: |
+      [ -r "/opt/etc/profile" ] && . /opt/etc/profile
