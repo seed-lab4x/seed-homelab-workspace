@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+
+    - name: install package
+      become: true
+      loop: "{{ opkg.packages | default([],true) }}"
+      vars:
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      community.general.opkg: "{{ args }}"
+      register: package_install
+      until: package_install is succeeded
+
+    - name: install group config
+      become: true
+      vars:
+        group_names: "{{ opkg.groups | default([],true) }}"
+        group_vars: "{{ opkg_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | map(attribute='value.packages')
+          | flatten }}"
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      loop: "{{ group_vars }}"
+      community.general.opkg: "{{ args }}"
+      register: package_install
+      until: package_install is succeeded

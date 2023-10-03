@@ -1,0 +1,32 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+  tasks:
+
+    - name: install entware opkg
+      include_tasks: ansible-tasks.install.yml
+
+    - name: cat version entware
+      ansible.builtin.shell: "cat {{ opkg.entware.root | default('/volume1/@Entware/opt') }}/etc/entware_release"
+      register: entware_version
+
+    - name: print version entware
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.entware_version','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.entware_version.stdout | default('',true) }}
+          {{ host.value.entware_version.stderr | default('',true) }}
+          {% endfor %}
