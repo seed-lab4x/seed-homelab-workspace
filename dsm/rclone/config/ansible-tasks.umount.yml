@@ -1,0 +1,32 @@
+# code: language=ansible
+---
+
+- name: config.umount|kill sysvinit script
+  become: true
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.shell: "pkill -f /usr/local/etc/rc.d/rclone.{{ group_name | default('default',true) }}.{{ item.remote }}.sh"
+  ignore_errors: true
+
+- name: config.umount|unmount fusermount
+  become: true
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.shell: "fusermount -u {{ item.point }}"
+  register: fusermount_umount
+  until: fusermount_umount is succeeded
+
+- name: config.umount|umount path
+  become: true
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.posix.mount:
+    state: unmounted
+    path: "{{ item.point }}"
+  register: path_umount
+  until: path_umount is succeeded
+
+- name: config.umount|remove sysvinit script
+  become: true
+  loop: "{{ config.mounts | default([],true) }}"
+  ansible.builtin.file:
+    state: absent
+    dest: "/usr/local/etc/rc.d/rclone.{{ group_name | default('default',true) }}.{{ item.remote }}.sh"
+  register: sysvinit_remove
