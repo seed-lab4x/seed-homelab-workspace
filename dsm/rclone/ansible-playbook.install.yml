@@ -1,0 +1,88 @@
+#!/usr/bin/env -S ansible-playbook --skip-tags vars -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+
+    - name: install package
+      become: true
+      community.general.opkg:
+        state: present
+        name:
+          - unzip
+      register: package_install
+      until: package_install is succeeded
+
+    - vars:
+        mode: "{{ rclone.mode | default('role',true) }}"
+      block:
+      - name: role rclone
+        vars:
+          # dsm cant fact package by ansible_distribution
+          # and dsm cant install package
+          rclone_packages: []
+          # dsm cant fact man by ansible_distribution
+          # and dsm man path like debian but no mandb command
+          install_manpages: false
+          rclone_man_pages:
+            OWNER: root
+            GROUP: root
+            PATH: '/usr/share/man/man1'
+        when: mode == 'role'
+        ansible.builtin.include_role:
+          name: stefangweichinger.ansible_rclone
+
+      - when: mode == 'normal'
+        block:
+        - name: download get rclone
+          ansible.builtin.get_url:
+            url: "https://rclone.org/install.sh"
+            dest: "~/get-rclone.sh"
+          register: rclone_get
+
+        - name: shell get rclone
+          become: true
+          ansible.builtin.shell: "bash {{ rclone_get.dest }}"
+          register: rclone_sh
+          ignore_errors: true
+
+        - name: print get rclone
+          vars:
+            dsm_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',groups['dsm'])
+              | selectattr('value.rclone_sh','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in dsm_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.rclone_sh.stdout | default('',true) }}
+              {{ host.value.rclone_sh.stderr | default('',true) }}
+              {% endfor %}
+
+    - name: shell version rclone
+      ansible.builtin.shell: rclone --version
+      register: rclone_version
+
+    - name: print version rclone
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.rclone_version','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.rclone_version.stdout | default('',true) }}
+          {{ host.value.rclone_version.stderr | default('',true) }}
+          {% endfor %}
+
