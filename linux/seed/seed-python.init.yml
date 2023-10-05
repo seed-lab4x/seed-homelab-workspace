@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- name: seed-python.init|linux|fact _python
+  vars:
+    python_optional:
+      package:
+        - python3-pip
+        - rsync
+      pip:
+        - jsondiff==2.0.0
+        - jmespath==1.0.1
+        # bug for https://github.com/yaml/pyyaml/issues/724
+        - PyYAML==5.3.1
+        - lxml==4.9.2
+        # bug for https://github.com/docker/docker-py/issues/3113
+        - requests==2.28.1
+    python_param: "{{ python_optional | combine(python | default({},true), recursive=True) }}"
+  ansible.builtin.set_fact:
+    _python: "{{ python_param }}"
+
+- name: seed-docker.init|linux|install system package
+  become: true
+  loop: "{{ _python.package }}"
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  register: package_install
+  until: package_install is succeeded
+
+- name: seed-python.init|linux|set pip index
+  when: _python.pip_index is defined
+  ansible.builtin.shell: pip3 config set global.index-url {{ _python.pip_index }}
+  register: pip_index_set
+  until: pip_index_set is succeeded
+
+- name: seed-python.init|linux|install pip package
+  loop: "{{ _python.pip }}"
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: present
+  register: pip_package_install
+  until: pip_package_install is succeeded
+
+- name: seed-python.init|linux|unfact _python
+  ansible.builtin.set_fact:
+    _python: !!null
