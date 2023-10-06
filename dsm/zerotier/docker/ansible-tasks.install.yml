@@ -1,0 +1,69 @@
+# code: language=ansible
+---
+
+- block:
+  - name: docker.install|create tun sysvinit
+    become: true
+    ansible.builtin.copy:
+      content: |
+        #!/bin/sh -e
+        insmod /lib/modules/tun.ko
+      dest: /usr/local/etc/rc.d/tun.sh
+      owner: root
+      mode: 0755
+
+  - name: docker.install|run tun sysvinit
+    become: true
+    ansible.builtin.shell: /usr/local/etc/rc.d/tun.sh
+    ignore_errors: true
+
+  - name: docker.install|check tun dev
+    ansible.builtin.shell: ls /dev/net/tun
+    register: tun_dev_check
+    until: tun_dev_check is succeeded
+
+  - name: docker.install|mkdir zerotier
+    become: true
+    ansible.builtin.file:
+      state: directory
+      path: /var/lib/zerotier-one
+      mode: '0755'
+
+  - name: docker.install|run zerotier
+    community.docker.docker_container:
+      state: started
+      restart: true
+      name: zerotier
+      image: zerotier/zerotier-synology:latest
+      restart_policy: always
+      network_mode: host
+      devices:
+        - /dev/net/tun
+      capabilities:
+        - NET_ADMIN
+        - SYS_ADMIN
+      volumes:
+        - /var/lib/zerotier-one:/var/lib/zerotier-one
+
+  - name: docker.install|get zerotier status
+    community.docker.docker_container_exec:
+      container: zerotier
+      command: zerotier-cli status
+    register: zerotier_status
+    ignore_errors: true
+
+  - name: docker.install|print zerotier status
+    vars:
+      dsm_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['dsm'])
+        | selectattr('value.zerotier_status','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in dsm_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.zerotier_status.stdout | default('',true) }}
+        {{ host.value.zerotier_status.stderr | default('',true) }}
+        {% endfor %}

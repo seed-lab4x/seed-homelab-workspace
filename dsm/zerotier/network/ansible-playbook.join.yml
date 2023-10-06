@@ -1,0 +1,21 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: join
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+
+    - name: get version
+      ansible.builtin.shell: get_key_value /etc/VERSION majorversion || true
+      register: version_major_get
+
+    - name: join dsm7
+      when: version_major_get.stdout == '7'
+      include_tasks: docker/ansible-tasks.join.yml
+
+    - name: join dsm6
+      when: version_major_get.stdout == '6'
+      include_tasks: spk/ansible-tasks.join.yml
