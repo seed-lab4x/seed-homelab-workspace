@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- block:
+  - name: spk.install|assert spk_url
+    ansible.builtin.assert:
+      that:
+        - zerotier.spk_url is defined
+      msg: "miss spk url"
+      quiet: true
+
+  - name: spk.install|download spk
+    ansible.builtin.get_url:
+      url: "{{ zerotier.spk_url }}"
+      dest: /tmp/zerotier.spk
+      mode: '0440'
+
+  - name: spk.install|install spk
+    ansible.builtin.shell: /usr/syno/bin/synopkg install /tmp/zerotier.spk
+    register: spk_install
+    until: spk_install is succeeded
+
+  - name: spk.install|delete spk
+    ansible.builtin.file:
+      state: absent
+      path: /tmp/zerotier.spk
+
+  - name: spk.install|get zerotier status
+    ansible.builtin.shell: zerotier-cli status
+    register: zerotier_status
+    ignore_errors: true
+
+  - name: spk.install|print zerotier status
+    vars:
+      dsm_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['dsm'])
+        | selectattr('value.zerotier_status','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in dsm_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.zerotier_status.stdout | default('',true) }}
+        {{ host.value.zerotier_status.stderr | default('',true) }}
+        {% endfor %}

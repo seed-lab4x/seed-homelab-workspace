@@ -1,0 +1,15 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: join
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+    - name: docker.join|get client id
+      community.docker.docker_container_exec:
+        container: zerotier
+        command: sh -c 'zerotier-cli info | cut -d" " -f3'
+      register: zerotier_id
+    - debug: msg="{{ zerotier_id }}"

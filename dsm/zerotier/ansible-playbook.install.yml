@@ -1,0 +1,21 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+
+    - name: read version
+      ansible.builtin.shell: get_key_value /etc/VERSION majorversion || true
+      register: version_major
+
+    - name: install docker
+      when: version_major.stdout == '7'
+      include_tasks: docker/ansible-tasks.install.yml
+
+    - name: install spk
+      when: version_major.stdout == '6'
+      include_tasks: spk/ansible-tasks.install.yml
