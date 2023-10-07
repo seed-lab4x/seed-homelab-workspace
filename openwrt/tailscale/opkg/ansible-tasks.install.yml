@@ -1,0 +1,7 @@
+# code: language=ansible
+---
+
+- name: opkg.install|install tailscale
+  community.general.opkg:
+    update_cache: true
+    name: tailscale

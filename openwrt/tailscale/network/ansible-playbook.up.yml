@@ -1,0 +1,51 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: up
+  hosts: openwrt
+  tasks:
+
+    - when: tailscale.authkey is defined
+      include_tasks: auth-key/ansible-tasks.up.yml
+
+    - when: tailscale.authkey is undefined
+      include_tasks: admin-console/ansible-tasks.up.yml
+
+    - name: fact firewall zone
+      vars:
+        commands: |
+          uci set firewall.tailscale=zone
+          uci set firewall.tailscale.name='tailscale'
+          uci set firewall.tailscale.input='ACCEPT'
+          uci set firewall.tailscale.output='ACCEPT'
+          uci set firewall.tailscale.forward='ACCEPT'
+          uci set firewall.tailscale.masq='1'
+          uci set firewall.tailscale.network='tailscale'
+          uci set firewall.tailscale.device='tailscale0'
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ commands }}"
+
+    - name: fact firewall forwarding
+      vars:
+        default:
+          - src: lan
+          - dest: lan
+          - dest: wan
+        forwardings: "{{ tailscale.uci.firewall.forwarding | default(default,true) }}"
+        src: "{{ item.src | default('tailscale',true) }}"
+        dest: "{{ item.dest | default('tailscale',true) }}"
+        key: "{{ src }}2{{ dest }}"
+        command: |
+          uci set firewall.{{ key }}=forwarding
+          uci set firewall.{{ key }}.src='{{ src }}'
+          uci set firewall.{{ key }}.dest='{{ dest }}'
+      loop: "{{ forwardings }}"
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ command }}"
+
+    - name: config firewall
+      loop: "{{ uci_command | split('\n') | select() + ['uci commit'] }}"
+      ansible.builtin.command: "{{ item }}"
+      register: firewall_config
+      until: firewall_config is succeeded
