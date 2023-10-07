@@ -1,0 +1,88 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/usr/syno/bin/:/opt/bin"
+  tasks:
+
+    - name: status spk
+      ansible.builtin.shell: synopkg status Netbird || true
+      register: netbird_spk_status
+
+    - vars:
+        status: "{{ netbird_spk_status.stdout | from_json }}"
+      when: status.status == 'non_installed'
+      block:
+      - when: netbird.spk_url is defined
+        block:
+        - name: download spk from url
+          ansible.builtin.get_url:
+            url: "{{ netbird.spk_url }}"
+            dest: /tmp/netbird.spk
+            mode: '0440'
+
+        - name: install spk from url
+          ansible.builtin.shell: synopkg install /tmp/netbird.spk
+          register: netbird_spk_install
+          until: netbird_spk_install is succeeded
+
+        - name: delete spk from url
+          ansible.builtin.file:
+            state: absent
+            path: /tmp/netbird.spk
+
+      - when: netbird.spk_url is undefined
+        block:
+        - name: install spk from server
+          ansible.builtin.shell: synopkg install_from_server Netbird
+          register: netbird_spk_install
+          until: netbird_spk_install is succeeded
+
+    - name: slurp netbirdd privilege
+      ansible.builtin.slurp:
+        src: /var/packages/Netbird/conf/privilege
+      register: netbirdd_privilege_slurp
+
+    - name: change netbirdd privilege
+      vars:
+        netbirdd_privilege: "{{ netbirdd_privilege_slurp.content | b64decode | from_json }}"
+      when: netbirdd_privilege.defaults['run-as'] == 'package'
+      become: true
+      ansible.builtin.shell: sudo sed -i 's/package/root/g' /var/packages/Netbird/conf/privilege
+
+    - name: status netbird spk
+      ansible.builtin.shell: synopkg status Netbird || true
+      register: netbird_spk_status
+
+    # netbird always stopped but will work
+    - name: start netbird spk
+      vars:
+        status: "{{ netbird_spk_status.stdout | from_json }}"
+      when: status.status == 'stop'
+      ansible.builtin.shell: synopkg start Netbird || true
+      register: netbird_pkg_start
+      ignore_errors: yes
+
+    - name: get netbird status
+      ansible.builtin.shell: netbird status
+      register: netbird_status
+      ignore_errors: true
+
+    - name: print netbird status
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.netbird_status','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.netbird_status.stdout | default('',true) }}
+          {{ host.value.netbird_status.stderr | default('',true) }}
+          {% endfor %}
