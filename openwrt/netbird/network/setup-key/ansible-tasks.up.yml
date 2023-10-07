@@ -1,0 +1,28 @@
+# code: language=ansible
+---
+
+- name: setup-key.up|up network
+  vars:
+    flags: "{{ netbird.network.flags | default('',true) }}"
+  ansible.builtin.shell: "netbird up --setup-key={{ netbird.setupkey }} {{ flags }}"
+  register: netbird_up
+  ignore_errors: true
+
+- name: setup-key.up|print network
+  vars:
+    openwrt_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['openwrt'])
+      | selectattr('value.netbird_up','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in openwrt_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.netbird_up.stdout is defined %}
+      {{ host.value.netbird_up.stdout }}
+      {% elif host.value.netbird_up.stderr is defined %}
+      {{ host.value.netbird_up.stderr }}
+      {% endif %}
+      {% endfor %}

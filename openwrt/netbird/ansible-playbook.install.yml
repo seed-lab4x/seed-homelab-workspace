@@ -1,0 +1,31 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: openwrt
+  tasks:
+
+    - name: install ipk
+      include_tasks: ipk/ansible-tasks.install.yml
+
+    - name: get netbird status
+      ansible.builtin.shell: netbird status
+      register: netbird_status
+      ignore_errors: true
+
+    - name: print netbird status
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['openwrt'])
+          | selectattr('value.netbird_status','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.netbird_status.stdout | default('',true) }}
+          {{ host.value.netbird_status.stderr | default('',true) }}
+          {% endfor %}

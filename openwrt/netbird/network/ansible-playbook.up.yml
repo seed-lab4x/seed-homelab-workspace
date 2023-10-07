@@ -1,0 +1,51 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: join
+  hosts: openwrt
+  tasks:
+
+    - when: netbird.setupkey is defined
+      include_tasks: setup-key/ansible-tasks.up.yml
+
+    - when: netbird.setupkey is undefined
+      include_tasks: setup-browser/ansible-tasks.up.yml
+
+    - name: fact firewall zone
+      vars:
+        commands: |
+          uci set firewall.netbird=zone
+          uci set firewall.netbird.name='netbird'
+          uci set firewall.netbird.input='ACCEPT'
+          uci set firewall.netbird.output='ACCEPT'
+          uci set firewall.netbird.forward='ACCEPT'
+          uci set firewall.netbird.masq='1'
+          uci set firewall.netbird.network='wt0'
+          uci set firewall.netbird.device='wt0'
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ commands }}"
+
+    - name: fact firewall forwarding
+      vars:
+        default:
+          - src: lan
+          - dest: lan
+          - dest: wan
+        forwardings: "{{ netbird.uci.firewall.forwarding | default(default,true) }}"
+        src: "{{ item.src | default('netbird',true) }}"
+        dest: "{{ item.dest | default('netbird',true) }}"
+        key: "{{ src }}2{{ dest }}"
+        command: |
+          uci set firewall.{{ key }}=forwarding
+          uci set firewall.{{ key }}.src='{{ src }}'
+          uci set firewall.{{ key }}.dest='{{ dest }}'
+      loop: "{{ forwardings }}"
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ command }}"
+
+    - name: config firewall
+      loop: "{{ uci_command | split('\n') | select() + ['uci commit'] }}"
+      ansible.builtin.command: "{{ item }}"
+      register: firewall_config
+      until: firewall_config is succeeded

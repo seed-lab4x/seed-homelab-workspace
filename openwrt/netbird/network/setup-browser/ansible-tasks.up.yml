@@ -1,0 +1,85 @@
+# code: language=ansible
+---
+
+- name: setup-browser.up|up async network
+  vars:
+    flags: "{{ netbird.network.flags | default('',true) | replace('\n','') }}"
+  ansible.builtin.shell: "sh -c 'netbird up {{ flags }} > /tmp/netbird.up.log 2>&1'"
+  register: async_up
+  async: 300
+  poll: 0
+
+- name: setup-browser.up|status async finished
+  ansible.builtin.async_status:
+    jid: "{{ async_up.ansible_job_id }}"
+  register: async_status
+  until: async_status.finished
+  # retry once in 5 seconds
+  retries: 1
+  delay: 5
+  ignore_errors: true
+
+- name: setup-browser.up|grep log authenticate url
+  when: not async_status.finished
+  # not work see https://github.com/ansible/ansible/issues/79683
+  # ansible.builtin.wait_for:
+  #   path: /tmp/netbird.up.lo
+  #   search_regex: "https://login.netbird.io/activate:"
+  ansible.builtin.command:
+    cmd: "grep -E 'use this URL to log in|https://login.netbird.io/activate' /tmp/netbird.up.log"
+  retries: 60
+  register: log_grep
+  until: log_grep is successful
+
+- name: setup-browser.up|slurp log authenticate url
+  ansible.builtin.slurp:
+    src: /tmp/netbird.up.log
+  register: log_slurp
+
+- name: setup-browser.up|print log authenticate url
+  vars:
+    openwrt_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['openwrt'])
+      | selectattr('value.log_slurp','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in openwrt_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.log_slurp.content is defined %}
+      {{ host.value.log_slurp.content | b64decode }}
+      {% endif %}
+      {% endfor %}
+
+- name: setup-browser.up|status async finished
+  ansible.builtin.async_status:
+    jid: "{{ async_up.ansible_job_id }}"
+  register: async_status
+  until: async_status.finished
+  # retry every 60 seconds for 15 minutes
+  retries: 15
+  delay: 60
+
+- name: setup-browser.up|slurp log finished
+  ansible.builtin.slurp:
+    src: /tmp/netbird.up.log
+  register: log_slurp
+
+- name: setup-browser.up|print log finished
+  vars:
+    openwrt_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['openwrt'])
+      | selectattr('value.log_slurp','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in openwrt_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.log_slurp.content is defined %}
+      {{ host.value.log_slurp.content | b64decode }}
+      {% endif %}
+      {% endfor %}

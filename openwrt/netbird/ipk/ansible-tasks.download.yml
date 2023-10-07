@@ -1,0 +1,40 @@
+# code: language=ansible
+---
+
+- name: ipk.download|get latest
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/messense/openwrt-netbird/releases/latest"
+    return_content: true
+  register: latest_get
+
+- name: ipk.download|get arch
+  delegate_to: !!null
+  ansible.builtin.shell: source /etc/openwrt_release && echo $DISTRIB_ARCH
+  register: arch_get
+
+- name: ipk.download|fact _ipk
+  vars:
+    version: "{{ latest_get.json.name }}"
+    asset: "{{ latest_get.json.assets | selectattr('name', 'search', arch_get.stdout) | first }}"
+  ansible.builtin.set_fact:
+    _ipk:
+      version: "{{ version }}"
+      url: "{{ asset.browser_download_url }}"
+      dest: "~/.openwrt/{{ asset.name }}"
+
+- name: ipk.download|stat ipk dest
+  ansible.builtin.stat:
+    path: "{{ _ipk.dest }}"
+  register: ipk_dest_stat
+
+- name: ipk.download|mkdir ipk dest
+  when: not ipk_dest_stat.stat.exists
+  ansible.builtin.file:
+    state: directory
+    path: "~/.openwrt"
+
+- name: ipk.download|download ipk dest
+  when: not ipk_dest_stat.stat.exists
+  ansible.builtin.get_url:
+    url: "{{ _ipk.url }}"
+    dest: "{{ _ipk.dest }}"
