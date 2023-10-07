@@ -1,0 +1,73 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: openwrt
+  tasks:
+
+    - name: install zerotier
+      community.general.opkg:
+        update_cache: true
+        name: zerotier
+      ignore_errors: yes
+
+    - name: config zerotier
+      loop:
+        - uci set zerotier.openwrt_network=zerotier
+        - uci set zerotier.openwrt_network.enabled='1'
+        - uci commit zerotier
+      ansible.builtin.command: "{{ item }}"
+      register: zerotier_config
+      until: zerotier_config is succeeded
+
+    - name: config firewall
+      loop:
+        - uci set firewall.zerotier=rule
+        - uci set firewall.zerotier.name='Allow-ZeroTier-Inbound'
+        - uci set firewall.zerotier.src='*'
+        - uci set firewall.zerotier.target='ACCEPT'
+        - uci set firewall.zerotier.proto='udp'
+        - uci set firewall.zerotier.dest_port='9993'
+        - uci commit firewall
+        - /etc/init.d/firewall restart
+      ansible.builtin.command: "{{ item }}"
+      register: firewall_config
+      until: firewall_config is succeeded
+
+    - name: status service
+      ansible.builtin.command: service zerotier status
+      register: service_status
+      ignore_errors: true
+
+    - name: stop service
+      when: service_status.stdout == 'running'
+      ansible.builtin.command: service zerotier stop
+      register: service_stop
+      until: service_stop is succeeded
+
+    - name: start service
+      ansible.builtin.command: service zerotier start
+      register: service_start
+      until: service_start is succeeded
+
+    - name: get zerotier info
+      ansible.builtin.shell: zerotier-cli info
+      register: zerotier_info
+      ignore_errors: true
+
+    - name: print zerotier info
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['openwrt'])
+          | selectattr('value.zerotier_info','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.zerotier_info.stdout | default('',true) }}
+          {{ host.value.zerotier_info.stderr | default('',true) }}
+          {% endfor %}
