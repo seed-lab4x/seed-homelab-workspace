@@ -1,0 +1,32 @@
+# code: language=ansible
+---
+
+- name: authkey.up|get lan
+  ansible.builtin.shell: "ip route | grep src | grep br-lan | awk '{print $1}'"
+  register: lan_get
+
+- name: authkey.up|up network
+  vars:
+    flags: "{{ tailscale.network.flags | default('',true) }}"
+  ansible.builtin.shell: "tailscale up --authkey={{ tailscale.authkey }} --advertise-routes={{ lan_get.stdout }} {{ flags }}"
+  register: tailscale_up
+  ignore_errors: true
+
+- name: authkey.up|print network
+  vars:
+    openwrt_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['openwrt'])
+      | selectattr('value.tailscale_up','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in openwrt_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.tailscale_up.stdout is defined %}
+      {{ host.value.tailscale_up.stdout }}
+      {% elif host.value.tailscale_up.stderr is defined %}
+      {{ host.value.tailscale_up.stderr }}
+      {% endif %}
+      {% endfor %}

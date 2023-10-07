@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: openwrt
+  tasks:
+
+    - name: install opkg
+      when: tailscale.install | default('opkg') == 'opkg'
+      include_tasks: opkg/ansible-tasks.install.yml
+
+    - name: install enabler
+      when: tailscale.install | default('opkg') == 'enabler'
+      include_tasks: enabler/ansible-tasks.install.yml
+
+    - name: get tailscale status
+      ansible.builtin.shell: tailscale status
+      register: tailscale_status
+      ignore_errors: true
+
+    - name: print tailscale status
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['openwrt'])
+          | selectattr('value.tailscale_status','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.tailscale_status.stdout | default('',true) }}
+          {{ host.value.tailscale_status.stderr | default('',true) }}
+          {% endfor %}

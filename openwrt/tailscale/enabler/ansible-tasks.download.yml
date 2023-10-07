@@ -1,0 +1,116 @@
+# code: language=ansible
+---
+
+- name: enabler.download|get latest
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/adyanth/openwrt-tailscale-enabler/releases/latest"
+    return_content: true
+  register: latest_get
+
+- name: enabler.download|fact _enabler
+  vars:
+    version: "{{ latest_get.json.name }}"
+  ansible.builtin.set_fact:
+    _enabler:
+      version: "{{ version }}"
+      url: "{{ latest_get.json.assets[0].browser_download_url }}"
+      dest: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}.tgz"
+      dir: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}"
+
+- name: enabler.download|stat enabler dest
+  ansible.builtin.stat:
+    path: "{{ _enabler.dest }}"
+  register: enabler_dest_stat
+
+- name: enabler.download|mkdir enabler dest
+  when: not enabler_dest_stat.stat.exists
+  ansible.builtin.file:
+    state: directory
+    path: "~/.openwrt"
+
+- name: enabler.download|download enabler dest
+  when: not enabler_dest_stat.stat.exists
+  ansible.builtin.get_url:
+    url: "{{ _enabler.url }}"
+    dest: "{{ _enabler.dest }}"
+
+- name: enabler.download|mkdir enabler dir
+  ansible.builtin.file:
+    state: directory
+    path: "{{ _enabler.dir }}"
+
+- name: enabler.download|extract enabler dir
+  ansible.builtin.unarchive:
+    src: "{{ _enabler.dest }}"
+    dest: "{{ _enabler.dir }}"
+
+- when: tailscale.enabler.pkg | default(false)
+  block:
+  - name: enabler.download|get arch
+    delegate_to: !!null
+    ansible.builtin.shell: uname -m
+    register: arch_get
+
+  - name: enabler.download|get endianness
+    delegate_to: !!null
+    when: arch_get.stdout == 'mips'
+    ansible.builtin.shell: |
+      echo -n I | hexdump -o | awk '{ print (substr($2,6,1)=="1") ? "le" : ""; exit }'
+    register: endianness_get
+
+  - name: enabler.download|fact pkg
+    vars:
+      archs:
+        mips: "mips"
+        armv7l: "arm"
+        aarch64: "arm64"
+        x86_64: "amd64"
+      regex_hash_suffix: '-\w{7}-.*'
+      regex_version_prefix: '^v'
+      tailscale_version: "{{ _enabler.version | regex_replace(regex_hash_suffix,'') | regex_replace(regex_version_prefix,'') }}"
+      arch: "{{ archs[arch_get.stdout] }}{{ endianness_result.stdout | default('',true) }}"
+      version: "{{ tailscale_version }}_{{ arch }}"
+    ansible.builtin.set_fact:
+      _pkg:
+        version: "{{ version }}"
+        url: "https://pkgs.tailscale.com/stable/tailscale_{{ version }}.tgz"
+        dest: "~/.openwrt/tailscale_{{ version }}.tgz"
+        dir: "~/.openwrt/tailscale_{{ version }}"
+
+  - name: enabler.download|stat pkg dest
+    ansible.builtin.stat:
+      path: "{{ _pkg.dest }}"
+    register: enabler_dest_stat
+
+  - name: enabler.download|download pkg dest
+    ansible.builtin.get_url:
+      url: "{{ _pkg.url }}"
+      dest: "{{ _pkg.dest }}"
+
+  - name: enabler.download|mkdir pkg dir
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _pkg.dir }}"
+
+  - name: enabler.download|extract pkg dir
+    ansible.builtin.unarchive:
+      src: "{{ _pkg.dest }}"
+      dest: "{{ _pkg.dir }}"
+
+  - name: enabler.download|copy pkg enabler
+    ansible.builtin.unarchive:
+      src: "{{ _pkg.dest }}"
+      dest: "{{ _pkg.dir }}"
+
+  - name: enabler.download|mkdir pkg enabler
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _enabler.dir }}/tmp"
+
+  - name: enabler.download|copy pkg enabler
+    loop:
+      - "tailscale"
+      - "tailscaled"
+    ansible.builtin.copy:
+      src: "{{ _pkg.dir }}/tailscale_{{ _pkg.version }}/{{ item }}"
+      dest: "{{ _enabler.dir }}/tmp/{{ item }}"

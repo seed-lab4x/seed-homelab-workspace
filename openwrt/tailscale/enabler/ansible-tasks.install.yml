@@ -1,0 +1,39 @@
+# code: language=ansible
+---
+
+- name: enabler.install|download enabler
+  include_tasks:
+    file: ansible-tasks.download.yml
+    apply:
+      delegate_to: localhost
+
+- name: enabler.install|copy enabler
+  ansible.builtin.copy:
+    src: "{{ _enabler.dir }}/"
+    dest: /
+    mode: '0755'
+
+- name: enabler.install|install ssl
+  community.general.opkg:
+    update_cache: true
+    name: libustream-openssl
+  # for 'file is already provided by package  * libustream-wolfssl20201210'
+  ignore_errors: true
+
+- name: enabler.install|install ca tun
+  community.general.opkg:
+    update_cache: true
+    name:
+      - ca-bundle
+      - kmod-tun
+
+- name: enabler.install|enable service
+  ansible.builtin.shell: /etc/init.d/tailscale enable
+
+- name: enabler.install|list startup
+  ansible.builtin.shell: ls /etc/rc.d/S*tailscale*
+  register: startup_list
+  until: startup_list is succeeded
+
+- name: enabler.install|start service
+  ansible.builtin.shell: /etc/init.d/tailscale start
