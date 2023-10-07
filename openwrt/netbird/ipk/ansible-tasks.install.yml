@@ -1,0 +1,32 @@
+# code: language=ansible
+---
+
+- name: ipk.install|download ipk
+  include_tasks:
+    file: ansible-tasks.download.yml
+    apply:
+      delegate_to: localhost
+
+- name: ipk.install|copy file
+  ansible.builtin.copy:
+    src: "{{ _ipk.dest }}"
+    dest: /tmp/netbird.ipk
+
+- name: ipk.install|install ipk
+  ansible.builtin.shell: opkg install /tmp/netbird.ipk
+
+- name: ipk.install|remove ipk
+  ansible.builtin.file:
+    state: absent
+    dest: /tmp/netbird.ipk
+
+- name: ipk.install|enable service
+  ansible.builtin.shell: /etc/init.d/netbird enable
+
+- name: ipk.install|list startup
+  ansible.builtin.shell: ls /etc/rc.d/S*netbird*
+  register: startup_list
+  until: startup_list is succeeded
+
+- name: ipk.install|start service
+  ansible.builtin.shell: /etc/init.d/netbird start
