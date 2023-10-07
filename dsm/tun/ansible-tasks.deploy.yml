@@ -1,0 +1,46 @@
+# code: language=ansible
+---
+
+- name: tun.deploy|stat tun dev
+  ansible.builtin.stat:
+    path: /dev/net/tun
+  register: tun_dev_stat
+
+- when: not tun_dev_stat.stat.exists
+  block:
+  - name: tun.deploy|mkdir tun dev
+    become: true
+    ansible.builtin.file:
+      path: /dev/net
+      state: directory
+      mode: 755
+
+  - name: tun.deploy|mknod tun dev
+    become: true
+    ansible.builtin.shell: mknod /dev/net/tun c 10 200
+
+  - name: tun.deploy|chmod tun dev
+    ansible.builtin.file:
+      path: /dev/net/tun
+      mode: 666
+
+- name: tun.deploy|stat tun sysvinit
+  ansible.builtin.stat:
+    path: /usr/local/etc/rc.d/tun.sh
+  register: tun_sysvinit_stat
+
+- when: not tun_sysvinit_stat.stat.exists
+  block:
+  - name: tun.deploy|create tun sysvinit
+    ansible.builtin.copy:
+      content: |
+        #!/bin/sh -e
+        insmod /lib/modules/tun.ko
+      dest: /usr/local/etc/rc.d/tun.sh
+      owner: root
+      mode: 0755
+
+  - name: tun.deploy|run tun sysvinit
+    ansible.builtin.shell: /usr/local/etc/rc.d/tun.sh
+    register: tun_sysvinit_sh
+    ignore_errors: yes

@@ -1,0 +1,14 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/opt/bin"
+  tasks:
+
+    - name: deploy tun
+      vars:
+        register: esata
+      include_tasks: ansible-tasks.deploy.yml
