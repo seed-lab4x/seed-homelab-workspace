@@ -1,0 +1,13 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: up
+  hosts: linux
+  tasks:
+
+  - when: netbird.setupkey is defined
+    include_tasks: setup-key/ansible-tasks.up.yml
+
+  - when: netbird.setupkey is undefined
+    include_tasks: setup-browser/ansible-tasks.up.yml
