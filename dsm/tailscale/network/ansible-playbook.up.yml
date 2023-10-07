@@ -1,0 +1,15 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: up
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/usr/syno/bin/:/opt/bin"
+  tasks:
+
+  - when: tailscale.authkey is defined
+    include_tasks: auth-key/ansible-tasks.up.yml
+
+  - when: tailscale.authkey is undefined
+    include_tasks: admin-console/ansible-tasks.up.yml
