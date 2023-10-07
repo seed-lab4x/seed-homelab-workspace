@@ -1,0 +1,26 @@
+#!/usr/bin/env -S ansible-playbook -k -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: init.remote
+  vars:
+    ansible_ssh_extra_args: '-o StrictHostKeyChecking=no'
+    ssh_name: "{{ hostvars[inventory_hostname].ssh.name | default(prompt_name.user_input,true) }}"
+    ssh_group: "{{ hostvars[inventory_hostname].ssh.group | default('ssh',true) }}"
+  hosts: all
+  gather_facts: false
+  pre_tasks:
+
+    - name: prompt name
+      when: ssh.name | default(None,true) == None
+      ansible.builtin.pause:
+        prompt: "What is ssh name(dir name in ssh home)?"
+      register: prompt_name
+
+  tasks:
+
+    - name: init ssh
+      when: inventory_hostname in groups[ssh_group] | default([],true)
+      include_tasks: ../ansible-tasks/seed-ssh.init.yml
+      vars:
+        ssh: "{{ hostvars[inventory_hostname].ssh | combine({'name':ssh_name}, recursive=True) }}"

@@ -1,0 +1,76 @@
+# code: language=ansible
+---
+
+- name: seed-workspace.init|fact param
+  vars:
+    workspace_optional:
+      package:
+        - sshpass
+        - rsync
+        - git
+        - zip
+      pip:
+        - stormssh
+        - jsondiff
+        - jmespath
+        - pyyaml
+        - lxml
+        - requests
+      requirements: "{{ inventory_dir }}/../requirements.yml"
+      role: []
+      collection:
+        - community.docker
+        - community.general
+    workspace_param: "{{ workspace_optional | combine(workspace | default({},true), recursive=True) }}"
+  run_once: true
+  ansible.builtin.set_fact:
+    _ws: "{{ workspace_param }}"
+
+- name: seed-workspace.init|install system package
+  become: true
+  loop: "{{ _ws.package }}"
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  register: package_install
+  until: package_install is succeeded
+
+- name: seed-workspace.init|install python pip
+  loop: "{{ _ws.pip }}"
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: latest
+  register: pip_install
+  until: pip_install is succeeded
+
+- name: seed-workspace.init|stat ansible requirements
+  ansible.builtin.stat:
+    path: "{{ _ws.requirements }}"
+  register: requirements_stat
+
+- name: seed-workspace.init|install ansible requirements
+  when: requirements_stat.stat.exists
+  community.general.ansible_galaxy_install:
+    type: both
+    requirements_file: "{{ requirements_stat.stat.path }}"
+  register: requirements_install
+  until: requirements_install is succeeded
+
+- name: seed-workspace.init|install ansible loop
+  when: not requirements_stat.stat.exists
+  vars:
+    values_role: "{{ ['role'] | product(_ws.role) }}"
+    values_collection: "{{ ['collection'] | product(_ws.collection) }}"
+    values_all: "{{ values_role + values_collection }}"
+    item_param: "{{ dict(['type', 'name'] | zip(item)) }}"
+  loop: "{{ values_all }}"
+  community.general.ansible_galaxy_install:
+    type: "{{ item_param.type }}"
+    name: "{{ item_param.name }}"
+  register: galaxy_install
+  until: galaxy_install is succeeded
+
+- name: seed-workspace.init|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _ws: !!null

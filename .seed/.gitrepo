@@ -1,0 +1,12 @@
+; DO NOT EDIT (unless you know what you are doing)
+;
+; This subdirectory is a git "subrepo", and this file is maintained by the
+; git-subrepo command. See https://github.com/ingydotnet/git-subrepo#readme
+;
+[subrepo]
+	remote = git@github.com:seed-lab4x/seed-module-subrepo.git
+	branch = main
+	commit = ba60b99909de3b5b521e31b89bcf4911f4238655
+	parent = fc396542d27875a873d4d96762ce8d43dbf9aca5
+	method = merge
+	cmdver = 0.4.6

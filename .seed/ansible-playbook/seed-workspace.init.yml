@@ -1,0 +1,11 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: init.local
+  hosts: localhost
+  connection: local
+  tasks:
+
+    - name: init workspace
+      include_tasks: ../ansible-tasks/seed-workspace.init.yml

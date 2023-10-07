@@ -1,0 +1,149 @@
+#!/usr/bin/env -S ansible-playbook -k -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: seed-ssh.init|fact param
+  vars:
+    ssh_optional:
+      group: 'ssh'
+      dir: "~/.ssh"
+      approve_task: "seed-ssh.approve.yml"
+      known_hash: true
+      known_scan: []
+      mark_comment: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ssh_param: "{{ ssh_optional | combine(ssh | default({},true), recursive=True) }}"
+
+    parts_keypair_dir:
+      - "{{ ssh.dir | default('~/.ssh',true) }}"
+      - "{{ ssh.name }}"
+    parts_keypair_path:
+      - "{{ ssh.dir | default('~/.ssh',true) }}"
+      - "{{ ssh.name }}"
+      - "id_rsa"
+    parts_config_path:
+      - "{{ ssh.dir | default('~/.ssh',true) }}"
+      - "config"
+    parts_known_path:
+      - "{{ ssh.dir | default('~/.ssh',true) }}"
+      - "known_hosts"
+    ssh_required:
+      name: "{{ ssh.name }}"
+      keypair_dir: "{{ parts_keypair_dir | path_join }}"
+      keypair_path: "{{ parts_keypair_path | path_join }}"
+      config_path: "{{ ssh.config_path | default(parts_config_path | path_join) }}"
+      known_path: "{{ ssh.known_path | default(parts_known_path | path_join) }}"
+  run_once: true
+  ansible.builtin.set_fact:
+    _ssh: "{{ ssh_param | combine(ssh_required, recursive=True) }}"
+
+- run_once: true
+  delegate_to: localhost
+  block:
+  - name: seed-ssh.init|keypair|mkdir
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _ssh.keypair_dir }}"
+
+  - name: seed-ssh.init|keypair|generate rsa 2048
+    community.crypto.openssh_keypair:
+      path: "{{ _ssh.keypair_path }}"
+      size: 2048
+      type: rsa
+      comment: "{{ _ssh.name }}"
+      mode: 0700
+    # https://github.com/microsoft/WSL/issues/670
+    register: ssh_keypair
+    until: ssh_keypair is succeeded
+
+  - name: seed-ssh.init|known_hosts|mark start
+    ansible.builtin.lineinfile:
+      path: "{{ _ssh.known_path }}"
+      line:  |-
+
+        # seed-ssh.init '{{ _ssh.name }}' {{ _ssh.mark_comment }} start
+      create: true
+
+  - name: seed-ssh.init|known_hosts|loop add by keyscan
+    vars:
+      list_host_scan: "{{ groups[_ssh.group]
+          | product(_ssh.known_scan)
+          | map('zip', ['name', 'type'])
+          | map('map', 'reverse')
+          | map('community.general.dict') }}"
+      item_host_name: "{{ item_host_scan.name }}"
+      item_keyscan_type: "{{ item_host_scan.type }}"
+      item_keyscan_port: "{{ hostvars[item_host_name].ansible_port | default('22',true) }}"
+      item_keyscan_host: "{{ hostvars[item_host_name].ansible_host | default(item_host_name,true) }}"
+      item_known_name: "{{ item_keyscan_host }}"
+      item_keyscan_command: "ssh-keyscan -t {{ item_keyscan_type }} -p {{ item_keyscan_port }} {{ item_keyscan_host }}"
+      name: "{{ item.value.inventory_hostname }}"
+      item_key: "{{ lookup('pipe', item_keyscan_command, errors='ignore') }}"
+    loop: "{{ list_host_scan }}"
+    loop_control:
+      loop_var: item_host_scan
+    when:
+      - item_key | default(None,true) != None
+    ansible.builtin.known_hosts:
+      state: present
+      path: "{{ _ssh.known_path }}"
+      hash_host: "{{ _ssh.known_hash }}"
+      name: "{{ item_known_name }}"
+      key: "{{ item_key }}"
+    register: ssh_known
+    until: ssh_known is succeeded
+    ignore_errors: yes
+
+- block:
+  - name: seed-ssh.init|approve|include tasks
+    include_tasks: "{{ _ssh.approve_task }}"
+    vars:
+      ssh: "{{ _ssh }}"
+
+- run_once: true
+  delegate_to: localhost
+  when: _ssh.config_path | default(None,true) != None
+  block:
+  - name: seed-ssh.init|known_hosts|mark end
+    run_once: true
+    delegate_to: localhost
+    ansible.builtin.lineinfile:
+      path: "~/.ssh/known_hosts"
+      line: "# seed-ssh.init '{{ _ssh.name }}' {{ _ssh.mark_comment }} end"
+      create: true
+
+  - name: seed-ssh.init|config|mark start
+    ansible.builtin.lineinfile:
+      path: "{{ _ssh.config_path }}"
+      line: |-
+
+        # seed-ssh.init '{{ _ssh.name }}' {{ _ssh.mark_comment }} start
+      create: true
+
+  - name: seed-ssh.init|config|loop add by fact
+    vars:
+      item_host: "{{ hostvars[host_name].ansible_host | default(host_name,true) }}"
+      item_port: "{{ hostvars[host_name].ansible_port | default('',true) }}"
+      item_user: "{{ hostvars[host_name].ansible_user | default('root',true) }}"
+    loop: "{{ groups[_ssh.group] }}"
+    loop_control:
+      loop_var: host_name
+    community.general.ssh_config:
+      state: present
+      ssh_config_file: "{{ _ssh.config_path }}"
+      host: "{{ item_host }}"
+      hostname: "{{ item_host }}"
+      port: "{{ item_port | default(omit,true) }}"
+      remote_user: "{{ item_user | default(omit,true) }}"
+      identity_file: "{{ _ssh.keypair_path }}"
+    ignore_errors: yes
+
+  - name: seed-ssh.init|config|mark end
+    ansible.builtin.lineinfile:
+      path: "{{ _ssh.config_path }}"
+      line: "# seed-ssh.init '{{ _ssh.name }}' {{ _ssh.mark_comment }} end"
+      create: true
+
+- name: seed-ssh.init|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _ssh: !!null
