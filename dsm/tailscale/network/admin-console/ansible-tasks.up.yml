@@ -1,0 +1,88 @@
+# code: language=ansible
+---
+
+- name: admin-console.up|up async network
+  vars:
+    flags: "{{ tailscale.network.flags | default('',true) | replace('\n','') }}"
+  become: true
+  ansible.builtin.shell: "bash -c 'tailscale up {{ flags }} > /tmp/tailscale.up.log 2>&1'"
+  register: async_up
+  async: 300
+  poll: 0
+
+- name: admin-console.up|status async finished
+  become: true
+  ansible.builtin.async_status:
+    jid: "{{ async_up.ansible_job_id }}"
+  register: async_status
+  until: async_status.finished
+  # retry once in 5 seconds
+  retries: 1
+  delay: 5
+  ignore_errors: true
+
+- name: admin-console.up|grep log authenticate url
+  when: not async_status.finished
+  # not work see https://github.com/ansible/ansible/issues/79683
+  # ansible.builtin.wait_for:
+  #   path: /tmp/tailscale.up.log
+  #   search_regex: "To authenticate, visit:"
+  ansible.builtin.command:
+    cmd: "grep 'To authenticate, visit:' /tmp/tailscale.up.log"
+  retries: 60
+  register: log_grep
+  until: log_grep is successful
+
+- name: admin-console.up|slurp log authenticate url
+  ansible.builtin.slurp:
+    src: /tmp/tailscale.up.log
+  register: log_slurp
+
+- name: admin-console.up|print log authenticate url
+  vars:
+    dsm_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['dsm'])
+      | selectattr('value.log_slurp','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in dsm_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.log_slurp.content is defined %}
+      {{ host.value.log_slurp.content | b64decode }}
+      {% endif %}
+      {% endfor %}
+
+- name: admin-console.up|status async finished
+  become: true
+  ansible.builtin.async_status:
+    jid: "{{ async_up.ansible_job_id }}"
+  register: async_status
+  until: async_status.finished
+  # retry every 60 seconds for 15 minutes
+  retries: 15
+  delay: 60
+
+- name: admin-console.up|slurp log finished
+  ansible.builtin.slurp:
+    src: /tmp/tailscale.up.log
+  register: log_slurp
+
+- name: admin-console.up|print log finished
+  vars:
+    dsm_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['dsm'])
+      | selectattr('value.log_slurp','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in dsm_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {% if host.value.log_slurp.content is defined %}
+      {{ host.value.log_slurp.content | b64decode }}
+      {% endif %}
+      {% endfor %}

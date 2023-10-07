@@ -1,0 +1,109 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: dsm
+  environment:
+    PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}:/usr/syno/bin/:/opt/bin"
+  tasks:
+
+    - name: deploy tun
+      include_tasks: ../tun/ansible-tasks.deploy.yml
+
+    - name: status spk
+      ansible.builtin.shell: synopkg status Tailscale || true
+      register: tailscale_spk_status
+
+    - vars:
+        status: "{{ tailscale_spk_status.stdout | from_json }}"
+      when: status.status == 'non_installed'
+      block:
+      - when: tailscale.spk_url is defined
+        block:
+        - name: download spk from url
+          ansible.builtin.get_url:
+            url: "{{ tailscale.spk_url }}"
+            dest: /tmp/tailscale.spk
+            mode: '0440'
+
+        - name: install spk from url
+          ansible.builtin.shell: synopkg install /tmp/tailscale.spk
+          register: tailscale_spk_install
+          until: tailscale_spk_install is succeeded
+
+        - name: delete spk from url
+          ansible.builtin.file:
+            state: absent
+            path: /tmp/tailscale.spk
+
+      - when: tailscale.spk_url is undefined
+        block:
+        - name: install spk from server
+          ansible.builtin.shell: synopkg install_from_server Tailscale
+          register: tailscale_spk_install
+          until: tailscale_spk_install is succeeded
+
+    - name: set tailscaled cap_net_admin
+      become: true
+      community.general.capabilities:
+        path: /var/packages/Tailscale/target/bin/tailscaled
+        capability: cap_net_admin+eip
+        state: present
+
+    - name: stat tailscale sysvinit
+      ansible.builtin.stat:
+        path: /usr/local/etc/rc.d/tailscale.sh
+      register: tailscale_sysvinit_stat
+
+    - when: not tailscale_sysvinit_stat.stat.exists
+      block:
+      - name: create tailscale sysvinit
+        become: true
+        ansible.builtin.copy:
+          content: |
+            #!/bin/sh -e
+            /var/packages/Tailscale/target/bin/tailscale configure-host
+          dest: /usr/local/etc/rc.d/tailscale.sh
+          owner: root
+          mode: 0755
+
+      - name: run tailscale sysvinit
+        become: true
+        ansible.builtin.shell: /usr/local/etc/rc.d/tailscale.sh
+        register: tailscale_sysvinit_sh
+        ignore_errors: yes
+
+    - name: status tailscale spk
+      ansible.builtin.shell: synopkg status Tailscale || true
+      register: tailscale_spk_status
+
+    # tailscale always stopped but will work
+    - name: start tailscale spk
+      vars:
+        status: "{{ tailscale_spk_status.stdout | from_json }}"
+      when: status.status == 'stop'
+      ansible.builtin.shell: synopkg start Tailscale || true
+      register: tailscale_pkg_start
+      ignore_errors: yes
+
+    - name: get tailscale status
+      ansible.builtin.shell: tailscale status
+      register: tailscale_status
+      ignore_errors: true
+
+    - name: print tailscale status
+      vars:
+        dsm_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['dsm'])
+          | selectattr('value.tailscale_status','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in dsm_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.tailscale_status.stdout | default('',true) }}
+          {{ host.value.tailscale_status.stderr | default('',true) }}
+          {% endfor %}
