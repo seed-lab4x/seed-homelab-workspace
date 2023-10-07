@@ -1,0 +1,92 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: join
+  hosts: openwrt
+  tasks:
+
+    - name: config zerotier
+      loop: "{{ zerotier.networks | default([],true) }}"
+      loop_control:
+        loop_var: network_id
+      ansible.builtin.command: uci add_list zerotier.openwrt_network.join='{{ network_id }}'
+      register: zerotier_config
+      until: zerotier_config is succeeded
+
+    - when: zerotier.networks | default([],true) | length > 0
+      block:
+      - name: stop service
+        ansible.builtin.command: service zerotier stop
+        register: service_stop
+        until: service_stop is succeeded
+
+      - name: start service
+        ansible.builtin.command: service zerotier start
+        register: service_start
+        until: service_start is succeeded
+
+    - when: zerotier.token is defined
+      block:
+      - name: get client id
+        ansible.builtin.shell: zerotier-cli info | awk '{print $3}'
+        register: zerotier_id
+
+      - name: install curl
+        community.general.opkg:
+          update_cache: true
+          name: curl
+
+      - name: shell authorized zerotier
+        vars:
+          is_authorized: "{{ zerotier.token is defined and zerotier_id is succeeded }}"
+          client_id: "{{ zerotier_id.stdout }}"
+        loop: "{{ zerotier.networks if(is_authorized) else [] }}"
+        loop_control:
+          loop_var: network_id
+        ansible.builtin.shell: |
+          curl -X POST -d '{"config": {"authorized": true}}' -H "Authorization: bearer {{ zerotier.token }}" https://my.zerotier.com/api/v1/network/{{ network_id }}/member/{{ client_id }}
+        register: zerotier_authorized
+        ignore_errors: true
+
+    - name: get zerotier dev
+      ansible.builtin.command: sh -c 'zerotier-cli listnetworks | tail -n +2 | cut -d" " -f8'
+      register: zerotier_dev_get
+      until: zerotier_dev_get is succeeded
+
+    - name: fact firewall zone
+      vars:
+        commands: |
+          uci set firewall.zerotier=zone
+          uci set firewall.zerotier.name='zerotier'
+          uci set firewall.zerotier.input='ACCEPT'
+          uci set firewall.zerotier.output='ACCEPT'
+          uci set firewall.zerotier.forward='ACCEPT'
+          uci set firewall.zerotier.masq='1'
+          uci set firewall.zerotier.device='{{ zerotier_dev_get.stdout_lines | join("\' \'") }}'
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ commands }}"
+
+    - name: fact firewall forwarding
+      vars:
+        default:
+          - src: lan
+          - dest: lan
+          - dest: wan
+        forwardings: "{{ zerotier.uci.firewall.forwarding | default(default,true) }}"
+        src: "{{ item.src | default('zerotier',true) }}"
+        dest: "{{ item.dest | default('zerotier',true) }}"
+        key: "{{ src }}2{{ dest }}"
+        command: |
+          uci set firewall.{{ key }}=forwarding
+          uci set firewall.{{ key }}.src='{{ src }}'
+          uci set firewall.{{ key }}.dest='{{ dest }}'
+      loop: "{{ forwardings }}"
+      ansible.builtin.set_fact:
+        uci_command: "{{ uci_command | default('',true) ~ '\n' ~ command }}"
+
+    - name: config firewall
+      loop: "{{ uci_command | split('\n') | select() + ['uci commit'] }}"
+      ansible.builtin.command: "{{ item }}"
+      register: firewall_config
+      until: firewall_config is succeeded
