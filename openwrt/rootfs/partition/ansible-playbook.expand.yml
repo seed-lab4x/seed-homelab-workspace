@@ -1,0 +1,231 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: expand
+  hosts: openwrt
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - rootfs is defined
+        ansible.builtin.fail:
+          msg: "expand rootfs fail. exclude var undefined."
+
+      block:
+      - name: assert defined
+        ansible.builtin.assert:
+          that:
+            - rootfs is defined
+          msg: "var eval fail {{ rootfs }}"
+          quiet: true
+
+      - name: install opkg
+        community.general.opkg:
+          update_cache: true
+          name:
+            - lsblk
+            - parted
+            - sfdisk
+            - fdisk
+
+      - name: fact param
+        vars:
+          default_dev: "{{ rootfs.partition.disk | default('',true) }}{{ rootfs.partition.part | default('',true) }}"
+          default_disk: "{{ rootfs.partition.dev | default('',true) | regex_replace('\\d$', '') }}"
+          default_part: "{{ rootfs.partition.dev | default('',true) | regex_search('\\d$') }}"
+          default:
+            partition:
+              dev: "{{ rootfs.partition.dev | default(default_dev,true) }}"
+              disk: "{{ rootfs.partition.disk | default(default_disk,true) }}"
+              part: "{{ rootfs.partition.part | default(default_part,true) }}"
+        ansible.builtin.set_fact:
+          _rootfs: "{{ default | combine(rootfs, recursive=True) }}"
+
+      - vars:
+          keys:
+            - path
+            - name
+            - pkname
+            - mountpoint
+          values: "{{ all_blk_list.stdout_lines | map('split',' ') }}"
+          blks: "{{ values
+                  | map('zip', keys)
+                  | map('map', 'reverse')
+                  | map('community.general.dict') }}"
+        when: _rootfs.partition.dev | default(None,true) == None
+        block:
+        - name: list all blk
+          ansible.builtin.shell: |
+            lsblk -n -i -r -o PATH,NAME,PKNAME,MOUNTPOINT
+          register: all_blk_list
+
+        - name: get boot dev
+          ansible.builtin.shell: |
+            sed -n -e "\|\s/boot\s.*$|{s///p;q}" /etc/mtab
+          register: boot_dev_get
+
+        - name: fact param by boot blk
+          vars:
+            boot_blk: "{{ blks | selectattr('path','equalto',boot_dev_get.stdout) | first }}"
+            boot_part_prefix: "{{ boot_blk.path | regex_replace('\\d$', '') }}"
+            boot_part_num: "{{ boot_blk.path | regex_search('\\d$') }}"
+            root_part_num: "{{ (boot_part_num | int) + 1 }}"
+            root_dev: "{{ boot_part_prefix }}{{ root_part_num }}"
+            root_blk: "{{ blks | selectattr('path','equalto',root_dev) | first }}"
+            attr:
+              partition:
+                dev: "{{ root_dev }}"
+                disk: "/dev/{{ root_blk.pkname }}"
+                part: "{{ root_blk.path | regex_search('\\d$') }}"
+                name: "{{ root_blk.name }}"
+          when: boot_dev_get.stdout != ''
+          ansible.builtin.set_fact:
+            _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+        - name: fact param by root blk
+          vars:
+            root_mount: "{{ ansible_mounts | selectattr('device','equalto','/dev/root') | selectattr('mount','in',['/','/rom']) | first }}"
+            root_blk: "{{ blks | selectattr('mountpoint','equalto',root_mount.mount) | first }}"
+            attr:
+              partition:
+                dev: "{{ root_blk.path }}"
+                disk: "/dev/{{ root_blk.pkname }}"
+                part: "{{ root_blk.path | regex_search('\\d$') }}"
+                name: "{{ root_blk.name }}"
+          when: boot_dev_get.stdout == ''
+          ansible.builtin.set_fact:
+            _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+      - name: info root disk
+        community.general.parted:
+          device: "{{ _rootfs.partition.disk }}"
+          state: info
+        register: rootfs_disk_info
+        until: rootfs_disk_info.partitions | selectattr('num','equalto',_rootfs.partition.part | int) | length == 1
+
+      - name: stat root dev
+        ansible.builtin.stat:
+          path: "{{ _rootfs.partition.dev }}"
+        register: rootfs_dev_stat
+        until: rootfs_dev_stat.stat.exists
+
+      - when: _rootfs.partition.mode | default('parted') == 'sfdisk'
+        block:
+        - name: add all free
+          ansible.builtin.shell: |
+            echo ", +" | sfdisk --force -N {{ _rootfs.partition.part }} {{ _rootfs.partition.disk }}
+          register: rootfs_all_add
+
+      - when: _rootfs.partition.mode | default('parted') == 'fdisk'
+        block:
+        - name: get first sector
+          ansible.builtin.shell: |
+            fdisk -l {{ _rootfs.partition.disk }} | grep {{ _rootfs.partition.dev }} | awk 'END{print $2}'
+          register: first_sector_get
+
+        - name: get first sector
+          ansible.builtin.shell: |
+            (
+              echo d
+              echo {{ _rootfs.partition.part }}
+              echo n
+              echo p
+              echo {{ _rootfs.partition.part }}
+              echo {{ first_sector_get.stdout }}
+              echo ''
+              echo n
+              echo w
+            ) | fdisk {{ _rootfs.partition.disk }}
+          register: first_sector_get
+
+      - when: _rootfs.partition.mode | default('parted') == 'parted'
+        block:
+        # fix parted warnings stop resizepart
+        # see https://openwrt.org/docs/guide-user/installation/openwrt_x86#extracting_boot_partition_image
+        - name: fix order partition
+          ansible.builtin.shell: |
+            echo -e "ok\nfix" | parted -l ---pretend-input-tty
+          register: rootfs_order_fix
+
+        - name: resize root partition
+          # not work 'Partition(s) on /dev/sda are being used'
+          # community.general.parted:
+          #   device: "{{ rootfs.disk }}"
+          #   number: "{{ rootfs.part }}"
+          #   resize: true
+          #   align: undefined
+          #   part_end: "100%"
+          #   state: present
+          ansible.builtin.shell: |
+            parted -s {{ _rootfs.partition.disk }} resizepart {{ _rootfs.partition.part }} 100%
+          register: rootfs_part_resize
+
+      # https://forum.openwrt.org/t/x64-system-discovery-bios-vs-uefi/155593/30
+      - name: stat efi dir
+        ansible.builtin.stat:
+          path: /sys/firmware/efi
+        register: efi_dir_stat
+
+      - when: efi_dir_stat.stat.exists
+        block:
+        - name: list partuuid blk
+          ansible.builtin.shell: |
+            lsblk -n -i -r -o PATH,PARTUUID
+          register: partuuid_blk_list
+
+        - name: sed efi grub
+          vars:
+            keys:
+              - path
+              - partuuid
+            values: "{{ partuuid_blk_list.stdout_lines | map('split',' ') }}"
+            blks: "{{ values
+                    | map('zip', keys)
+                    | map('map', 'reverse')
+                    | map('community.general.dict') }}"
+            root_blk: "{{ blks | selectattr('path','equalto',_rootfs.partition.dev) | first }}"
+          ansible.builtin.shell: |
+            sed -i -r -e "s|(PARTUUID=)\S+|\1{{ root_blk.partuuid }}|g" /boot/grub/grub.cfg
+          register: efi_grub_sed
+
+      always:
+      - name: always|list root part
+        ansible.builtin.shell: |
+          parted -ls
+        register: rootfs_part_list
+        ignore_errors: true
+
+      - name: always|list root blk
+        ansible.builtin.shell: |
+          lsblk -l
+        register: rootfs_blk_list
+        ignore_errors: true
+
+      - name: always|print part blk
+        vars:
+          openwrt_hostvars: "{{ hostvars | dict2items
+            | selectattr('key','in',groups['openwrt'])
+            | selectattr('value.rootfs_part_list','defined')
+            | selectattr('value.rootfs_blk_list','defined') }}"
+        ansible.builtin.pause:
+          seconds: 1
+          prompt: |
+            {% for host in openwrt_hostvars %}
+
+            [{{ host.key }}] =>
+            --------------------------------------------------
+            {{ host.value.rootfs_part_list.stdout | default('',true) }}
+            {{ host.value.rootfs_part_list.stderr | default('',true) }}
+            --------------------------------------------------
+            {{ host.value.rootfs_blk_list.stdout | default('',true) }}
+            {{ host.value.rootfs_blk_list.stderr | default('',true) }}
+            {% endfor %}
+
+    - name: reboot it
+      when: _rootfs.partition.reboot | default(false)
+      ansible.builtin.reboot:
+        reboot_command: "reboot"
+        connect_timeout: 30
+        test_command: cat /etc/openwrt_version

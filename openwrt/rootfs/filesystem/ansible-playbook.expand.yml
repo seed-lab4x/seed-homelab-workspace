@@ -1,0 +1,254 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: expand
+  hosts: openwrt
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - rootfs is defined
+        ansible.builtin.fail:
+          msg: "expand rootfs fail. exclude var undefined."
+
+      block:
+      - name: assert defined
+        ansible.builtin.assert:
+          that:
+            - rootfs is defined
+          msg: "var eval fail {{ rootfs }}"
+          quiet: true
+
+      - name: install opkg
+        community.general.opkg:
+          update_cache: true
+          name:
+            - lsblk
+            - parted
+            - losetup
+            - resize2fs
+            - f2fs-tools
+
+      - name: fact param
+        vars:
+          default_dev: "{{ rootfs.partition.disk | default('',true) }}{{ rootfs.partition.part | default('',true) }}"
+          default_disk: "{{ rootfs.partition.dev | default('',true) | regex_replace('\\d$', '') }}"
+          default_part: "{{ rootfs.partition.dev | default('',true) | regex_search('\\d$') }}"
+          default:
+            partition:
+              dev: "{{ rootfs.partition.dev | default(default_dev,true) }}"
+              disk: "{{ rootfs.partition.disk | default(default_disk,true) }}"
+              part: "{{ rootfs.partition.part | default(default_part,true) }}"
+        ansible.builtin.set_fact:
+          _rootfs: "{{ default | combine(rootfs, recursive=True) }}"
+
+      - vars:
+          keys:
+            - path
+            - name
+            - pkname
+            - mountpoint
+          values: "{{ all_blk_list.stdout_lines | map('split',' ') }}"
+          blks: "{{ values
+                  | map('zip', keys)
+                  | map('map', 'reverse')
+                  | map('community.general.dict') }}"
+        when: _rootfs.partition.dev | default(None,true) == None
+        block:
+        - name: list all blk
+          ansible.builtin.shell: |
+            lsblk -n -i -r -o PATH,NAME,PKNAME,MOUNTPOINT
+          register: all_blk_list
+
+        - name: get boot dev
+          ansible.builtin.shell: |
+            sed -n -e "\|\s/boot\s.*$|{s///p;q}" /etc/mtab
+          register: boot_dev_get
+
+        - name: fact param by boot blk
+          vars:
+            boot_blk: "{{ blks | selectattr('path','equalto',boot_dev_get.stdout) | first }}"
+            boot_part_prefix: "{{ boot_blk.path | regex_replace('\\d$', '') }}"
+            boot_part_num: "{{ boot_blk.path | regex_search('\\d$') }}"
+            root_part_num: "{{ (boot_part_num | int) + 1 }}"
+            root_dev: "{{ boot_part_prefix }}{{ root_part_num }}"
+            root_blk: "{{ blks | selectattr('path','equalto',root_dev) | first }}"
+            attr:
+              partition:
+                dev: "{{ root_dev }}"
+                disk: "/dev/{{ root_blk.pkname }}"
+                part: "{{ root_blk.path | regex_search('\\d$') }}"
+                name: "{{ root_blk.name }}"
+          when: boot_dev_get.stdout != ''
+          ansible.builtin.set_fact:
+            _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+        - name: fact param by root blk
+          vars:
+            root_mount: "{{ ansible_mounts | selectattr('device','equalto','/dev/root') | selectattr('mount','in',['/','/rom']) | first }}"
+            root_blk: "{{ blks | selectattr('mountpoint','equalto',root_mount.mount) | first }}"
+            attr:
+              partition:
+                dev: "{{ root_blk.path }}"
+                disk: "/dev/{{ root_blk.pkname }}"
+                part: "{{ root_blk.path | regex_search('\\d$') }}"
+                name: "{{ root_blk.name }}"
+          when: boot_dev_get.stdout == ''
+          ansible.builtin.set_fact:
+            _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+      - name: info root disk
+        community.general.parted:
+          device: "{{ _rootfs.partition.disk }}"
+          state: info
+        register: rootfs_disk_info
+        until: rootfs_disk_info.partitions | selectattr('num','equalto',_rootfs.partition.part | int) | length == 1
+
+      - name: stat root dev
+        ansible.builtin.stat:
+          path: "{{ _rootfs.partition.dev }}"
+        register: rootfs_dev_stat
+        until: rootfs_dev_stat.stat.exists
+
+      - name: get rootfs type
+        ansible.builtin.shell: |
+          ubus call system board | jsonfilter -e "$['rootfs_type']"
+        register: rootfs_type_get
+
+      - name: json rootfs loop
+        ansible.builtin.shell: |
+          losetup -J
+        register: rootfs_loop_json
+
+      # alway setup next loop for root part then resize
+      - name: next rootfs loop
+        ansible.builtin.shell: |
+          losetup -f
+        register: rootfs_loop_next
+
+      - name: fact dev,offset attr
+        vars:
+          loops: "{{ rootfs_loop_json.stdout | from_json }}"
+          rootfs_loop_select: "{{ loops.loopdevices | selectattr('back-file','equalto','/' ~ _rootfs.partition.name) }}"
+          rootfs_loop_offest: "{{ rootfs_loop_select | map(attribute='offset') | first }}"
+          map:
+            ext4:
+              dev: "{{ rootfs_loop_next.stdout }}"
+              offset: ''
+            squashfs:
+              dev: "{{ rootfs_loop_next.stdout }}"
+              offset: "{{ rootfs_loop_offest if(rootfs_loop_select | length > 0) else '' }}"
+          attr:
+            filesystem: "{{ map[rootfs_type_get.stdout] }}"
+        ansible.builtin.set_fact:
+          _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+      - name: setup rootfs loop
+        vars:
+          offset_opts: "{{ '-o ' ~ _rootfs.filesystem.offset if(_rootfs.filesystem.offset != '') else '' }}"
+        ansible.builtin.shell: |
+          losetup {{ offset_opts }} {{ _rootfs.filesystem.dev }} {{ _rootfs.partition.dev }}
+        register: rootfs_loop_setup
+
+      - name: list fstype blk
+        ansible.builtin.shell: |
+          lsblk -n -i -r -o PATH,FSTYPE
+        register: fstype_blk_list
+
+      - name: fact fsck,mount,resize attr
+        vars:
+          keys:
+            - path
+            - fstype
+          values: "{{ fstype_blk_list.stdout_lines | map('split',' ') }}"
+          blks: "{{ values
+                  | map('zip', keys)
+                  | map('map', 'reverse')
+                  | map('community.general.dict') }}"
+          root_blk: "{{ blks | selectattr('path','equalto',_rootfs.filesystem.dev) | first }}"
+          map:
+            ext4:
+              fsck: "{{ 'fsck.ext4' if(_rootfs.filesystem.fsck | default(false)) else '' }}"
+              mount: ''
+              resize: resize2fs
+            f2fs:
+              fsck: "{{ 'fsck.f2fs' if(_rootfs.filesystem.fsck | default(false)) else '' }}"
+              mount: '{{ _rootfs.filesystem.dev | regex_replace("^/dev", "/mnt") }}'
+              resize: resize.f2fs
+          attr:
+            filesystem: "{{ map[root_blk.fstype] }}"
+        ansible.builtin.set_fact:
+          _rootfs: "{{ _rootfs | combine(attr, recursive=True) }}"
+
+      - name: fsck root filesystem
+        when: _rootfs.filesystem.fsck != ''
+        ansible.builtin.shell: |
+          {{ _rootfs.filesystem.fsck }} -y -f {{ _rootfs.filesystem.dev }} || true
+
+      # fix resize.f2fs fail 'Mount unclean image to replay log first'
+      # see https://forum.openwrt.org/t/howto-resizing-root-partition-on-x86/140631
+      - when: _rootfs.filesystem.mount != ''
+        block:
+        - name: mkdir loop mount
+          ansible.builtin.file:
+            state: directory
+            path: "{{ _rootfs.filesystem.mount }}"
+
+        - name: mount loop root
+          ansible.builtin.shell: |
+            mount {{ _rootfs.filesystem.dev }} {{ _rootfs.filesystem.mount }}
+
+        - name: umount loop root
+          ansible.builtin.shell: |
+            umount {{ _rootfs.filesystem.mount }}
+
+        - name: remove loop mount
+          ansible.builtin.file:
+            state: absent
+            dest: "{{ _rootfs.filesystem.mount }}"
+
+      - name: resize rootfs loop
+        ansible.builtin.shell: |
+          {{ _rootfs.filesystem.resize }} {{ _rootfs.filesystem.dev }}
+        register: rootfs_loop_resize
+
+      always:
+      - name: always|list root blk
+        ansible.builtin.shell: |
+          lsblk -l
+        register: rootfs_blk_list
+        ignore_errors: true
+
+      - name: always|detach rootfs loop
+        when:
+          - rootfs_loop_setup is defined
+          - rootfs_loop_setup is succeeded
+        ansible.builtin.shell: |
+          losetup -d {{ _rootfs.filesystem.dev }}
+
+      - name: always|print loop blk
+        vars:
+          openwrt_hostvars: "{{ hostvars | dict2items
+            | selectattr('key','in',groups['openwrt'])
+            | selectattr('value.rootfs_blk_list','defined') }}"
+        ansible.builtin.pause:
+          seconds: 1
+          prompt: |
+            {% for host in openwrt_hostvars %}
+
+            [{{ host.key }}] =>
+            {{ host.value._rootfs.filesystem.dev | default('',true) }}: {{ host.value.rootfs_type_get.stdout | default('',true) }}
+            --------------------------------------------------
+            {{ host.value.rootfs_blk_list.stdout | default('',true) }}
+            {{ host.value.rootfs_blk_list.stderr | default('',true) }}
+            {% endfor %}
+
+    - name: reboot it
+      when: _rootfs.filesystem.reboot | default(false)
+      ansible.builtin.reboot:
+        reboot_command: "reboot"
+        connect_timeout: 30
+        reboot_timeout: 60
+        test_command: cat /etc/openwrt_version
