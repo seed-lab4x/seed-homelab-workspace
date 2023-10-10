@@ -1,0 +1,356 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: move
+  hosts: openwrt
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - docker is defined
+          - docker.dir is defined
+          - docker.dir != uci_rootdir_get.stdout
+        ansible.builtin.fail:
+          msg: "move docker fail. exclude var undefined and src target same."
+
+      block:
+      - name: get uci rootdir
+        ansible.builtin.shell: |
+          uci get dockerd.globals.data_root
+        register: uci_rootdir_get
+        ignore_errors: true
+
+      - name: assert param
+        ansible.builtin.assert:
+          that:
+            - docker is defined
+            - docker.dir is defined
+            - docker.dir != uci_rootdir_get.stdout
+          msg: "var eval fail {{ docker }}"
+          quiet: true
+
+      - name: fact param
+        vars:
+          default: {}
+        ansible.builtin.set_fact:
+          _docker: "{{ default | combine(docker, recursive=True) }}"
+
+      - name: stat docker dir
+        ansible.builtin.stat:
+          path: "{{ _docker.dir }}"
+        register: docker_dir_stat
+
+      - when:
+          - _docker.partition is defined
+          - not docker_dir_stat.stat.exists
+        block:
+        - name: partition|mkdir docker dir
+          ansible.builtin.file:
+            state: directory
+            path: "{{ _docker.dir }}"
+
+        - name: partition|fact partition attr
+          vars:
+            default_dev: "{{ _docker.partition.disk | default('',true) }}{{ _docker.partition.part | default('',true) }}"
+            default_disk: "{{ _docker.partition.dev | default('',true) | regex_replace('\\d$', '') }}"
+            default_part: "{{ _docker.partition.dev | default('',true) | regex_search('\\d$') }}"
+            attr:
+              partition:
+                dev: "{{ _docker.partition.dev | default(default_dev,true) }}"
+                disk: "{{ _docker.partition.disk | default(default_disk,true) }}"
+                part: "{{ _docker.partition.part | default(default_part,true) }}"
+          ansible.builtin.set_fact:
+            _docker: "{{ _docker | combine(attr, recursive=True) }}"
+
+        - name: partition|install opkg package
+          community.general.opkg:
+            update_cache: true
+            name:
+              - lsblk
+              - parted
+              - blkid
+              - block-mount
+
+        - vars:
+            keys:
+              - path
+              - name
+              - pkname
+              - mountpoint
+            values: "{{ all_blk_list.stdout_lines | map('split',' ') }}"
+            blks: "{{ values
+                    | map('zip', keys)
+                    | map('map', 'reverse')
+                    | map('community.general.dict') }}"
+          when: _docker.partition.dev | default(None,true) == None
+          block:
+          - name: partition|after_root|list all blk
+            ansible.builtin.shell: |
+              lsblk -n -i -r -o PATH,NAME,PKNAME,MOUNTPOINT
+            register: all_blk_list
+
+          - name: partition|after_root|get boot dev
+            ansible.builtin.shell: |
+              sed -n -e "\|\s/boot\s.*$|{s///p;q}" /etc/mtab
+            register: boot_dev_get
+
+          - name: partition|after_root|fact partition attr by boot blk
+            vars:
+              boot_blk: "{{ blks | selectattr('path','equalto',boot_dev_get.stdout) | first }}"
+              boot_part_prefix: "{{ boot_blk.path | regex_replace('\\d$', '') }}"
+              boot_part_num: "{{ boot_blk.path | regex_search('\\d$') }}"
+              docker_part_num: "{{ (boot_part_num | int) + 2 }}"
+              docker_dev: "{{ boot_part_prefix }}{{ docker_part_num }}"
+              attr:
+                partition:
+                  dev: "{{ docker_dev }}"
+                  disk: "/dev/{{ boot_blk.pkname }}"
+                  part: "{{ docker_part_num }}"
+                  after_root: true
+            when: boot_dev_get.stdout != ''
+            ansible.builtin.set_fact:
+              _docker: "{{ _docker | combine(attr, recursive=True) }}"
+
+          - name: partition|after_root|fact partition attr by root blk
+            vars:
+              root_mount: "{{ ansible_mounts | selectattr('device','equalto','/dev/root') | selectattr('mount','in',['/','/rom']) | first }}"
+              root_blk: "{{ blks | selectattr('mountpoint','equalto',root_mount.mount) | first }}"
+              root_part_prefix: "{{ root_blk.path | regex_replace('\\d$', '') }}"
+              root_part_num: "{{ root_blk.path | regex_search('\\d$') }}"
+              docker_part_num: "{{ (root_part_num | int) + 1 }}"
+              docker_dev: "{{ root_part_prefix }}{{ docker_part_num }}"
+              attr:
+                partition:
+                  dev: "{{ docker_dev }}"
+                  disk: "/dev/{{ root_blk.pkname }}"
+                  part: "{{ docker_part_num }}"
+                  after_root: true
+            when: boot_dev_get.stdout == ''
+            ansible.builtin.set_fact:
+              _docker: "{{ _docker | combine(attr, recursive=True) }}"
+
+        - name: partition|info docker disk
+          community.general.parted:
+            state: info
+            device: "{{ _docker.partition.disk }}"
+            unit: MB
+          register: docker_disk_info
+
+        - name: partition|stat docker dev
+          ansible.builtin.stat:
+            path: "{{ _docker.partition.dev }}"
+          register: rootfs_dev_stat
+
+        - when:
+            - docker_disk_info.partitions | selectattr('num','equalto',_docker.partition.part | int) | length == 0
+            - not rootfs_dev_stat.stat.exists
+          block:
+          - vars:
+              blk_keys:
+                - path
+                - name
+                - pkname
+                - mountpoint
+              blk_values: "{{ all_blk_list.stdout_lines | map('split',' ') }}"
+              blks: "{{ blk_values
+                      | map('zip', blk_keys)
+                      | map('map', 'reverse')
+                      | map('community.general.dict') }}"
+              root_part: "{{ (_docker.partition.part | int) - 1 }}"
+              root_partition: "{{ docker_disk_info.partitions | selectattr('num','equalto',root_part | int) | first }}"
+              last_partition: "{{ docker_disk_info.partitions | sort(attribute='end') | last }}"
+            when: _docker.partition.after_root | default(false)
+            block:
+            - name: partition|create|after_root|assert feasible
+              vars:
+                is_all_free: "{{ root_partition.end == last_partition.end }}"
+                is_big_space: "{{ docker_disk_info.disk.size > (last_partition.end | int) + 512 }}"
+              ansible.builtin.assert:
+                that:
+                  - is_all_free
+                  - is_big_space
+                msg: "after root partition must be all free and 512MB space."
+                quiet: true
+
+            - name: partition|create|after_root|fact part_start attr
+              vars:
+                attr:
+                  partition:
+                    part_start: "{{ (last_partition.end | int) + 12 }}MB"
+              ansible.builtin.set_fact:
+                _docker: "{{ _docker | combine(attr, recursive=True) }}"
+
+          - name: partition|create|docker partition
+            vars:
+              last: "{{ docker_disk_info.partitions | sort(attribute='end') | last }}"
+              start_after: "{{ (last.end | int) + 12 }}MB"
+            community.general.parted:
+              state: present
+              device: "{{ _docker.partition.disk }}"
+              number: "{{ _docker.partition.part }}"
+              align: "{{ _docker.partition.name | default(omit,true) }}"
+              flags: "{{ _docker.partition.flags | default(omit,true) }}"
+              fs_type: "{{ _docker.partition.fs_type | default('ext4',true) }}"
+              label: "{{ _docker.partition.label | default(omit,true) }}"
+              name: "{{ _docker.partition.name | default(omit,true) }}"
+              part_end: "{{ _docker.partition.label | default(omit,true) }}"
+              part_start: "{{ _docker.partition.part_start | default(omit,true) }}"
+              part_type: "{{ _docker.partition.part_type | default('primary',true) }}"
+              unit: "{{ _docker.partition.unit | default(omit,true) }}"
+            register: docker_partition_create
+
+          - name: partition|create|docker filesystem
+            community.general.filesystem:
+              state: present
+              fstype: "{{ _docker.partition.fs_type | default('ext4',true) }}"
+              dev: "{{ _docker.partition.dev }}"
+            register: docker_filesystem_create
+
+        - when:
+            - docker_disk_info.partitions | selectattr('num','equalto',_docker.partition.part | int) | length == 1
+            - rootfs_dev_stat.stat.exists
+          block:
+          - name: partition|exists|list fstype blk
+            ansible.builtin.shell: |
+              lsblk -n -i -r -o PATH,FSTYPE
+            register: fstype_blk_list
+
+          - name: partition|exists|assert fs type
+            vars:
+              fs_type: "{{ _docker.partition.fs_type | default('ext4',true) }}"
+              keys:
+                - path
+                - fstype
+              values: "{{ fstype_blk_list.stdout_lines | map('split',' ') }}"
+              blks: "{{ values
+                      | map('zip', keys)
+                      | map('map', 'reverse')
+                      | map('community.general.dict') }}"
+              docker_blk: "{{ blks | selectattr('path','equalto',_docker.partition.dev) | first }}"
+            ansible.builtin.assert:
+              that:
+                - docker_blk.fstype == fs_type
+              msg: "exists partition fstype not {{ fs_type }}"
+              quiet: true
+
+          - vars:
+              mount: '{{ _docker.partition.dev | regex_replace("^/dev", "/mnt") }}'
+            block:
+            - name: partition|exists|mount exists part
+              ansible.builtin.shell: |
+                mount -r {{ _docker.partition.dev }} {{ _docker.dir }}
+
+            - name: partition|exists|stat docker files
+              loop:
+                - "{{ _docker.dir }}/containerd"
+                - "{{ _docker.dir }}/containers"
+                - "{{ _docker.dir }}/image"
+                - "{{ _docker.dir }}/network"
+                - "{{ _docker.dir }}/volumes"
+              ansible.builtin.stat:
+                path: "{{ item }}"
+              register: docker_files_stat
+
+            - name: partition|exists|umount exists part
+              ansible.builtin.shell: |
+                umount {{ _docker.dir }}
+
+          - name: partition|exists|assert docker files
+            loop: "{{ docker_files_stat.results }}"
+            ansible.builtin.assert:
+              that:
+                - item.stat.exists
+              msg: "exists partition miss docker file {{ item.stat.path }}"
+              quiet: true
+
+        - name: partition|import uci fstab
+          ansible.builtin.shell: |
+            block detect | uci import fstab
+          register: uci_fstab_import
+
+        - name: partition|get docker blkid
+          ansible.builtin.shell: |
+            blkid -s UUID -o value {{ _docker.partition.dev }}
+          register: docker_blkid_get
+
+        - name: partition|config uci fstab
+          loop:
+            - uci set fstab.docker=mount
+            - uci set fstab.docker.target='{{ _docker.dir }}'
+            - uci set fstab.docker.uuid='{{ docker_blkid_get.stdout }}'
+            - uci set fstab.docker.enabled='1'
+            - uci commit fstab
+          ansible.builtin.command: "{{ item }}"
+          register: uci_fstab_config
+          until: uci_fstab_config is succeeded
+
+        - name: partition|mount docker block
+          ansible.builtin.shell: |
+            block mount
+          register: docker_block_mount
+
+      - name: status service dockerd
+        ansible.builtin.command: service dockerd status
+        register: service_dockerd_status
+        ignore_errors: true
+
+      - name: stop service dockerd
+        when: service_dockerd_status.stdout == 'running'
+        ansible.builtin.command: service dockerd stop
+        register: service_dockerd_stop
+        until: service_dockerd_stop is succeeded
+
+      - name: copy docker rootdir
+        when: _docker.cp | default(false)
+        ansible.builtin.copy:
+          remote_src: true
+          src: "{{ uci_rootdir_get.stdout }}/"
+          dest: "{{ _docker.dir }}/"
+
+      - name: remove docker rootdir
+        when: _docker.remove | default(false)
+        ansible.builtin.file:
+          state: absent
+          path: "{{ uci_rootdir_get.stdout }}/"
+
+      - name: config uci rootdir
+        ansible.builtin.shell: |
+          uci set dockerd.globals.data_root='{{ _docker.dir }}'
+          uci commit
+        register: uci_rootdir_config
+
+      - name: start service dockerd
+        when: service_dockerd_status.stdout == 'running'
+        ansible.builtin.command: service dockerd start
+        register: service_dockerd_start
+        until: service_dockerd_start is succeeded
+
+      - name: status service dockerd
+        when: service_dockerd_status.stdout == 'running'
+        ansible.builtin.command: service dockerd status
+        register: service_dockerd_status
+        until: service_dockerd_status.stdout == 'running'
+
+      always:
+      - name: get docker info
+        ansible.builtin.shell: docker info
+        register: docker_info_get
+        ignore_errors: true
+
+      - name: print docker info
+        vars:
+          openwrt_hostvars: "{{ hostvars | dict2items
+            | selectattr('key','in',groups['openwrt'])
+            | selectattr('value.docker_info_get','defined') }}"
+        ansible.builtin.pause:
+          seconds: 1
+          prompt: |
+            {% for host in openwrt_hostvars %}
+
+            [{{ host.key }}] =>
+            --------------------------------------------------
+            {{ host.value.docker_info_get.stdout | default('',true) }}
+            {{ host.value.docker_info_get.stderr | default('',true) }}
+            {% endfor %}
