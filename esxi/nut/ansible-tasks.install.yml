@@ -1,0 +1,61 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: upsmon.install|rescue|fail tasks
+    when:
+      - vmware is defined
+    ansible.builtin.fail:
+      msg: "install upsmon fail. exclude var undefined."
+
+  block:
+  - name: upsmon.install|assert var
+    ansible.builtin.assert:
+      that:
+        - vmware is defined
+      msg: "var eval fail {{ vmware }}"
+      quiet: true
+
+  - name: upsmon.install|download upsmon
+    include_tasks:
+      file: ansible-tasks.download.yml
+      apply:
+        delegate_to: localhost
+
+  - name: upsmon.install|community software acceptance
+    delegate_to: localhost
+    community.vmware.vmware_host_acceptance:
+      hostname: "{{ vmware.hostname }}"
+      username: "{{ vmware.username }}"
+      password: "{{ vmware.password }}"
+      validate_certs: false
+      esxi_hostname: '{{ vmware.hostname }}'
+      acceptance_level: 'community'
+      state: present
+
+  - name: upsmon.install|mkdir upsmon
+    ansible.builtin.file:
+      state: directory
+      path: "~/.esxi/{{ _upsmon.version }}"
+
+  - name: upsmon.install|copy upsmon
+    ansible.builtin.copy:
+      src: "{{ _upsmon.dest }}"
+      dest: "~/.esxi"
+    register: upsmon_file_copy
+
+  - name: upsmon.install|unarchive upsmon
+    ansible.builtin.shell: tar -xzvf {{ upsmon_file_copy.dest }} -C ~/.esxi/{{ _upsmon.version }}
+
+  # miss zipinfo
+  # - name: upsmon.install|unarchive upsmon
+  #   ansible.builtin.unarchive:
+  #     remote_src: true
+  #     src: "{{ upsmon_file_copy.dest }}"
+  #     dest: "~/.esxi/{{ _upsmon.version }}"
+
+  - name: upsmon.install|install upsmon
+    ansible.builtin.shell:
+      cmd: ./upsmon-install.sh
+      chdir: "~/.esxi/{{ _upsmon.version }}"
+    register: upsmon_shell_install
