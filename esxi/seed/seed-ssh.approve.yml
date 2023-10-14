@@ -1,0 +1,23 @@
+# code: language=ansible
+---
+
+- name: seed-ssh.approve|esxi|mkdir keys
+  vars:
+    user: "{{ hostvars[inventory_hostname].ansible_user | default('root',true) }}"
+  ansible.builtin.file:
+    path: "/etc/ssh/keys-{{ user }}"
+    state: directory
+
+- name: esxi-ssh.init|authorized key
+  vars:
+    user: "{{ hostvars[inventory_hostname].ansible_user | default('root',true) }}"
+    parts_keypair_path:
+      - "{{ ssh.dir }}"
+      - "{{ ssh.name }}"
+      - "id_rsa.pub"
+    local_pub_path: "{{ parts_keypair_path | path_join }}"
+  ansible.builtin.lineinfile:
+    path: "/etc/ssh/keys-{{ user }}/authorized_keys"
+    line: "{{ lookup('file', local_pub_path) }}"
+    create: yes
+    mode: '0600'
