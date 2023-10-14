@@ -1,0 +1,31 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: esxi
+  tasks:
+
+    - name: config upsmon
+      include_tasks: ansible-tasks.config.yml
+
+    - name: test nut server
+      ansible.builtin.shell:
+        cmd: "/opt/nut/bin/upsc {{ nut.upsname }}"
+      register: upsc_nut_test
+
+    - name: print test status
+      vars:
+        esxi_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['esxi'])
+          | selectattr('value.upsc_nut_test','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in esxi_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.upsc_nut_test.stdout | default('',true) }}
+          {{ host.value.upsc_nut_test.stderr | default('',true) }}
+          {% endfor %}

@@ -1,0 +1,35 @@
+# code: language=ansible
+---
+
+- name: upsmon.download|get latest
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/rgc2000/NutClient-ESXi/releases/latest"
+    return_content: true
+  register: latest_get
+
+- name: upsmon.download|fact _upsmon
+  vars:
+    version: "{{ latest_get.json.name }}"
+    asset: "{{ latest_get.json.assets | selectattr('name', 'search', 'x86_64.tar.gz') | first }}"
+  ansible.builtin.set_fact:
+    _upsmon:
+      version: "{{ version }}"
+      url: "{{ asset.browser_download_url }}"
+      dest: "~/.esxi/{{ asset.name }}"
+
+- name: upsmon.download|stat upsmon dest
+  ansible.builtin.stat:
+    path: "{{ _upsmon.dest }}"
+  register: asset_dest_stat
+
+- name: upsmon.download|mkdir upsmon dest
+  when: not asset_dest_stat.stat.exists
+  ansible.builtin.file:
+    state: directory
+    path: "~/.esxi"
+
+- name: upsmon.download|download upsmon dest
+  when: not asset_dest_stat.stat.exists
+  ansible.builtin.get_url:
+    url: "{{ _upsmon.url }}"
+    dest: "{{ _upsmon.dest }}"

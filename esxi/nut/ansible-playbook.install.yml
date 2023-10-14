@@ -1,0 +1,26 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: esxi
+  tasks:
+
+    - name: install upsmon
+      include_tasks: ansible-tasks.install.yml
+
+    - name: print upsmon status
+      vars:
+        esxi_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',groups['esxi'])
+          | selectattr('value.upsmon_shell_install','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in esxi_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.upsmon_shell_install.stdout | default('',true) }}
+          {{ host.value.upsmon_shell_install.stderr | default('',true) }}
+          {% endfor %}
