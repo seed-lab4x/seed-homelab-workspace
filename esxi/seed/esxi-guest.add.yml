@@ -1,0 +1,51 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: esxi-guest.add|rescue|fail tasks
+    when:
+      - vmware is defined
+      - guest is defined
+    ansible.builtin.fail:
+      msg: "add guest fail. exclude var undefined."
+
+  block:
+  - name: esxi-guest.add|assert var
+    ansible.builtin.assert:
+      that:
+        - vmware is defined
+        - guest is defined
+      msg: "var eval fail {{ guest }}"
+      quiet: true
+
+  - name: esxi-guest.add|fact param
+    ansible.builtin.set_fact:
+      _guest: "{{ guest }}"
+
+  - name: esxi-guest.add|vsphere|add guest
+    delegate_to: localhost
+    when: vmware.mode | default('free',true) != 'free'
+    vars:
+      combine:
+        hostname: "{{ vmware.hostname }}"
+        username: "{{ vmware.username }}"
+        password: "{{ vmware.password }}"
+        datastore: "{{ vmware.datastore | default('datastore1',true) }}"
+        state: present
+      args: "{{ _guest | combine(combine, recursive=True) }}"
+    community.vmware.vmware_guest: "{{ args }}"
+    register: guest_vsphere_add
+
+  - name: esxi-guest.add|free|add guest
+    delegate_to: localhost
+    when: vmware.mode | default('free',true) == 'free'
+    vars:
+      combine:
+        hostname: "{{ vmware.hostname }}"
+        username: "{{ vmware.username }}"
+        password: "{{ vmware.password }}"
+        datastore: "{{ vmware.datastore | default('datastore1',true) }}"
+        state: present
+      args: "{{ _guest | combine(combine, recursive=True) }}"
+    esxifree_guest: "{{ args }}"
+    register: guest_free_add
