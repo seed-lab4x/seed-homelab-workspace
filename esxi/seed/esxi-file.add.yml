@@ -1,0 +1,234 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: esxi-file.add|rescue|fail tasks
+    when:
+      - vmware is defined
+      - file is defined
+      - not _file.skip
+    ansible.builtin.fail:
+      msg: "add file fail. exclude var undefined."
+
+  block:
+  - name: esxi-file.add|assert var
+    ansible.builtin.assert:
+      that:
+        - vmware is defined
+        - file is defined
+      msg: "var eval fail {{ file }}"
+      quiet: true
+
+  - name: esxi-file.add|fact param
+    vars:
+      default:
+        skip: false
+    ansible.builtin.set_fact:
+      _file: "{{ default | combine(file, recursive=True) }}"
+
+  - name: esxi-file.add|stat file path
+    ansible.builtin.stat:
+      path: "{{ _file.path }}"
+    register: file_path_stat
+
+  - when: file_path_stat.stat.exists
+    block:
+    - name: esxi-file.add|exists|stat file src
+      delegate_to: localhost
+      ansible.builtin.stat:
+        path: "{{ _file.src }}"
+      register: file_src_stat
+
+    - name: esxi-file.add|exists|fact skip attr
+      when:
+        - file_src_stat.stat.exists
+        - file_src_stat.stat.checksum == file_path_stat.stat.checksum
+      vars:
+        attr:
+          skip: true
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(attr, recursive=True) }}"
+
+  - name: esxi-file.add|assert skip attr
+    ansible.builtin.assert:
+      that:
+        - not _file.skip
+      msg: "file path exists and sameas src, skip."
+      quiet: true
+
+  - when: _file.url is defined
+    block:
+    - name: esxi-file.add|url|tempfile url file
+      delegate_to: localhost
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: seed.esxi.file.url
+      register: file_url_tempfile
+
+    - name: esxi-file.add|url|fact src attr
+      when: _file.src is undefined
+      vars:
+        attr:
+          src: "{{ file_url_tempfile.path }}/{{ _file.url | basename }}"
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(attr, recursive=True) }}"
+
+    - name: esxi-file.add|url|stat file src
+      ansible.builtin.stat:
+        path: "{{ _file.src }}"
+      register: file_src_stat
+
+    - name: esxi-file.add|url|download file src
+      delegate_to: localhost
+      when: not file_src_stat.stat.exists
+      ansible.builtin.get_url:
+        url: "{{ _file.url }}"
+        dest: "{{ _file.src }}"
+
+  - when: _file.cloudinit is defined
+    block:
+    - name: esxi-file.add|cloudinit|tempfile cloudinit iso
+      delegate_to: localhost
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: seed.esxi.iso.cloudinit
+      register: iso_cloudinit_tempfile
+
+    - name: esxi-file.add|cloudinit|fact src attr
+      when: _file.src is undefined
+      vars:
+        attr:
+          src: "{{ iso_cloudinit_tempfile.path }}/cloudinit.iso"
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(attr, recursive=True) }}"
+
+    - name: esxi-file.add|cloudinit|create cloudinit files
+      delegate_to: localhost
+      vars:
+        type: "{{ _file.cloudinit[item.key] | type_debug }}"
+        from_dict: "{{ _file.cloudinit[item.key] | to_nice_yaml(indent=2) }}"
+        from_str: "{{ _file.cloudinit[item.key] }}"
+      loop:
+        - key: meta_data
+          basename: meta-data
+        - key: user_data
+          basename: user-data
+      ansible.builtin.copy:
+        content: "{{ from_dict if(type == 'dict') else from_str }}"
+        dest: "{{ iso_cloudinit_tempfile.path }}/{{ item.basename }}"
+
+    - name: esxi-file.add|cloudinit|make cloudinit iso
+      delegate_to: localhost
+      ansible.builtin.shell:
+        cmd: genisoimage -output {{ _file.src }} -volid cidata -joliet -rock user-data meta-data
+        chdir: "{{ iso_cloudinit_tempfile.path }}"
+      register: cloudinit_file_make
+
+    - name: esxi-file.add|cloudinit|remove cloudinit files
+      loop:
+        - meta-data
+        - user-data
+      ansible.builtin.file:
+        state: absent
+        path: "{{ iso_cloudinit_tempfile.path }}/{{ item }}"
+
+  - when: _file.anaconda is defined
+    block:
+    - name: esxi-file.add|anaconda|tempfile anaconda iso
+      delegate_to: localhost
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: seed.esxi.iso.anaconda
+      register: iso_anaconda_tempfile
+
+    - name: esxi-file.add|anaconda|fact src attr
+      when: _file.src is undefined
+      vars:
+        attr:
+          src: "{{ iso_anaconda_tempfile.path }}/anaconda.iso"
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(attr, recursive=True) }}"
+
+    - name: esxi-file.add|anaconda|create anaconda files
+      delegate_to: localhost
+      ansible.builtin.copy:
+        content: "{{ _file.anaconda }}"
+        dest: "{{ iso_anaconda_tempfile.path }}/ks.cfg"
+
+    - name: esxi-file.add|anaconda|make anaconda iso
+      ansible.builtin.shell:
+        cmd: genisoimage -output {{ _file.src }} -volid OEMDRV -joliet -rock ks.cfg
+        chdir: "{{ anaconda_file_tempfile.path }}"
+      register: anaconda_file_make
+
+    - name: esxi-file.add|anaconda|remove anaconda files
+      ansible.builtin.file:
+        state: absent
+        path: "{{ anaconda_file_tempfile.path }}/ks.cfg"
+
+  - when: _file.vmkfstools is defined
+    block:
+    - name: esxi-file.add|vmkfstools|fact path attr
+      vars:
+        attr:
+          path: "{{ _file.vmkfstools.path }}"
+          vmkfstools:
+            dest: "{{ _file.path }}"
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(attr, recursive=True) }}"
+
+  - name: esxi-file.add|mkdir file path
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _file.path | dirname }}"
+
+  - name: esxi-file.add|vsphere|copy file path
+    when: vmware.mode | default('free',true) != 'free'
+    delegate_to: localhost
+    community.vmware.vsphere_copy:
+      hostname: "{{ vmware.hostname }}"
+      username: "{{ vmware.username }}"
+      password: "{{ vmware.password }}"
+      src: "{{ _file.src }}"
+      datacenter: "{{ _file.datacenter | default('ha-datacenter',true) }}"
+      datastore: "{{ _file.datastore | default('datastore1',true) }}"
+      path: "{{ _file.path }}"
+
+  - name: esxi-file.add|free|copy file path
+    when: vmware.mode | default('free',true) == 'free'
+    ansible.builtin.copy:
+      src: "{{ _file.src }}"
+      dest: "{{ _file.path }}"
+
+  - when: _file.vmkfstools is defined
+    block:
+    - name: esxi-file.add|vmkfstools|extend file disk
+      vars:
+        opt_format: "{{ '-d ' ~ _file.vmkfstools.extend.format if(_file.vmkfstools.extend.format is defined) else '' }}"
+      when: _file.vmkfstools.extend is defined
+      ansible.builtin.shell:
+        cmd: "vmkfstools -X {{ _file.vmkfstools.extend.size }} {{ _file.vmkfstools.path }} {{ opt_format }}"
+        chdir: "{{ _file.path | dirname }}"
+      register: vmkfstools_result
+      ignore_errors: true
+
+    - when: _file.vmkfstools.clone is defined
+      block:
+      - name: esxi-file.add|vmkfstools|remove clone dest
+        ansible.builtin.file:
+          state: absent
+          path: "{{ _file.vmkfstools.dest }}"
+
+      - name: esxi-file.add|vmkfstools|mkdir clone dest
+        ansible.builtin.file:
+          state: directory
+          path: "{{ _file.vmkfstools.dest | dirname }}"
+
+      - name: esxi-file.add|vmkfstools|clone file disk
+        vars:
+          opt_format: "{{ '-d ' ~ _file.vmkfstools.clone.format if(_file.vmkfstools.clone.format is defined) else '' }}"
+        ansible.builtin.shell:
+          cmd: "vmkfstools -i {{ _file.vmkfstools.path }} {{ _file.vmkfstools.dest }} {{ opt_format }}"
+          chdir: "{{ _file.path | dirname }}"
+        register: vmkfstools_result
+        ignore_errors: true

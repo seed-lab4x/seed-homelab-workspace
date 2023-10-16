@@ -1,0 +1,53 @@
+# code: language=ansible
+---
+
+- name: esxi-files.add|assert var
+  ansible.builtin.assert:
+    that:
+      - files is defined
+      - files | type_debug == 'list'
+    msg: "var eval fail {{ files }}"
+    quiet: true
+
+- name: esxi-files.add|fact param
+  ansible.builtin.set_fact:
+    _files: "{{ files | flatten }}"
+
+- vars:
+    share_mode: "{{ files_share.mode | default('index') }}"
+    share_group: "{{ files_share.group | default('all',true) }}"
+  block:
+  - name: esxi-files.add|index|loop
+    loop: "{{ range(0, _files | length, 1) | list }}"
+    loop_control:
+      loop_var: file_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[file_share.group] | default([],true)
+    include_tasks: esxi-file.add.yml
+    vars:
+      file: "{{ _files[file_index] }}"
+      file_share:
+        any: false
+        group: "{{ file.group | default(share_group,true) }}"
+
+  - name: esxi-files.add|value|loop
+    loop: "{{ _files }}"
+    loop_control:
+      loop_var: file
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[file_share.group] | default([],true)
+    include_tasks: seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ file.once | default(false) }}"
+        task: esxi-file.add.yml
+      file_share:
+        any: "{{ file.any | default(false) }}"
+        group: "{{ file.group | default(share_group,true) }}"
+
+- name: esxi-files.add|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _files: !!null
