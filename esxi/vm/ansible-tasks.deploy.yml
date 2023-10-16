@@ -1,0 +1,80 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: vm.deploy|file|rescue|fail tasks
+    when:
+      - file | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy vm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|file|assert var
+    ansible.builtin.assert:
+      that:
+        - file | default(None,true) != None
+      msg: "var eval fail {{ file }}"
+      quiet: true
+
+  - name: vm.deploy|file|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        file: "{{ file }}"
+
+  - name: vm.deploy|file|add files
+    vars:
+      files: "{{ _vm.file }}"
+    when: files | length > 0
+    include_tasks: ../seed/esxi-files.add.yml
+
+
+- rescue:
+  - name: vm.deploy|guest|rescue|fail tasks
+    when:
+      - guest | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy vm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|guest|assert var
+    ansible.builtin.assert:
+      that:
+        - guest | default(None,true) != None
+      msg: "var eval fail {{ guest }}"
+      quiet: true
+
+  - name: vm.deploy|guest|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        guest: "{{ guest }}"
+
+  - name: vm.deploy|guest|add guest
+    vars:
+      guest: "{{ _vm.guest }}"
+    include_tasks: ../seed/esxi-guest.add.yml
+
+
+- rescue:
+  - name: vm.deploy|ovf|rescue|fail tasks
+    when:
+      - ovf | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy vm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|ovf|assert var
+    ansible.builtin.assert:
+      that:
+        - ovf | default(None,true) != None
+      msg: "var eval fail {{ ovf }}"
+      quiet: true
+
+  - name: vm.deploy|ovf|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        ovf: "{{ ovf }}"
+
+  - name: vm.deploy|ovf|add ovf
+    vars:
+      ovf: "{{ _vm.ovf }}"
+    include_tasks: ../seed/esxi-ovf.add.yml
