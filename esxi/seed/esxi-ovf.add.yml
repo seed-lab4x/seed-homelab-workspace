@@ -1,0 +1,38 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: esxi-ovf.add|rescue|fail tasks
+    when:
+      - vmware is defined
+      - vmware.mode | default('free',true) != 'free'
+      - ovf is defined
+    ansible.builtin.fail:
+      msg: "add ovf fail. exclude var undefined."
+
+  block:
+  - name: esxi-ovf.add|assert var
+    ansible.builtin.assert:
+      that:
+        - vmware is defined
+        - vmware.mode | default('free',true) != 'free'
+        - ovf is defined
+      msg: "var eval fail {{ ovf }}"
+      quiet: true
+
+  - name: esxi-ovf.add|fact param
+    ansible.builtin.set_fact:
+      _ovf: "{{ ovf }}"
+
+  - name: esxi-ovf.add|add ovf
+    delegate_to: localhost
+    vars:
+      combine:
+        hostname: "{{ vmware.hostname }}"
+        username: "{{ vmware.username }}"
+        password: "{{ vmware.password }}"
+        datastore: "{{ vmware.datastore | default('datastore1',true) }}"
+        state: present
+      args: "{{ _ovf | combine(combine, recursive=True) }}"
+    community.vmware.vmware_deploy_ovf: "{{ args }}"
+    register: ovf_vsphere_add
