@@ -1,0 +1,28 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: esxi
+  collections:
+    - dseeley.esxifree_guest
+  tasks:
+
+    - name: deploy vm
+      vars:
+        file: "{{ vm.file | default(None,true) }}"
+        ovf: "{{ vm.ovf | default(None,true) }}"
+        guest: "{{ vm.guest | default(None,true) }}"
+      include_tasks: ansible-tasks.deploy.yml
+
+    - name: deploy group vm
+      vars:
+        group_names: "{{ vm.groups | default([],true) }}"
+        group_var: "{{ vm_groups[group_name] | default({},true) }}"
+        file: "{{ group_var.file | default(None,true) }}"
+        ovf: "{{ group_var.ovf | default(None,true) }}"
+        guest: "{{ group_var.guest | default(None,true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.deploy.yml
