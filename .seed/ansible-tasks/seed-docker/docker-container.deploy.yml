@@ -1,0 +1,76 @@
+# code: language=ansible
+---
+
+- name: docker-container.deploy|fact workpath
+  when: workpath.remote is undefined
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+- name: docker-container.deploy|assert container
+  ansible.builtin.assert:
+    that:
+      - container is defined
+    msg: "var eval fail {{ container }}"
+    quiet: true
+
+- name: docker-container.deploy|fact param
+  ansible.builtin.set_fact:
+    _container_deploy: "{{ container }}"
+
+- block:
+  - name: docker-container.deploy|mkdir workpath
+    ansible.builtin.file:
+      state: directory
+      path: "{{ workpath.remote.full }}"
+
+  - name: docker-container.deploy|push files
+    vars:
+      files: "{{ _container_deploy.vars.files | default(files_default,true) }}"
+      files_default: "{{ _container_deploy.default.files | default([],true) }}"
+      files_share: "{{ _container_deploy.share.files | default({},true) }}"
+    when: files | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+
+  - name: docker-container.deploy|init nfs-mounts
+    vars:
+      mounts: "{{ _container_deploy.vars.mounts | default(mounts_default,true) }}"
+      mounts_default: "{{ _container_deploy.default.mounts | default({},true) }}"
+      mounts_share: "{{ _container_deploy.share.mounts | default({},true) }}"
+    when: mounts | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-nfs/nfs-mounts.init.yml"
+
+  - name: docker-container.deploy|init volumes
+    vars:
+      volumes: "{{ _container_deploy.vars.volumes | default(volumes_default,true) }}"
+      volumes_default: "{{ _container_deploy.default.volumes | default({},true) }}"
+      volumes_share: "{{ _container_deploy.share.volumes | default({},true) }}"
+    when: volumes | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.init.yml"
+
+  - name: docker-container.deploy|init networks
+    vars:
+      networks: "{{ _container_deploy.vars.networks | default(networks_default,true) }}"
+      networks_default: "{{ _container_deploy.default.networks | default({},true) }}"
+      networks_share: "{{ _container_deploy.share.networks | default({},true) }}"
+    when: networks | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-networks.init.yml"
+
+  - vars:
+      container_var: "{{ _container_deploy.vars.container | default(container_default,true) }}"
+      container_default: "{{ _container_deploy.default.container | default({},true) }}"
+    when: container_var.image is defined
+    block:
+    - name: docker-container.deploy|run container
+      become: "{{ _container_deploy.share.become | default(false) }}"
+      vars:
+        attr:
+          name: "{{ _container_deploy.name | default(workpath.name,true) }}"
+          labels:
+            "com.github.xiaoyao9184.docker-seed.type": "docker-container.deploy"
+            "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-container.deploy',true) }}"
+        args: "{{ attr | combine(container_var, recursive=True) }}"
+      community.docker.docker_container: "{{ args }}"
+
+- name: docker-container.deploy|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _container_deploy: !!null

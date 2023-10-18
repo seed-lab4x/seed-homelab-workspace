@@ -1,0 +1,123 @@
+# code: language=ansible
+---
+
+- name: docker-cp.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: cp_share
+
+- vars:
+    group: "{{ cp_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-cp.push|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "push cp fail. exclude wrong group."
+
+  block:
+  - name: docker-cp.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - cp is defined
+      msg: "var eval fail {{ cp }}"
+      quiet: true
+
+  - name: docker-cp.push|fact param
+    ansible.builtin.set_fact:
+      _cp: "{{ cp }}"
+
+  - rescue:
+    - name: docker-cp.push|rescue any other|fail
+      when:
+        - _cp | default(None) != None
+      ansible.builtin.fail:
+        msg: "push cp '{{ _cp.container }}' fail, exclude enable any: '{{ cp_share.any | default(false) }}'."
+
+    block:
+    - name: docker-cp.push|mkdir|by dest
+      vars:
+        command_options:
+          - "mkdir"
+          - "{{ '-m' if(_cp.mode is defined) else '' }}"
+          - "{{ _cp.mode | default('',true) }}"
+          - "-p"
+          - "{{ _cp.dest }}"
+        command: "{{ command_options | select() | join(' ') }}"
+      when:
+        - _cp.src | default(None,true) == None
+        - _cp.dest | default(None,true) != None
+      community.docker.docker_container_exec:
+        container: "{{ _cp.container }}"
+        command: "{{ command }}"
+
+    - when:
+        - _cp.src | default(None,true) != None
+        - _cp.dest | default(None,true) != None
+      block:
+      - name: docker-cp.push|copy|stat src
+        when:
+          # src is `one-item`
+          # `one-item` mean 'file-self' or 'dir-self' not 'dir-content'
+          - not ( _cp.src is regex('\/\.$') )
+        ansible.builtin.stat:
+          path: "{{ _cp.src }}"
+        register: cp_src_stat
+
+      - name: docker-cp.push|copy|mkdir parent
+        vars:
+          # src is `dir-item` or `multi-item`
+          # `dir-item` mean stat is dir
+          # `multi-item` mean default
+          # default `multi-item`
+          is_src_dir_content: "{{ _cp.src is regex('\/\\.$') }}"
+          is_src_dir_exists: "{{ cp_src_stat.stat.isdir | default(false) }}"
+          is_src_dir: "{{ is_src_dir_content or is_src_dir_exists }}"
+          # dest is `parent-path`
+          # `parent-path` mean endwith '/'
+          is_dest_dir: "{{ _cp.dest is regex('\/$') }}"
+          # src is `dir` also mean dest is parent-path
+          is_dest_parent: "{{ is_src_dir or is_dest_dir }}"
+          dest_parts: "{{ _cp.dest | split('/') }}"
+          dest_parent: "/{{ dest_parts[:-1] | path_join }}"
+          parent: "{{ _cp.dest if(is_dest_parent) else dest_parent }}"
+          command_options:
+            - "mkdir"
+            - "{{ '-m' if(_cp.directory_mode is defined) else '' }}"
+            - "{{ _cp.directory_mode | default('',true) }}"
+            - "-p"
+            - "{{ parent }}"
+          command: "{{ command_options | select() | join(' ') }}"
+        community.docker.docker_container_exec:
+          container: "{{ _cp.container }}"
+          command: "{{ command }}"
+
+      - name: docker-cp.push|copy|copy to container
+        ansible.builtin.shell: "docker cp {{ _cp.src }} {{ _cp.container }}:{{ _cp.dest }}"
+
+      - when: _cp.mode is defined
+        block:
+        - name: docker-cp.push|copy|test dest is dir
+          community.docker.docker_container_exec:
+            container: "{{ _cp.container }}"
+            command: "test -d {{ _cp.dest }}"
+          register: cp_dest_isdir
+          ignore_errors: true
+
+        - name: docker-cp.push|copy|mode file when defined
+          vars:
+            # `one-item` src basename
+            basename_src: "{{ cp_src_stat.stat.path | default('',true) | basename }}"
+            paths:
+              - "{{ _cp.dest }}"
+              - "{{ basename_src if(cp_dest_isdir is success) else '' }}"
+            path: "{{ paths | select() | join('/',true) }}"
+          community.docker.docker_container_exec:
+            container: "{{ _cp.name }}"
+            command: "chmod {{ _cp.mode }} {{ path }}"
+
+    - name: docker-cp.push|unfact param
+      run_once: "{{ cp_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _cp: !!null

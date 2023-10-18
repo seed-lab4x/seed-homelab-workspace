@@ -1,0 +1,90 @@
+# code: language=ansible
+---
+
+- name: docker-compose.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: compose_share
+
+- vars:
+    group: "{{ compose_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-compose.push|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add compose fail. exclude wrong group."
+
+  block:
+  - name: docker-compose.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - compose is defined
+      msg: "var eval fail {{ compose }}"
+      quiet: true
+
+  - name: docker-compose.push|template|fact param
+    when:
+      - compose.template is defined
+    ansible.builtin.set_fact:
+      _compose: "{{ compose }}"
+
+  - name: docker-compose.push|content|fact param
+    vars:
+      content_b64encode:
+        content: "{{ compose.content | b64encode }}"
+    when:
+      - compose.content is defined
+    ansible.builtin.set_fact:
+      _compose: "{{ compose | default({},true) | combine(content_b64encode , recursive=True) }}"
+
+  - rescue:
+    - name: docker-compose.push|rescue any other|fail
+      when:
+        - _compose | default(None) != None
+      ansible.builtin.fail:
+        msg: "push compose '{{ _compose.dest | default(_compose.file) }}' fail, exclude enable any: '{{ compose_share.any | default(false) }}'."
+
+    block:
+    - when: _compose.file is defined
+      block:
+      - name: docker-compose.wait|tempfile|mkdir compose path
+        when: workpath.remote.full is undefined
+        ansible.builtin.tempfile:
+          state: directory
+          prefix: seed.docker.compose.push
+        register: compose_temp
+
+      - name: docker-compose.wait|workpath|mkdir compose path
+        when: workpath.remote.full is defined
+        ansible.builtin.file:
+          state: directory
+          path: "{{ workpath.remote.full }}"
+        register: compose_mkdir
+
+    - vars:
+        dest_workpath_file: "{{ compose_mkdir.path | default(compose_temp.path,true) }}/{{ compose.file }}"
+        dest: "{{ _compose.dest | default(dest_workpath_file,true) }}"
+      block:
+      - name: docker-compose.push|template|push compose
+        vars:
+          # why see https://stackoverflow.com/questions/50477012/how-to-use-a-dictionary-of-registered-ansible-variables-in-vars
+          VARS: "{{ _compose.vars | default({},true) }}"
+        when: _compose.template is defined
+        ansible.builtin.template:
+          src: "{{ _compose.template }}"
+          dest: "{{ dest }}"
+          mode: "{{ _compose.mode | default(omit,true) }}"
+
+      - name: docker-compose.push|copy|push compose
+        when: _compose.content is defined
+        ansible.builtin.copy:
+          content: "{{ _compose.content | b64decode }}"
+          dest: "{{ dest }}"
+          mode: "{{ _compose.mode | default(omit,true) }}"
+
+    - name: docker-compose.push|unfact param
+      run_once: "{{ compose_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _compose: !!null

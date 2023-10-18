@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-configs.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: configs_share
+
+- name: docker-configs.add|assert param
+  ansible.builtin.assert:
+    that:
+      - configs is defined
+      - configs | type_debug == 'list'
+    msg: "var eval fail {{ configs }}"
+    quiet: true
+
+- name: docker-configs.add|fact param
+  ansible.builtin.set_fact:
+    _configs: "{{ configs | flatten }}"
+
+- vars:
+    share_mode: "{{ configs_share.mode | default('index') }}"
+    share_group: "{{ configs_share.group | default('docker',true) }}"
+  block:
+  - name: docker-configs.add|index|loop
+    loop: "{{ range(0, _configs | length, 1) | list }}"
+    loop_control:
+      loop_var: config_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[config_share.group] | default([],true)
+    include_tasks: docker-config.add.yml
+    vars:
+      config: "{{ _configs[config_index] }}"
+      config_share:
+        any: false
+        group: "{{ config.group | default(share_group,true) }}"
+
+  - name: docker-configs.add|value|loop
+    loop: "{{ _configs }}"
+    loop_control:
+      loop_var: config
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[config_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ config.once | default(false) }}"
+        task: seed-docker/docker-config.add.yml
+      config_share:
+        any: "{{ config.any | default(false) }}"
+        group: "{{ config.group | default(share_group,true) }}"
+
+- name: docker-configs.add|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _configs: !!null

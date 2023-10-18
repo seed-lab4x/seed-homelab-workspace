@@ -1,0 +1,56 @@
+# code: language=ansible
+---
+
+- name: docker-config.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: config_share
+
+- vars:
+    group: "{{ config_share.group | default('docker-manager',true) }}"
+  rescue:
+
+  - name: docker-config.add|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add config fail. exclude wrong group."
+
+  block:
+  - name: docker-config.add|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - config is defined
+      msg: "var eval fail {{ config }}"
+      quiet: true
+
+  - name: docker-config.add|fact param
+    ansible.builtin.set_fact:
+      _config: "{{ config }}"
+
+  - rescue:
+    - name: docker-config.add|rescue any other|fail
+      when:
+        - _config | default(None) != None
+      ansible.builtin.fail:
+        msg: "add config '{{ _config.name }}' fail, exclude enable any: '{{ config_share.any | default(false) }}'."
+
+    block:
+    - name: docker-config.add|add by fact
+      vars:
+        keys_to_remove: ['group','once','any']
+        keys_to_keep: "{{ _config.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _config) | list }}"
+        config_remove_key: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+        config_merge_label:
+          labels:
+            "com.docker.stack.namespace": seed
+            "com.github.xiaoyao9184.docker-seed.type": "docker-config.add"
+            "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-config.add',true) }}"
+        args: "{{ config_remove_key | combine(config_merge_label, recursive=True) }}"
+      community.docker.docker_config: "{{ args }}"
+
+    - name: docker-config.add|unfact param
+      run_once: "{{ config_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _config: !!null

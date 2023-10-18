@@ -1,0 +1,113 @@
+# code: language=ansible
+---
+
+- name: docker-env.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: env_share
+
+- vars:
+    group: "{{ env_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-env.push|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add env fail. exclude wrong group."
+
+  block:
+  - name: docker-env.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - env is defined
+      msg: "var eval fail {{ env }}"
+      quiet: true
+
+  - name: docker-env.push|no content|fact param
+    when:
+      - env.content is undefined
+    ansible.builtin.set_fact:
+      _env: "{{ env }}"
+
+  - name: docker-env.push|string content|fact param
+    vars:
+      content_b64encode:
+        content: "{{ env.content | b64encode }}"
+    when:
+      - env.content is defined
+      - env.content | type_debug != 'list'
+      - env.content | type_debug != 'dict'
+    ansible.builtin.set_fact:
+      _env: "{{ env | default({},true) | combine(content_b64encode , recursive=True) }}"
+
+  - name: docker-env.push|list content|fact param
+    vars:
+      content_b64encode:
+        content: "{{ env.content | join('\n') | b64encode }}"
+    when:
+      - env.content is defined
+      - env.content | type_debug == 'list'
+    ansible.builtin.set_fact:
+      _env: "{{ env | default({},true) | combine(content_b64encode , recursive=True) }}"
+
+  - name: docker-env.push|dict content|fact param
+    vars:
+      query: !unsafe "[].join('=',[key,value])"
+      content_b64encode:
+        content: "{{ env.content | dict2items | json_query(query) | join('\n') | b64encode }}"
+    when:
+      - env.content is defined
+      - env.content | type_debug == 'dict'
+    ansible.builtin.set_fact:
+      _env: "{{ env | default({},true) | combine(content_b64encode , recursive=True) }}"
+
+  - rescue:
+    - name: docker-env.push|rescue any other|fail
+      when:
+        - _env | default(None) != None
+      ansible.builtin.fail:
+        msg: "push env '{{ _env.dest | default(_env.file) }}' fail, exclude enable any: '{{ env_share.any | default(false) }}'."
+
+    block:
+    - when: _env.file is defined
+      block:
+      - name: docker-env.wait|tempfile|mkdir env path
+        when: workpath.remote.full is undefined
+        ansible.builtin.tempfile:
+          state: directory
+          prefix: seed.docker.env.push
+        register: env_temp
+
+      - name: docker-env.wait|workpath|mkdir env path
+        when: workpath.remote.full is defined
+        ansible.builtin.file:
+          state: directory
+          path: "{{ workpath.remote.full }}"
+        register: env_mkdir
+
+    - vars:
+        dest_workpath_file: "{{ env_mkdir.path | default(env_temp.path,true) }}/{{ env.file }}"
+        dest: "{{ _env.dest | default(dest_workpath_file,true) }}"
+      block:
+      - name: docker-env.push|template|push env
+        vars:
+          # why see https://stackoverflow.com/questions/50477012/how-to-use-a-dictionary-of-registered-ansible-variables-in-vars
+          VARS: "{{ _env.vars | default({},true) }}"
+        when: _env.template is defined
+        ansible.builtin.template:
+          src: "{{ _env.template }}"
+          dest: "{{ dest }}"
+          mode: "{{ _env.mode | default(omit,true) }}"
+
+      - name: docker-env.push|copy|push env
+        when: _env.content is defined
+        ansible.builtin.copy:
+          content: "{{ _env.content | b64decode }}"
+          dest: "{{ dest }}"
+          mode: "{{ _env.mode | default(omit,true) }}"
+
+    - name: docker-env.push|unfact param
+      run_once: "{{ env_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _env: !!null

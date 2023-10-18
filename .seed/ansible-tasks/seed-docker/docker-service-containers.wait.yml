@@ -1,0 +1,138 @@
+# code: language=ansible
+---
+
+- vars:
+    group: "{{ service_share.containers.group | default('docker',true) }}"
+  rescue:
+  - name: docker-service-containers.wait|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "wait service-containers fail. exclude wrong group."
+
+  block:
+  - name: docker-service-containers.wait|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - service.containers is defined
+      msg: "var eval fail {{ service.containers }}"
+      quiet: true
+
+  - name: docker-service-containers.wait|fact param
+    vars:
+      service_name:
+        service: "{{ service.name }}"
+    when:
+      # only run first time
+      - _service_containers.attempts | default(0,true) | int == 0
+    ansible.builtin.set_fact:
+      _service_containers: "{{ service.containers | combine(service_name , recursive=True) }}"
+
+  - name: docker-service-containers.wait|pause start delay
+    when:
+      # only run first time
+      - _service_containers.attempts | default(0,true) | int == 0
+      - _service_containers.delay_start is defined
+    ansible.builtin.pause:
+      seconds: "{{ _service_containers.delay_start | int }}"
+
+  - block:
+    - name: docker-service-containers.wait|register service ps
+      vars:
+        filters:
+          - "label=com.docker.swarm.service.name={{ _service_containers.service }}"
+        option_filter: "-f {{ filters | select() | join(' -f ') }}"
+      ansible.builtin.shell:
+        cmd: "docker ps -q {{ option_filter }}"
+      register: service_ps
+
+    - name: docker-service-containers.wait|info container
+      loop: "{{ service_ps.stdout_lines if(service_ps.stdout_lines is defined) else [] }}"
+      loop_control:
+        loop_var: container_id
+      community.docker.docker_container_info:
+        name: "{{ container_id }}"
+      register: service_containers_info
+
+    # collect register var across hosts
+    - name: docker-service-containers.wait|fact cross info
+      # each host may be waiting for different names of service.
+      #
+      # if run_once is true, this shared variable will contain other service's info those current host not cares about.
+      # that is to say the collected variables may contain container information for different services,
+      # since it is only run once, service name filtering during collection can cause data loss.
+      #
+      # another way is turn off run_once, and each host collects service information related to itself.
+      # this variable will not be globally identical/shared, it can only be said to be cross-host.
+      #
+      run_once: false
+      vars:
+        items_hostvars: "{{ hostvars | dict2items }}"
+        hosts_hostvars: "{{ items_hostvars | selectattr('key','in',groups[group]) | map(attribute='value') }}"
+        # hosts_service_containers_info: "{{ hosts_hostvars | selectattr('service_containers_info','defined') | map(attribute='service_containers_info') }}"
+        # share_service_containers_info: "{{ hosts_service_containers_info | map(attribute='results') | flatten }}"
+        # cross_attribute:
+        #   cross: "{{ share_service_containers_info }}"
+        cross_hostvars: "{{ hosts_hostvars
+          | selectattr('_service_containers','defined')
+          | selectattr('_service_containers.service','equalto',_service_containers.service) }}"
+        cross_service_containers_info: "{{ cross_hostvars
+          | selectattr('service_containers_info','defined')
+          | map(attribute='service_containers_info')
+          | map(attribute='results')
+          | flatten }}"
+        cross_attribute:
+          cross: "{{ cross_service_containers_info }}"
+      # when: _service_containers.share | default(false) | bool
+      when: _service_containers.cross | default(false) | bool
+      ansible.builtin.set_fact:
+        service_containers_info: "{{ service_containers_info | combine(cross_attribute, recursive=True) }}"
+
+    - name: docker-service-containers.wait|fact append info
+      vars:
+        append_list: "{{ lookup('ansible.builtin.vars', _service_containers.append, default=[]) }}"
+      when: _service_containers.append is defined
+      ansible.builtin.set_fact:
+        "{{ _service_containers.append }}": "{{ append_list + [service_containers_info] }}"
+
+    - name: docker-service-containers.wait|assert until list
+      when: _service_containers.until is defined
+      ansible.builtin.assert:
+        that: "{{ _service_containers.until }}"
+        msg: "wait service '{{ _service_containers.service }}' fail until: {{ _service_containers.until | join(' AND ') }}"
+
+    - name: docker-service-containers.wait|unfact param
+      run_once: "{{ service_share.containers.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _service_containers: !!null
+
+    rescue:
+    - vars:
+        service_retries: "{{ _service_containers.retries | default(3,true) }}"
+        service_attempts: "{{ _service_containers.attempts | default(0,true) }}"
+      when:
+        - _service_containers | default(None) != None
+      block:
+      - name: docker-service-containers.wait|fail retry out
+        when:
+          - service_retries | int > -1
+          - service_attempts | int >= service_retries | int
+        ansible.builtin.fail:
+          msg: "wait service '{{ _service_containers.service }}' for retries to run out."
+
+      - name: docker-service-containers.wait|fact attempts next
+        vars:
+          attempts_next:
+            attempts: "{{ service_attempts | int + 1 }}"
+        ansible.builtin.set_fact:
+          _service_containers: "{{ _service_containers | combine(attempts_next, recursive=True) }}"
+
+      - name: docker-service-containers.wait|pause retry delay
+        when:
+          - _service_containers.delay is defined
+        ansible.builtin.pause:
+          seconds: "{{ _service_containers.delay | int }}"
+          prompt: "retries {{ _service_containers.attempts }}/{{ service_retries }}"
+
+      - name: docker-service-containers.wait|retry next tasks
+        include_tasks: docker-service-containers.wait.yml

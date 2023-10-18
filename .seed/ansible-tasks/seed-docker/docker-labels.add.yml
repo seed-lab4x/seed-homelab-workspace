@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-labels.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: labels_share
+
+- name: docker-labels.add|assert param
+  ansible.builtin.assert:
+    that:
+      - labels is defined
+      - labels | type_debug == 'list'
+    msg: "var eval fail {{ labels }}"
+    quiet: true
+
+- name: docker-labels.add|fact param
+  ansible.builtin.set_fact:
+    _labels: "{{ labels | flatten }}"
+
+- vars:
+    share_mode: "{{ labels_share.mode | default('index') }}"
+    share_group: "{{ labels_share.group | default('docker',true) }}"
+  block:
+  - name: docker-labels.add|index|loop
+    loop: "{{ range(0, _labels | length, 1) | list }}"
+    loop_control:
+      loop_var: label_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[label_share.group] | default([],true)
+    include_tasks: docker-label.add.yml
+    vars:
+      label: "{{ _labels[label_index] }}"
+      label_share:
+        any: false
+        group: "{{ label.group | default(share_group,true) }}"
+
+  - name: docker-labels.add|value|loop
+    loop: "{{ _labels }}"
+    loop_control:
+      loop_var: label
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[label_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ label.once | default(false) }}"
+        task: seed-docker/docker-label.add.yml
+      label_share:
+        any: "{{ label.any | default(false) }}"
+        group: "{{ label.group | default(share_group,true) }}"
+
+- name: docker-labels.add|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _labels: !!null

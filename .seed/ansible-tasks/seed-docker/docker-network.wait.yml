@@ -1,0 +1,129 @@
+# code: language=ansible
+---
+
+- name: docker-network.wait|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: network_share
+
+- vars:
+    group: "{{ network_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-network.wait|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "wait network fail. exclude wrong group."
+
+  block:
+  - name: docker-network.wait|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - network is defined
+      msg: "var eval fail {{ network }}"
+      quiet: true
+
+  - name: docker-network.wait|fact param
+    vars:
+      default:
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _network: "{{ default | combine(network, recursive=True) }}"
+
+  - vars:
+      playbook_path: "{{ network_mkdir.path | default(network_temp.path,true) }}"
+    rescue:
+    - name: docker-network.wait|rescue any other|fail
+      when:
+        - _network | default(None) != None
+      ansible.builtin.fail:
+        msg: "wait network '{{ _network.name }}' fail, exclude enable any: '{{ network_share.any | default(false) }}'."
+
+    block:
+    - name: docker-network.wait|tempfile|mkdir playbook path
+      when: workpath.remote.full is undefined
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: seed.docker.network.wait
+      register: network_temp
+
+    - name: docker-network.wait|workpath|mkdir playbook path
+      when: workpath.remote.full is defined
+      ansible.builtin.file:
+        state: directory
+        path: "{{ workpath.remote.full }}/.network/{{ _network.name }}.{{ _network.id }}"
+      register: network_mkdir
+
+    - name: docker-network.wait|copy playbook file
+      vars:
+        hosts: "{{ _network.hosts }}"
+        content: |
+          ---
+
+          - name: wait for on localhost
+            hosts: localhost
+            connection: local
+            tasks:
+          {% for host in hosts %}
+
+              - name: docker-network.wait|wait for '{{ host.host | default('127.0.0.1',true) }}:{{ host.port | default(host.path,true) }}'
+                ansible.builtin.wait_for:
+                  {{ host | to_nice_yaml(indent=2) | trim | indent(8) }}
+          {% endfor %}
+      ansible.builtin.copy:
+        content: "{{ content }}"
+        dest: "{{ playbook_path }}/ansible-playbook.wait.yml"
+
+    - name: docker-network.wait|run async wait container
+      community.docker.docker_container:
+        state: started
+        name: "{{ _network.name }}.{{ _network.id }}"
+        detach: false
+        entrypoint: ansible-playbook
+        image: xiaoyao9184/docker-seed-ansible:latest
+        command: "/seed_net/ansible-playbook.wait.yml"
+        volumes:
+          - "{{ playbook_path }}:/seed_net"
+        networks:
+          - name: "{{ _network.name }}"
+        labels:
+          "com.docker.stack.namespace": seed
+          "com.github.xiaoyao9184.docker-seed.type": "docker-network.wait"
+          "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-network.wait',true) }}"
+      register: network_container_start
+      async: 2592000
+      poll: 0
+
+    - name: docker-network.wait|wait timeout delay
+      when: _network.delay is defined
+      ansible.builtin.wait_for:
+        timeout: "{{ _network.delay | default(0,true) }}"
+
+    - name: docker-network.wait|status async wait container
+      ansible.builtin.async_status:
+        jid: "{{ network_container_start.ansible_job_id }}"
+      register: network_container_status
+      until:
+        - network_container_status.finished
+        - network_container_status.container is defined
+        - network_container_status.container.State.Status == 'exited'
+        - network_container_status.container.State.ExitCode == 0
+      retries: "{{ _network.retries | default(omit,true) }}"
+      delay: "{{ _network.delay | default(omit,true) }}"
+
+    - name: docker-network.wait|remove wait container
+      community.docker.docker_container:
+        state: absent
+        name: "{{ _network.name }}.{{ _network.id }}"
+        keep_volumes: false
+
+    - name: docker-network.wait|remove playbook file
+      ansible.builtin.file:
+        state: absent
+        path: "{{ playbook_path }}/ansible-playbook.wait.yml"
+
+    - name: docker-network.wait|unfact param
+      run_once: "{{ network_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _network: !!null

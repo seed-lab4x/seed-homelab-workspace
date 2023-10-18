@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-compose.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: compose_share
+
+- vars:
+    group: "{{ compose_share.group | default('docker',true) }}"
+  rescue:
+  - name: docker-compose.add|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add compose fail. exclude wrong group."
+
+  block:
+  - name: docker-compose.add|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - compose is defined
+      msg: "var eval fail {{ compose }}"
+      quiet: true
+
+  - name: docker-compose.add|fact param
+    ansible.builtin.set_fact:
+      _compose: "{{ compose }}"
+
+  - rescue:
+    - name: docker-compose.add|rescue any other|fail
+      when:
+        - _compose | default(None) != None
+      ansible.builtin.fail:
+        msg: "add compose '{{ _compose.name }}' fail, exclude enable any: '{{ compose_share.any | default(false) }}'."
+
+    block:
+    - name: docker-compose.add|compose|add by fact
+      when:
+        - _compose.type | default('compose',true) == 'compose'
+      community.docker.docker_compose:
+        state: present
+        project_name: "{{ _compose.name }}"
+        project_src: "{{ _compose.path }}"
+        files: "{{ _compose.files }}"
+
+    - name: docker-compose.add|stack|add by fact
+      when:
+        - _compose.type | default('compose',true) == 'stack'
+      community.docker.docker_stack:
+        state: present
+        name: "{{ _compose.name }}"
+        compose: "{{ [_compose.path] | product(_compose.files) | map('join', '/') }}"
+
+    - name: docker-compose.add|unfact param
+      run_once: "{{ compose_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _compose: !!null

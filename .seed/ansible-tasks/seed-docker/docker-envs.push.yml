@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-envs.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: envs_share
+
+- name: docker-envs.push|assert param
+  ansible.builtin.assert:
+    that:
+      - envs is defined
+      - envs | type_debug == 'list'
+    msg: "var eval fail {{ envs }}"
+    quiet: true
+
+- name: docker-envs.push|fact param
+  ansible.builtin.set_fact:
+    _envs: "{{ envs | flatten }}"
+
+- vars:
+    share_mode: "{{ envs_share.mode | default('index') }}"
+    share_group: "{{ envs_share.group | default('all',true) }}"
+  block:
+  - name: docker-envs.push|index|loop
+    loop: "{{ range(0, _envs | length, 1) | list }}"
+    loop_control:
+      loop_var: env_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[env_share.group] | default([],true)
+    include_tasks: docker-env.push.yml
+    vars:
+      env: "{{ _envs[env_index] }}"
+      env_share:
+        any: false
+        group: "{{ env.group | default(share_group,true) }}"
+
+  - name: docker-envs.push|value|loop
+    loop: "{{ _envs }}"
+    loop_control:
+      loop_var: env
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[env_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ env.once | default(false) }}"
+        task: seed-docker/docker-env.push.yml
+      env_share:
+        any: "{{ env.any | default(false) }}"
+        group: "{{ env.group | default(share_group,true) }}"
+
+- name: docker-envs.push|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _envs: !!null

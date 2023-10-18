@@ -1,0 +1,89 @@
+# code: language=ansible
+---
+
+- vars:
+    group: "{{ service_share.group | default('docker-manager',true) }}"
+  rescue:
+  - name: docker-service-info.wait|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "wait service fail. exclude wrong group."
+
+  block:
+  - name: docker-service-info.wait|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - info is defined
+      msg: "var eval fail {{ info }}"
+      quiet: true
+
+  - name: docker-service-info.wait|fact param
+    when:
+      # only run first time
+      - _service_info.attempts | default(0,true) | int == 0
+    ansible.builtin.set_fact:
+      _service_info: "{{ info }}"
+
+  - name: docker-service-info.wait|pause start delay
+    when:
+      # only run first time
+      - _service_info.attempts | default(0,true) | int == 0
+      - _service_info.delay_start is defined
+    ansible.builtin.pause:
+      seconds: "{{ _service_info.delay_start | int }}"
+
+  - block:
+    - name: docker-service-info.wait|info service
+      community.docker.docker_swarm_service_info:
+        name: "{{ _service_info.name }}"
+      register: service_info
+
+    - name: docker-service-info.wait|fact append info
+      vars:
+        append_list: "{{ lookup('ansible.builtin.vars', _service_info.append, default=[]) }}"
+      when: _service_info.append is defined
+      ansible.builtin.set_fact:
+        "{{ _service_info.append }}": "{{ append_list + [service_info] }}"
+
+    - name: docker-service-info.wait|assert until list
+      when: _service_info.until is defined
+      ansible.builtin.assert:
+        that: "{{ _service_info.until }}"
+        msg: "wait service '{{ _service_info.name }}' fail until: {{ _service_info.until | join(' AND ') }}"
+
+    - name: docker-service-info.wait|unfact param
+      run_once: "{{ service_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _service_info: !!null
+
+    rescue:
+    - vars:
+        service_retries: "{{ _service_info.retries | default(3,true) }}"
+        service_attempts: "{{ _service_info.attempts | default(0,true) }}"
+      when:
+        - _service_info | default(None) != None
+      block:
+      - name: docker-service-info.wait|fail retry out
+        when:
+          - service_retries | int > -1
+          - service_attempts | int >= service_retries | int
+        ansible.builtin.fail:
+          msg: "wait service '{{ _service_info.name }}' for retries to run out."
+
+      - name: docker-service-info.wait|fact attempts next
+        vars:
+          attempts_next:
+            attempts: "{{ service_attempts | int + 1 }}"
+        ansible.builtin.set_fact:
+          _service_info: "{{ _service_info | combine(attempts_next, recursive=True) }}"
+
+      - name: docker-service-info.wait|pause retry delay
+        when:
+          - _service_info.delay is defined
+        ansible.builtin.pause:
+          seconds: "{{ _service_info.delay | int }}"
+          prompt: "retries {{ _service_info.attempts }}/{{ service_retries }}"
+
+      - name: docker-service-info.wait|retry next tasks
+        include_tasks: docker-service-info.wait.yml

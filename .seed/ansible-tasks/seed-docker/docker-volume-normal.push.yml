@@ -1,0 +1,97 @@
+# code: language=ansible
+---
+
+- vars:
+    volume_type: "{{ _volume.type | default('docker',true) }}"
+  rescue:
+  - name: docker-volume-normal.push|rescue any other|fail
+    when:
+      - _volume | default(None) != None
+    ansible.builtin.fail:
+      msg: "push normal volume '{{ _volume.name }}' fail, exclude enable any: '{{ volume_share.any | default(false) }}'."
+
+  block:
+  - name: docker-volume-normal.push|start volume container
+    community.docker.docker_container:
+      name: "{{ _volume.name }}.{{ _volume.id }}"
+      state: started
+      image: alpine:3.18
+      command: "tail -f /dev/null"
+      volumes:
+        - "{{ _volume.name }}:/seed_vol"
+      labels:
+        "com.docker.stack.namespace": seed
+        "com.github.xiaoyao9184.docker-seed.type": "docker-volume.push"
+        "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-volume.push',true) }}"
+    register: volume_container
+    until: volume_container is not failed
+    retries: 3
+    delay: 10
+
+  # ansible mode
+  - when: volume_type == 'ansible'
+    block:
+    - name: docker-volume-normal.push|ansible|fact param
+      vars:
+        keys_to_remove: ['group','once','name','bind','type','src','dest','id']
+        keys_to_keep: "{{ _volume.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _volume) | list }}"
+        volume_args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+        # container_path need prefix
+        paths_container_path:
+          - "/seed_vol"
+          - "{{ _volume.dest | default('',true) }}"
+        volume_merge_dest:
+          # map attributes to `community.docker.docker_container_copy_into`
+          path: "{{ _volume.src | default(omit,true) }}"
+          container: "{{ _volume.name }}.{{ _volume.id }}"
+          container_path: "{{ paths_container_path | path_join }}"
+        args: "{{ volume_args | combine(volume_merge_dest, recursive=True) }}"
+      ansible.builtin.set_fact:
+        _volume_container: "{{ args }}"
+
+    - name: docker-volume-normal.push|ansible|copy to container
+      community.docker.docker_container_copy_into: "{{ _volume_container }}"
+
+    - name: docker-volume-normal.push|ansible|unfact param
+      ansible.builtin.set_fact:
+        _volume_container: !!null
+
+  # docker mode
+  - when: volume_type == 'docker'
+    block:
+    - name: docker-volume-normal.push|docker|fact param
+      vars:
+        # src need suffix
+        paths_src:
+          - "{{ _volume.src | default('',true) }}"
+          - "{{ '.' if (_volume.src | default('',true) is regex('\/$')) else '' }}"
+        # dest need prefix
+        paths_dest:
+          - "/seed_vol"
+          - "{{ _volume.dest | default('',true) }}"
+        args:
+          # ansible copy src multi-item '/tmp/dir/' to docker cp SRC_PATH '/tmp/dir/.'
+          src: "{{ paths_src | join }}"
+          dest: "{{ paths_dest | path_join }}"
+          container: "{{ _volume.name }}.{{ _volume.id }}"
+          mode: "{{ _volume.mode | default(omit,true) }}"
+          directory_mode: "{{ _volume.directory_mode | default(omit,true) }}"
+      ansible.builtin.set_fact:
+        _volume_container: "{{ args }}"
+
+    - name: docker-volume-normal.push|docker|copy to container
+      include_tasks: docker-cp.push.yml
+      vars:
+        cp: "{{ _volume_container }}"
+
+    - name: docker-volume-normal.push|docker|unfact param
+      ansible.builtin.set_fact:
+        _volume_container: !!null
+
+  always:
+  - name: docker-volume-normal.push|remove volume container
+    community.docker.docker_container:
+      name: "{{ _volume.name }}.{{ _volume.id }}"
+      state: absent
+      keep_volumes: false

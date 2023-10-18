@@ -1,0 +1,66 @@
+# code: language=ansible
+---
+
+- name: docker-network.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: network_share
+
+- vars:
+    group: "{{ network_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-network.add|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add network fail. exclude wrong group."
+
+  block:
+  - name: docker-network.add|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - network is defined
+      msg: "var eval fail {{ network }}"
+      quiet: true
+
+  - name: docker-network.add|fact param
+    ansible.builtin.set_fact:
+      _network: "{{ network }}"
+
+  - vars:
+      is_re_create: "{{ _network.recreate | default('always',true) == 'always' }}"
+      is_not_exists: "{{ not(network_info.exists | default(false)) }}"
+    rescue:
+    - name: docker-network.add|rescue any other|fail
+      when:
+        - _network | default(None) != None
+      ansible.builtin.fail:
+        msg: "add network '{{ _network.name }}' fail, exclude enable any: '{{ network_share.any | default(false) }}'."
+
+    block:
+    - name: docker-network.add|info network
+      community.docker.docker_network_info:
+        name: "{{ _network.name }}"
+      register: network_info
+
+    - name: docker-network.add|add by fact
+      vars:
+        keys_to_remove: ['group','once','any','recreate']
+        keys_to_keep: "{{ _network.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _network) | list }}"
+        network_remove_key: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+        network_merge_label:
+          labels:
+            "com.docker.stack.namespace": seed
+            "com.github.xiaoyao9184.docker-seed.type": "docker-network.add"
+            "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-network.add',true) }}"
+        args: "{{ network_remove_key | combine(network_merge_label, recursive=True) }}"
+      run_once: "{{ network_share.any | default(false) }}"
+      when: is_re_create or is_not_exists
+      community.docker.docker_network: "{{ args }}"
+
+    - name: docker-network.add|unfact param
+      run_once: "{{ network_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _network: !!null

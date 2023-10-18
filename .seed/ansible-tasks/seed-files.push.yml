@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: seed-files.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: files_share
+
+- name: seed-files.push|assert param
+  ansible.builtin.assert:
+    that:
+      - files is defined
+      - files | type_debug == 'list'
+    msg: "var eval fail {{ files }}"
+    quiet: true
+
+- name: seed-files.push|fact param
+  ansible.builtin.set_fact:
+    _files: "{{ files | flatten }}"
+
+- vars:
+    share_mode: "{{ files_share.mode | default('index') }}"
+    share_group: "{{ files_share.group | default('all',true) }}"
+  block:
+  - name: seed-files.push|index|loop
+    loop: "{{ range(0, _files | length, 1) | list }}"
+    loop_control:
+      loop_var: file_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[file_share.group] | default([],true)
+    include_tasks: seed-file.push.yml
+    vars:
+      file: "{{ _files[file_index] }}"
+      file_share:
+        any: false
+        group: "{{ file.group | default(share_group,true) }}"
+
+  - name: seed-files.push|value|loop
+    loop: "{{ _files }}"
+    loop_control:
+      loop_var: file
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[file_share.group] | default([],true)
+    include_tasks: seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ file.once | default(false) }}"
+        task: seed-file.push.yml
+      file_share:
+        any: "{{ file.any | default(false) }}"
+        group: "{{ file.group | default(share_group,true) }}"
+
+- name: seed-files.push|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _files: !!null

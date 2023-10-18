@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-containers.exec|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: containers_share
+
+- name: docker-containers.exec|assert param
+  ansible.builtin.assert:
+    that:
+      - containers is defined
+      - containers | type_debug == 'list'
+    msg: "var eval fail {{ containers }}"
+    quiet: true
+
+- name: docker-containers.exec|fact param
+  ansible.builtin.set_fact:
+    _containers: "{{ containers | flatten }}"
+
+- vars:
+    share_mode: "{{ containers_share.mode | default('index') }}"
+    share_group: "{{ containers_share.group | default('docker',true) }}"
+  block:
+  - name: docker-containers.exec|index|loop
+    loop: "{{ range(0, _containers | length, 1) | list }}"
+    loop_control:
+      loop_var: container_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[container_share.group] | default([],true)
+    include_tasks: docker-container.exec.yml
+    vars:
+      container: "{{ _containers[container_index] }}"
+      container_share:
+        any: false
+        group: "{{ container.group | default(share_group,true) }}"
+
+  - name: docker-containers.exec|value|loop
+    loop: "{{ _containers }}"
+    loop_control:
+      loop_var: container
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[container_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ container.once | default(false) }}"
+        task: seed-docker/docker-container.exec.yml
+      container_share:
+        any: "{{ container.any | default(false) }}"
+        group: "{{ container.group | default(share_group,true) }}"
+
+- name: docker-containers.exec|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _containers: !!null

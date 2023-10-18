@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-composes.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: composes_share
+
+- name: docker-composes.push|assert param
+  ansible.builtin.assert:
+    that:
+      - composes is defined
+      - composes | type_debug == 'list'
+    msg: "var eval fail {{ composes }}"
+    quiet: true
+
+- name: docker-composes.push|fact param
+  ansible.builtin.set_fact:
+    _composes: "{{ composes | flatten }}"
+
+- vars:
+    share_mode: "{{ composes_share.mode | default('index') }}"
+    share_group: "{{ composes_share.group | default('all',true) }}"
+  block:
+  - name: docker-composes.push|index|loop
+    loop: "{{ range(0, _composes | length, 1) | list }}"
+    loop_control:
+      loop_var: compose_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[compose_share.group] | default([],true)
+    include_tasks: docker-compose.push.yml
+    vars:
+      compose: "{{ _composes[compose_index] }}"
+      compose_share:
+        any: false
+        group: "{{ compose.group | default(share_group,true) }}"
+
+  - name: docker-composes.push|value|loop
+    loop: "{{ _composes }}"
+    loop_control:
+      loop_var: compose
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[compose_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ compose.once | default(false) }}"
+        task: seed-docker/docker-compose.push.yml
+      compose_share:
+        any: "{{ compose.any | default(false) }}"
+        group: "{{ compose.group | default(share_group,true) }}"
+
+- name: docker-composes.push|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _composes: !!null

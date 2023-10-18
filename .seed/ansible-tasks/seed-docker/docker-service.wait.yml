@@ -1,0 +1,40 @@
+# code: language=ansible
+---
+
+- name: docker-service.wait|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: service_share
+
+- block:
+  - name: docker-service.wait|assert defined
+    ansible.builtin.assert:
+      that:
+        - service is defined
+      msg: "var eval fail {{ service }}"
+      quiet: true
+
+  - name: docker-service.wait|fact param
+    ansible.builtin.set_fact:
+      _service: "{{ service }}"
+
+  - name: docker-service.wait|info wait
+    when:
+      - _service is defined
+    include_tasks: docker-service-info.wait.yml
+    vars:
+      keys_to_remove: ['containers']
+      keys_to_keep: "{{ _service.keys() | difference(keys_to_remove) }}"
+      values_to_keep: "{{ keys_to_keep | map('extract', _service) | list }}"
+      service_remove_containers: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      info: "{{ service_remove_containers }}"
+
+  - name: docker-service.wait|containers wait
+    when: _service.containers is defined
+    include_tasks: docker-service-containers.wait.yml
+    vars:
+      containers: "{{ _service.containers }}"
+
+  - name: docker-service.wait|unfact param
+    ansible.builtin.set_fact:
+      _service: !!null

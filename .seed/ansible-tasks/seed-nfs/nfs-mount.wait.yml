@@ -1,0 +1,115 @@
+# code: language=ansible
+---
+
+- name: nfs-mount.wait|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: mount_share
+
+- vars:
+    group: "{{ mount_share.group | default('nfs-client',true) }}"
+  rescue:
+  - name: nfs-mount.wait|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "wait mount fail. exclude wrong group."
+
+  block:
+  - name: nfs-mount.wait|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - mount is defined
+      msg: "var eval fail {{ mount }}"
+      quiet: true
+
+  - name: nfs-mount.wait|fact param
+    when:
+      # only run first time
+      - _mount.attempts | default(0,true) | int == 0
+    ansible.builtin.set_fact:
+      _mount: "{{ mount }}"
+
+  - name: nfs-mount.wait|pause start delay
+    when:
+      # only run first time
+      - _mount.attempts | default(0,true) | int == 0
+      - _mount.delay_start is defined
+    ansible.builtin.pause:
+      seconds: "{{ _mount.delay_start | int }}"
+
+  - block:
+    - name: nfs-mount.wait|tempfile mount path
+      when: _mount.nfs.path is undefined
+      ansible.builtin.tempfile:
+        state: directory
+        prefix: seed.nfs.mount.wait
+      register: mount_temp
+      ignore_errors: true
+
+    - name: nfs-mount.wait|mount nfs path
+      become: true
+      ansible.posix.mount:
+        state: mounted
+        fstype: nfs
+        src: "{{ _mount.nfs.src }}"
+        path: "{{ _mount.nfs.path | default(mount_temp.path,true) }}"
+        opts: "{{ _mount.nfs.opts }}"
+      register: mount_nfs
+      ignore_errors: true
+
+    - name: nfs-mount.wait|assert until list
+      when: _mount.until is defined
+      ansible.builtin.assert:
+        that: "{{ _mount.until }}"
+        msg: "wait mount '{{ _mount.nfs.src }}' fail until: {{ _mount.until | join(' AND ') }}"
+
+    - name: nfs-mount.wait|unmount nfs temp
+      become: true
+      when: mount_temp.path is defined
+      ansible.posix.mount:
+        state: unmounted
+        path: "{{ mount_temp.path }}"
+      ignore_errors: true
+
+    - name: nfs-mount.wait|unfact param
+      run_once: "{{ mount_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _mount: !!null
+
+    rescue:
+    - vars:
+        mount_retries: "{{ _mount.retries | default(3,true) }}"
+        mount_attempts: "{{ _mount.attempts | default(0,true) }}"
+      when:
+        - _mount | default(None) != None
+      block:
+      - name: nfs-mount.wait|remove temp path
+        when: mount_temp.path is defined
+        ansible.builtin.file:
+          state: absent
+          path: "{{ mount_temp.path }}"
+
+      - name: nfs-mount.wait|fail retry out
+        when:
+          - mount_retries | int > -1
+          - mount_attempts | int >= mount_retries | int
+        ansible.builtin.fail:
+          msg: "wait mount '{{ _mount.nfs.src }}' for retries to run out."
+
+      - name: nfs-mount.wait|fact attempts next
+        vars:
+          attempts_next:
+            attempts: "{{ mount_attempts | int + 1 }}"
+        ansible.builtin.set_fact:
+          _mount: "{{ _mount | combine(attempts_next, recursive=True) }}"
+
+      - name: nfs-mount.wait|pause retry delay
+        when:
+          - _mount.delay is defined
+        ansible.builtin.pause:
+          seconds: "{{ _mount.delay | int }}"
+          prompt: "retries {{ _mount.attempts }}/{{ mount_retries }}"
+
+      - name: nfs-mount.wait|retry next tasks
+        include_tasks: nfs-mount.wait.yml

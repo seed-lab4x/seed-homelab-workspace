@@ -1,0 +1,94 @@
+# code: language=ansible
+---
+
+- name: docker-container.wait|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: container_share
+
+- vars:
+    group: "{{ container_share.group | default('docker',true) }}"
+  rescue:
+  - name: docker-container.wait|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "wait container fail. exclude wrong group."
+
+  block:
+  - name: docker-container.wait|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - container is defined
+      msg: "var eval fail {{ container }}"
+      quiet: true
+
+  - name: docker-container.wait|fact param
+    when:
+      # only run first time
+      - _container.attempts | default(0,true) | int == 0
+    ansible.builtin.set_fact:
+      _container: "{{ container }}"
+
+  - name: docker-container.wait|pause start delay
+    when:
+      # only run first time
+      - _container.attempts | default(0,true) | int == 0
+      - _container.delay_start is defined
+    ansible.builtin.pause:
+      seconds: "{{ _container.delay_start | int }}"
+
+  - block:
+    - name: docker-container.wait|info container
+      community.docker.docker_container_info:
+        name: "{{ _container.name }}"
+      register: container_info
+
+    - name: docker-container.wait|fact append info
+      vars:
+        append_list: "{{ lookup('ansible.builtin.vars', _container.append, default=[]) }}"
+      when: _container.append is defined
+      ansible.builtin.set_fact:
+        "{{ _container.append }}": "{{ append_list + [container_info] }}"
+
+    - name: docker-container.wait|assert until list
+      when: _container.until is defined
+      ansible.builtin.assert:
+        that: "{{ _container.until }}"
+        msg: "wait container '{{ _container.name }}' fail until: {{ _container.until | join(' AND ') }}"
+
+    - name: docker-container.wait|unfact param
+      run_once: "{{ container_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _container: !!null
+
+    rescue:
+    - vars:
+        container_retries: "{{ _container.retries | default(3,true) }}"
+        container_attempts: "{{ _container.attempts | default(0,true) }}"
+      when:
+        - _container | default(None) != None
+      block:
+      - name: docker-container.wait|fail retry out
+        when:
+          - container_retries | int > -1
+          - container_attempts | int >= container_retries | int
+        ansible.builtin.fail:
+          msg: "wait container '{{ _container.name }}' for retries to run out."
+
+      - name: docker-container.wait|fact attempts next
+        vars:
+          attempts_next:
+            attempts: "{{ container_attempts | int + 1 }}"
+        ansible.builtin.set_fact:
+          _container: "{{ _container | combine(attempts_next, recursive=True) }}"
+
+      - name: docker-container.wait|pause retry delay
+        when:
+          - _container.delay is defined
+        ansible.builtin.pause:
+          seconds: "{{ _container.delay | int }}"
+          prompt: "retries {{ _container.attempts }}/{{ container_retries }}"
+
+      - name: docker-container.wait|retry next tasks
+        include_tasks: docker-container.wait.yml
