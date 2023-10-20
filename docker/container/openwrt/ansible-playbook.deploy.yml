@@ -1,0 +1,97 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: fact param
+      vars:
+        default:
+          url: 'https://github.com/xiaoyao9184/docker-openwrt.git'
+          version: "master"
+          src: "~/.openwrt/docker-openwrt@master"
+          dest: "~/.openwrt/docker-openwrt@master"
+          image: oofnik/openwrt:19.07.7-x86-64
+      ansible.builtin.set_fact:
+        _openwrt: "{{ default | combine(openwrt, recursive=True) }}"
+
+    - name: mkdir src
+      run_once: true
+      delegate_to: localhost
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _openwrt.src | dirname }}"
+
+    - name: git source
+      run_once: true
+      delegate_to: localhost
+      ansible.builtin.git:
+        repo: "{{ _openwrt.url }}"
+        version: "{{ _openwrt.version }}"
+        dest: "{{ _openwrt.src }}"
+
+    - name: mkdir dest
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _openwrt.dest | dirname }}"
+
+    - name: sync dest
+      ansible.posix.synchronize:
+        src: "{{ _openwrt.src }}/"
+        dest: "{{ _openwrt.dest }}"
+
+    - name: stat dest
+      ansible.builtin.stat:
+        path: "{{ _openwrt.dest }}"
+      register: openwrt_dest_stat
+
+    - name: push files
+      vars:
+        files_default:
+          - src: "{{ playbook_dir }}/openwrt.conf"
+            dest: "{{ _openwrt.dest }}/openwrt.conf"
+          - src: "{{ playbook_dir }}/etc"
+            dest: "{{ _openwrt.dest }}/etc/"
+        files: "{{ _openwrt.files | default(files_default,true) }}"
+      when: files | length > 0
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+
+    - name: pull image
+      community.docker.docker_image:
+        name: "{{ _openwrt.image }}"
+        source: pull
+
+    - name: add service
+      become: true
+      ansible.builtin.copy:
+        dest: "/etc/systemd/system/{{ workpath.name }}.service"
+        content: |
+          [Unit]
+          Description={{ workpath.name }}
+          Requires=docker.service
+          After=docker.service
+
+          [Service]
+          Restart=always
+          User=root
+          Group=docker
+          WorkingDirectory={{ openwrt_dest_stat.stat.path }}
+          ExecStart=/bin/bash -c "./run.sh"
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: run service
+      become: true
+      ansible.builtin.systemd:
+        state: started
+        daemon_reload: yes
+        name: "{{ workpath.name }}"
