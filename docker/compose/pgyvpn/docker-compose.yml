@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  pgyvpn:
+    image: bestoray/pgyvpn:latest
+    env_file: external_env-all.env
+    # environment:
+    #   - PGY_USERNAME=?
+    #   - PGY_PASSWORD=?
+    volumes:
+      - /var/log/oray:/var/log/oray
+      - /etc/oray/pgyvpn:/etc/oray/pgyvpn
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    network_mode: host
+    container_name: pgyvpn
+    hostname: pgyvpn
+    restart: always
+    privileged: true
