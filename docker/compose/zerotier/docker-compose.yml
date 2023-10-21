@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  zerotier:
+    image: zerotier/zerotier:latest
+    env_file: external_env-all.env
+    command: zerotier
+    volumes:
+      - /var/lib/zerotier-one:/var/lib/zerotier-one
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    devices:
+      - /dev/net/tun
+    network_mode: host
+    container_name: zerotier
+    restart: always
+    privileged: true
