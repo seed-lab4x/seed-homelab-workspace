@@ -1,0 +1,27 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-ngrok-config
+    external: true
+
+services:
+  ngrok:
+    image: ngrok/ngrok:latest
+{% if VARS.COMMAND %}
+    command: "{{ VARS.COMMAND }}"
+{% endif %}
+    env_file: external_env-all.env
+    # environment:
+    #   - NGROK_CONFIG=/home/ngrok/.config/ngrok/ngrok.yml
+    #   - NGROK_AUTHTOKEN=?
+    volumes:
+      - config:/home/ngrok/.config/ngrok
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    network_mode: "host"
+    container_name: ngrok
+    restart: unless-stopped
+    privileged: true
