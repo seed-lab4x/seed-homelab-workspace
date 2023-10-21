@@ -1,0 +1,34 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: assert param
+      ansible.builtin.assert:
+        that:
+          - cloudflared.token is defined
+        msg: "var eval fail {{ cloudflared.token }}"
+        quiet: true
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ cloudflared | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              command: "tunnel --no-autoupdate run --token {{ cloudflared.token }}"
+              hostname: cloudflared
+              name: cloudflared
+              image: cloudflare/cloudflared:latest
