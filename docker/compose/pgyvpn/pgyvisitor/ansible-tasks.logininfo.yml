@@ -1,0 +1,20 @@
+# code: language=ansible
+---
+
+- name: pgyvpn-pgyvisitor.logininfo|wait container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+  vars:
+    container:
+      name: pgyvpn
+      until:
+        - container_info.exists
+      retries: 60
+      delay: 60
+
+- name: pgyvpn-pgyvisitor.logininfo|exec container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+  vars:
+    container:
+      container: pgyvpn
+      command: "pgyvisitor logininfo"
+      register: container_exec
