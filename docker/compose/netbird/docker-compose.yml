@@ -1,0 +1,19 @@
+version: "3.8"
+
+volumes:
+  etc:
+    name: external_vol-netbird-etc
+    external: true
+
+services:
+  netbird:
+    image: netbirdio/netbird:latest
+    env_file: external_env-all.env
+    volumes:
+      - etc:/etc/netbird
+    container_name: netbird
+    restart: always
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
