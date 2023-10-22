@@ -1,0 +1,110 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: cloudflared-tunnel.login|rescue|fail
+    when:
+      - not cloudflared_cert_stat.stat.exists
+    ansible.builtin.fail:
+      msg: "login tunnel fail. exclude cert exists."
+
+  block:
+  - name: cloudflared-tunnel.login|stat cloudflared cert
+    ansible.builtin.stat:
+      path: "/home/{{ ansible_user_id }}/.cloudflared/cert.pem"
+    register: cloudflared_cert_stat
+
+  - name: cloudflared-tunnel.login|assert missing cert
+    ansible.builtin.assert:
+      that:
+        - not cloudflared_cert_stat.stat.exists
+      msg: "cloudflared cert exists."
+      quiet: true
+
+  - name: cloudflared-tunnel.login|mkdir cloudflared dir
+    ansible.builtin.file:
+      state: directory
+      path: /home/{{ ansible_user_id }}/.cloudflared
+      mode: 0777
+
+  - name: cloudflared-tunnel.login|login tunnel container
+    community.docker.docker_container:
+      name: cloudflared-tunnel-login
+      image: cloudflare/cloudflared:latest
+      command: tunnel login
+      volumes:
+        - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
+
+  - name: cloudflared-tunnel.login|info tunnel container
+    community.docker.docker_container_info:
+      name: cloudflared-tunnel-login
+    register: tunnel_container_info
+
+  - name: cloudflared-tunnel.login|grep log authenticate url
+    # not work see https://github.com/ansible/ansible/issues/79683
+    # ansible.builtin.wait_for:
+    #   path: /tmp/tailscale.up.log
+    #   search_regex: "To authenticate, visit:"
+    ansible.builtin.shell:
+      cmd: "docker logs '{{ tunnel_container_info.container.Id }}' 2>&1 | grep 'https://dash.cloudflare.com/argotunnel'"
+    retries: 60
+    register: tunnel_log_grep
+    until: tunnel_log_grep is successful
+
+  - name: cloudflared-tunnel.login|slurp log authenticate url
+    ansible.builtin.shell:
+      cmd: "docker logs '{{ tunnel_container_info.container.Id }}' 2>&1"
+    register: tunnel_log_slurp
+
+  - name: cloudflared-tunnel.login|print log authenticate url
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['docker'])
+        | selectattr('value.tunnel_log_slurp','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {% if host.value.tunnel_log_slurp.stdout is defined %}
+        {{ host.value.tunnel_log_slurp.stdout }}
+        {% endif %}
+        {% endfor %}
+
+  - name: cloudflared-tunnel.login|info container exited
+    community.docker.docker_container_info:
+      name: cloudflared-tunnel-login
+    register: tunnel_container_info
+    until: not tunnel_container_info.container.State.Running
+    # retry every 60 seconds for 15 minutes
+    retries: 15
+    delay: 60
+
+  - name: cloudflared-tunnel.login|slurp log exited
+    ansible.builtin.shell:
+      cmd: "docker logs '{{ tunnel_container_info.container.Id }}' 2>&1"
+    register: tunnel_log_slurp
+
+  - name: cloudflared-tunnel.login|remove container exited
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-login
+
+  - name: cloudflared-tunnel.login|print log exited
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['docker'])
+        | selectattr('value.tunnel_log_slurp','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {% if host.value.tunnel_log_slurp.stdout is defined %}
+        {{ host.value.tunnel_log_slurp.stdout }}
+        {% endif %}
+        {% endfor %}

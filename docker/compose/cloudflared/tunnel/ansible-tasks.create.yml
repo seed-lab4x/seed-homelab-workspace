@@ -1,0 +1,101 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: cloudflared-tunnel.create|rescue|fail
+    when:
+      - cloudflared_cert_stat.stat.exists
+    ansible.builtin.fail:
+      msg: "create tunnel fail. exclude cert missing."
+
+  block:
+  - name: cloudflared-tunnel.create|stat cloudflared cert
+    ansible.builtin.stat:
+      path: "/home/{{ ansible_user_id }}/.cloudflared/cert.pem"
+    register: cloudflared_cert_stat
+
+  - name: cloudflared-tunnel.create|assert missing cert
+    ansible.builtin.assert:
+      that:
+        - cloudflared_cert_stat.stat.exists
+      msg: "cloudflared cert missing."
+      quiet: true
+
+  - name: cloudflared-tunnel.create|fact param
+    vars:
+      default_tunnel:
+        name: "{{ inventory_hostname }}"
+        credentials:
+          output: "{{ inventory_dir }}/../cloudflared"
+    ansible.builtin.set_fact:
+      _tunnel: "{{ cloudflared.tunnel | default(default_tunnel,true) }}"
+
+  - name: cloudflared-tunnel.create|create tunnel container
+    community.docker.docker_container:
+      name: cloudflared-tunnel-create
+      image: cloudflare/cloudflared:latest
+      command: "tunnel create {{ _tunnel.name }}"
+      volumes:
+        - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
+    register: tunnel_container_create
+
+  - name: cloudflared-tunnel.create|info tunnel container
+    community.docker.docker_container_info:
+      name: cloudflared-tunnel-create
+    register: tunnel_container_info
+
+  - name: cloudflared-tunnel.create|slurp tunnel log
+    ansible.builtin.shell:
+      cmd: "docker logs '{{ tunnel_container_info.container.Id }}' 2>&1"
+    register: tunnel_log_slurp
+
+  - name: cloudflared-tunnel.create|remove create container
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-create
+
+  - name: cloudflared-tunnel.create|remove info container
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-info
+
+  - name: cloudflared-tunnel.create|info tunnel container
+    community.docker.docker_container:
+      detach: false
+      name: cloudflared-tunnel-info
+      image: cloudflare/cloudflared:latest
+      command: "tunnel info -o json '{{ _tunnel.name }}'"
+      volumes:
+        - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
+    register: tunnel_container_info
+
+  - name: cloudflared-tunnel.create|remove info container
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-info
+
+  - name: cloudflared-tunnel.create|fetch tunnel cred
+    become: true
+    vars:
+      tunnel_info: "{{ tunnel_container_info.container.Output | from_json }}"
+    ansible.builtin.fetch:
+      src: "/home/{{ ansible_user_id }}/.cloudflared/{{ tunnel_info.id }}.json"
+      dest: "{{ _tunnel.credentials.output }}/"
+      flat: true
+
+  - name: cloudflared-tunnel.create|print log authenticate url
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['docker'])
+        | selectattr('value.tunnel_log_slurp','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {% if host.value.tunnel_log_slurp.stdout is defined %}
+        {{ host.value.tunnel_log_slurp.stdout }}
+        {% endif %}
+        {% endfor %}

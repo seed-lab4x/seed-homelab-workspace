@@ -1,0 +1,24 @@
+version: "3.8"
+
+networks:
+  cloudflared:
+
+volumes:
+  data:
+    name: external_vol-cloudflared-data
+    external: true
+
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+{% if VARS.COMMAND %}
+    command: "{{ VARS.COMMAND }}"
+{% endif %}
+    env_file: external_env-all.env
+    volumes:
+      - data:/home/nonroot/.cloudflared/
+    networks:
+      - cloudflared
+    # network_mode: bridge
+    container_name: cloudflared
+    restart: always

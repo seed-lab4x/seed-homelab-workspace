@@ -1,0 +1,111 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: cloudflared-config.build|rescue|fail
+    when:
+      - cloudflared_cert_stat.stat.exists
+    ansible.builtin.fail:
+      msg: "build config fail. exclude cert missing."
+
+  block:
+  - name: cloudflared-config.build|stat cloudflared cert
+    ansible.builtin.stat:
+      path: "/home/{{ ansible_user_id }}/.cloudflared/cert.pem"
+    register: cloudflared_cert_stat
+
+  - name: cloudflared-config.build|assert missing cert
+    ansible.builtin.assert:
+      that:
+        - cloudflared_cert_stat.stat.exists
+      msg: "cloudflared cert missing."
+      quiet: true
+
+  - name: cloudflared-config.build|fact param
+    vars:
+      default_config:
+        dir: "{{ inventory_dir }}/../cloudflared"
+    ansible.builtin.set_fact:
+      _config: "{{ cloudflared.config | default(default_config,true) }}"
+
+  - name: cloudflared-config.build|fact tunnel attr
+    vars:
+      default_tunnel:
+        name: "{{ inventory_hostname }}"
+        credentials:
+          output: "{{ inventory_dir }}/../cloudflared"
+      attr:
+        tunnel: "{{ cloudflared.tunnel | default(default_tunnel,true) }}"
+    ansible.builtin.set_fact:
+      _config: "{{ _config | combine(attr, recursive=True) }}"
+
+  - name: cloudflared-config.build|remove tunnel container
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-info
+
+  - name: cloudflared-config.build|info tunnel container
+    community.docker.docker_container:
+      detach: false
+      name: cloudflared-tunnel-info
+      image: cloudflare/cloudflared:latest
+      command: "tunnel info -o json {{ _config.tunnel.name }}"
+      volumes:
+        - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
+    register: config_tunnel_container_info
+    ignore_errors: true
+
+  - when: config_tunnel_container_info is succeeded
+    block:
+    - name: cloudflared-config.build|exists|fact tunnel id
+      vars:
+        tunnel_info: "{{ config_tunnel_container_info.container.Output | from_json }}"
+        attr:
+          tunnel:
+            id: "{{ tunnel_info.id }}"
+      ansible.builtin.set_fact:
+        _config: "{{ _config | combine(attr, recursive=True) }}"
+
+  - when: config_tunnel_container_info is not succeeded
+    block:
+    - name: cloudflared-config.build|create|create tunnel
+      vars:
+        tunnel: "{{ _config.tunnel }}"
+      include_tasks: "{{ playbook_dir }}/../tunnel/ansible-tasks.create.yml"
+
+    - name: cloudflared-config.build|create|remove tunnel container
+      community.docker.docker_container:
+        state: absent
+        name: cloudflared-tunnel-info
+
+    - name: cloudflared-config.build|create|info tunnel container
+      community.docker.docker_container:
+        detach: false
+        name: cloudflared-tunnel-info
+        image: cloudflare/cloudflared:latest
+        command: "tunnel info -o json {{ _config.tunnel.name }}"
+        volumes:
+          - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
+      register: config_tunnel_container_info
+
+    - name: cloudflared-config.build|create|fact tunnel id
+      vars:
+        tunnel_info: "{{ config_tunnel_container_info.container.Output | from_json }}"
+        attr:
+          tunnel:
+            id: "{{ tunnel_info.id }}"
+      ansible.builtin.set_fact:
+        _config: "{{ _config | combine(attr, recursive=True) }}"
+
+  - name: cloudflared-config.build|remove tunnel container
+    community.docker.docker_container:
+      state: absent
+      name: cloudflared-tunnel-info
+
+  - name: cloudflared-config.build|template packages script
+    vars:
+      tunnel: "{{ _config.tunnel.id }}"
+    delegate_to: localhost
+    ansible.builtin.template:
+      src: "{{ playbook_dir }}/config.yml.j2"
+      dest: "{{ _config.dir }}/config.yml"

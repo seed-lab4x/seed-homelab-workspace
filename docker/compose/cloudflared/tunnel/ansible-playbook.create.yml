@@ -1,0 +1,18 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: docker
+  tasks:
+
+    - when: cloudflared is defined
+      block:
+      - name: fact workspace
+        include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+      - name: fact workpath
+        include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+      - name: create tunnel
+        include_tasks: "{{ playbook_dir }}/ansible-tasks.create.yml"

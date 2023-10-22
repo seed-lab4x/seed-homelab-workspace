@@ -1,0 +1,23 @@
+
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/tunnel-guide/local/local-management/configuration-file/#top-level-configurations
+
+tunnel: {{ tunnel }}
+credentials-file: /home/nonroot/.cloudflared/{{ tunnel }}.json
+# warp-routing:
+#   enabled: true
+
+# https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/install-and-setup/tunnel-guide/local/local-management/ingress/
+
+ingress:
+  # Rules map traffic from a hostname to a local service:
+  - hostname: example.com
+    service: https://localhost:8000
+  # Rules can match the request's path to a regular expression:
+  - hostname: static.example.com
+    path: \.(jpg|png|css|js)$
+    service: https://localhost:8001
+  # Rules can match the request's hostname to a wildcard character:
+  - hostname: "*.example.com"
+    service: https://localhost:8002
+  # An example of a catch-all rule:
+  - service: http_status:404
