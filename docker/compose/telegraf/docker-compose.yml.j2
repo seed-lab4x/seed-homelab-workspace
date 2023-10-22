@@ -1,0 +1,30 @@
+version: "3.8"
+
+networks:
+  telegraf:
+    name: telegraf_default
+
+services:
+  telegraf:
+    image: telegraf:1.24.1
+    hostname: "{{ VARS.HOMENAME }}"
+    user: telegraf:{{ VARS.USR_GROUP }}
+    env_file: external_env-all.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/share/snmp/mibs/:/usr/share/snmp/mibs/
+      - /var/lib/mibs:/var/lib/mibs
+      - ./bind_file-telegraf.conf:/etc/telegraf/telegraf.conf
+    networks:
+      - telegraf
+{% if VARS.NETWORKS | length > 0 %}
+      {{ VARS.NETWORKS | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+    container_name: telegraf
+    restart: always
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
