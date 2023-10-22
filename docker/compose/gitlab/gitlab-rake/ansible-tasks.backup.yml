@@ -1,0 +1,36 @@
+# code: language=ansible
+---
+
+- name: gitlab-rake.backup|wait container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+  vars:
+    container:
+      name: gitlab-ce
+      until:
+        - container_info.exists
+      retries: 60
+      delay: 60
+
+- name: gitlab-rake.backup|exec container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+  vars:
+    container:
+      container: gitlab-ce
+      command: "gitlab-rake gitlab:backup:create"
+      register: container_exec
+
+- name: gitlab-rake.backup|print exec
+  vars:
+    docker_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['docker'])
+      | selectattr('value.container_exec','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in docker_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {{ host.value.container_exec.stdout | default('',true) }}
+      {{ host.value.container_exec.stderr | default('',true) }}
+      {% endfor %}
