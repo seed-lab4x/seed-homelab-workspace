@@ -1,0 +1,16 @@
+version: "3.8"
+
+volumes:
+  etc:
+    name: shadowsocks-r-etc
+
+services:
+  shadowsocks-r:
+    image: teddysun/shadowsocks-r:latest
+    env_file: external_env-r.env
+    volumes:
+      - ./bind_file-r.json:/etc/shadowsocks-r/config.json
+      - etc:/etc/shadowsocks-r
+    network_mode: host
+    container_name: shadowsocks-r
+    restart: always

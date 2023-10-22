@@ -1,0 +1,16 @@
+version: "3.8"
+
+volumes:
+  etc:
+    name: shadowsocks-rust-etc
+
+services:
+  shadowsocks-rust:
+    image: teddysun/shadowsocks-rust:latest
+    env_file: external_env-rust.env
+    volumes:
+      - ./bind_file-rust.json:/etc/shadowsocks-rust/config.json
+      - etc:/etc/shadowsocks-rust
+    network_mode: host
+    container_name: shadowsocks-rust
+    restart: always

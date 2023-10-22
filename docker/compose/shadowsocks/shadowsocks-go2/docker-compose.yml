@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  shadowsocks-go2:
+    image: teddysun/go-shadowsocks2:latest
+    env_file: external_env-go2.env
+    network_mode: host
+    container_name: shadowsocks-go2
+    restart: always
