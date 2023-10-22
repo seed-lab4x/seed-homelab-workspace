@@ -1,0 +1,29 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: reload
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+      vars:
+        workpath:
+          index: -2
+
+    - name: install plugin
+      when: domoticz.plugin is defined
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.reload.yml"
+      vars:
+        plugin: "{{ domoticz.plugin }}"
+
+    - name: restart compose
+      when: domoticz.plugin.restart | default(false) | bool
+      community.docker.docker_compose:
+        project_src: "{{ workpath.remote.name }}"
+        build: false
+        restarted: true
