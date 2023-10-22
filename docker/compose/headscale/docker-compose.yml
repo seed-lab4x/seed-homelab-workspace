@@ -1,0 +1,37 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-headscale-data
+    external: true
+  config:
+    name: external_vol-headscale-config
+    external: true
+
+networks:
+  headscale:
+    name: headscale_headscale
+    attachable: true
+
+services:
+  headscale:
+    image: headscale/headscale:0.20.0-debug
+    env_file: external_env-all.env
+    command: headscale serve
+    volumes:
+      - config:/etc/headscale/
+      - data:/var/lib/headscale
+      - ./bind_file-config.yaml:/etc/headscale/config.yaml
+    ports:
+      - 8280:8080
+    networks:
+      - headscale
+    # network_mode: "bridge"
+    container_name: headscale
+    restart: always
+    healthcheck:
+      test: curl -f http://localhost:8080 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
