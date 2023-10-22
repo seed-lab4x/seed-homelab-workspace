@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  subconverter:
+    image: tindy2013/subconverter:latest
+    env_file: external_env-all.env
+    ports:
+      - 25500:25500
+    # network_mode: bridge
+    container_name: subconverter
+    restart: always
+
+  subweb:
+    image: careywong/subweb:latest
+    env_file: external_env-all.env
+    ports:
+      - 25501:80
+    # network_mode: bridge
+    container_name: subweb
+    restart: always
