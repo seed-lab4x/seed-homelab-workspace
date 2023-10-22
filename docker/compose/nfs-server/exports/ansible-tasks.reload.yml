@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- name: nfsserver-exports.reload|push files
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+  vars:
+    files:
+      - src: "{{ workpath.local.name }}/exports/exports"
+        dest: "{{ workpath.remote.name }}/exports/exports"
+
+# https://medium.com/@jonsbun/why-need-to-be-careful-when-mounting-single-files-into-a-docker-container-4f929340834
+- name: nfsserver-exports.reload|overwrite bind
+  ansible.builtin.shell: "cat {{ workpath.remote.name }}/exports/exports > {{ workpath.remote.name }}/bind_file-exports"
+
+- name: nfsserver-exports.reload|wait container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+  vars:
+    container:
+      name: nfs-server
+      until:
+        - container_info.exists
+      retries: 60
+      delay: 60
+
+- name: nfsserver-exports.reload|exec container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+  vars:
+    container:
+      container: nfs-server
+      command: "exportfs -ra"
+      register: container_exec
+
+- name: nfsserver-exports.reload|print exec
+  vars:
+    docker_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['docker'])
+      | selectattr('value.container_exec','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in docker_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {{ host.value.container_exec.stdout | default('',true) }}
+      {{ host.value.container_exec.stderr | default('',true) }}
+      {% endfor %}
