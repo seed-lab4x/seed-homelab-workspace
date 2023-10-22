@@ -1,0 +1,48 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-transmission-config
+    external: true
+  watch:
+    name: external_vol-transmission-watch
+    external: true
+  downloads:
+    name: external_vol-transmission-downloads
+    external: true
+  complete:
+    name: external_vol-transmission-complete
+    external: true
+
+services:
+  transmission:
+    image: linuxserver/transmission:latest
+    env_file: external_env-all.env
+    # environment:
+      # - PUID=0
+      # - PGID=0
+      # - TRANSMISSION_WEB_HOME=/combustion-release/ #optional
+      # - WHITELIST=iplist #optional
+      # - HOST_WHITELIST=dnsnane list #optional
+    volumes:
+      - config:/config
+      - watch:/watch
+{% if VARS.PROPAGATION_DOWNLOAD is sameas true %}
+      - {{ VARS.BIND_DOWNLOAD }}:/downloads:shared
+{% else %}
+      - {{ VARS.BIND_DOWNLOAD }}:/downloads
+{% endif %}
+      - complete:/downloads/complete
+    ports:
+      - 9091:9091
+      - 51413:51413
+      - 51413:51413/udp
+    # network_mode: "bridge"
+    container_name: transmission
+    restart: always
+    healthcheck:
+      test: nc -z localhost 9091 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m

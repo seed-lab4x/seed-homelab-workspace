@@ -1,0 +1,97 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: transmission-transmissionic.deploy|rescue|fail tasks
+    when:
+      - transmissionic | default(None) != None
+    ansible.builtin.fail:
+      msg: "deploy transmissionic fail. exclude attr undefined."
+
+  block:
+  - name: transmission-transmissionic.deploy|assert defined
+    ansible.builtin.assert:
+      that:
+        - transmissionic | default(None) != None
+      msg: "var eval fail {{ transmissionic }}"
+      quiet: true
+
+  - name: transmission-transmissionic.deploy|get latest
+    when: transmissionic.url is undefined
+    ansible.builtin.uri:
+      url: "https://api.github.com/repos/6c65726f79/Transmissionic/releases/latest"
+      return_content: true
+    register: transmissionic_latest_get
+
+  - name: transmission-transmissionic.deploy|fact param
+    vars:
+      version: "{{ transmissionic_latest_get.json.name | default('v1.8.0',true) }}"
+      default:
+        url: "https://github.com/6c65726f79/Transmissionic/releases/download/{{ version }}/Transmissionic-webui-{{ version }}.zip"
+        src: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
+        dest: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
+        dir: "~/.transmission/Transmissionic-webui-{{ version }}"
+    ansible.builtin.set_fact:
+      _transmissionic: "{{ default | combine(transmissionic, recursive=True) }}"
+
+  - name: transmission-transmissionic.deploy|stat dest
+    ansible.builtin.stat:
+      path: "{{ _transmissionic.dest }}"
+    register: transmissionic_dest_stat
+
+  - when: not transmissionic_dest_stat.stat.exists
+    block:
+    - name: transmission-transmissionic.deploy|stat archive
+      delegate_to: localhost
+      ansible.builtin.stat:
+        path: "{{ _transmissionic.src }}"
+      register: transmissionic_src_stat
+
+    - name: transmission-transmissionic.deploy|mkdir src
+      delegate_to: localhost
+      when: not transmissionic_src_stat.stat.exists
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _transmissionic.src | dirname }}"
+
+    - name: transmission-transmissionic.deploy|download archive
+      delegate_to: localhost
+      when: not transmissionic_src_stat.stat.exists
+      ansible.builtin.get_url:
+        url: "{{ _transmissionic.url }}"
+        dest: "{{ _transmissionic.src }}"
+
+    - name: transmission-transmissionic.deploy|mkdir dest
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _transmissionic.dest | dirname }}"
+
+    - name: transmission-transmissionic.deploy|copy dest
+      ansible.builtin.copy:
+        src: "{{ _transmissionic.src }}"
+        dest: "{{ _transmissionic.dest }}"
+
+  - name: transmission-transmissionic.deploy|mkdir dir
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _transmissionic.dir }}"
+
+  - name: transmission-transmissionic.deploy|unzip archive
+    ansible.builtin.unarchive:
+      src: "{{ _transmissionic.dest }}"
+      dest: "{{ _transmissionic.dir }}"
+
+  - name: transmission-transmissionic.deploy|push volume
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.push.yml"
+    vars:
+      volumes:
+        - name: external_vol-transmission-config
+          src: "{{ _transmissionic.dir }}/web/"
+          dest: "./webui/transmissionic/"
+          bind: true
+          directory_mode: '0744'
+
+  - name: transmission-transmissionic.deploy|remove dir
+    ansible.builtin.file:
+      state: absent
+      path: "{{ _transmissionic.dir }}"

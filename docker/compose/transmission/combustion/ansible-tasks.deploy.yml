@@ -1,0 +1,89 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: transmission-combustion.deploy|rescue|fail tasks
+    when:
+      - combustion | default(None) != None
+    ansible.builtin.fail:
+      msg: "deploy combustion fail. exclude attr undefined."
+
+  block:
+  - name: transmission-combustion.deploy|assert defined
+    ansible.builtin.assert:
+      that:
+        - combustion | default(None) != None
+      msg: "var eval fail {{ combustion }}"
+      quiet: true
+
+  - name: transmission-combustion.deploy|fact param
+    vars:
+      default:
+        url: "https://github.com/Secretmapper/combustion/archive/release.zip"
+        src: "~/.transmission/combustion-release.zip"
+        dest: "~/.transmission/combustion-release.zip"
+        dir: "~/.transmission/combustion-release"
+    ansible.builtin.set_fact:
+      _combustion: "{{ default | combine(combustion, recursive=True) }}"
+
+  - name: transmission-combustion.deploy|stat dest
+    ansible.builtin.stat:
+      path: "{{ _combustion.dest }}"
+    register: combustion_dest_stat
+
+  - when: not combustion_dest_stat.stat.exists
+    block:
+    - name: transmission-combustion.deploy|stat archive
+      delegate_to: localhost
+      ansible.builtin.stat:
+        path: "{{ _combustion.src }}"
+      register: combustion_src_stat
+
+    - name: transmission-combustion.deploy|mkdir src
+      delegate_to: localhost
+      when: not combustion_src_stat.stat.exists
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _combustion.src | dirname }}"
+
+    - name: transmission-combustion.deploy|download archive
+      delegate_to: localhost
+      when: not combustion_src_stat.stat.exists
+      ansible.builtin.get_url:
+        url: "{{ _combustion.url }}"
+        dest: "{{ _combustion.src }}"
+
+    - name: transmission-combustion.deploy|mkdir dest
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _combustion.dest | dirname }}"
+
+    - name: transmission-combustion.deploy|copy dest
+      ansible.builtin.copy:
+        src: "{{ _combustion.src }}"
+        dest: "{{ _combustion.dest }}"
+
+  - name: transmission-combustion.deploy|mkdir dir
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _combustion.dir }}"
+
+  - name: transmission-combustion.deploy|unzip archive
+    ansible.builtin.unarchive:
+      src: "{{ _combustion.dest }}"
+      dest: "{{ _combustion.dir }}"
+
+  - name: transmission-combustion.deploy|push volume
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.push.yml"
+    vars:
+      volumes:
+        - name: external_vol-transmission-config
+          src: "{{ _combustion.dir }}/combustion-release/"
+          dest: "./webui/combustion/"
+          bind: true
+          directory_mode: '0744'
+
+  - name: transmission-combustion.deploy|remove dir
+    ansible.builtin.file:
+      state: absent
+      path: "{{ _combustion.dir }}"
