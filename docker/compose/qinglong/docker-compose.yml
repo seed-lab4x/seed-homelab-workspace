@@ -1,0 +1,37 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-qinglong-data
+    external: true
+  db:
+  repo:
+  raw:
+  scripts:
+  jbot:
+  ninja:
+
+services:
+  qinglong:
+    image: whyour/qinglong:latest
+    env_file: external_env-all.env
+    volumes:
+      - data:/ql/data
+      - db:/ql/db
+      - repo:/ql/repo
+      - raw:/ql/raw
+      - scripts:/ql/scripts
+      - jbot:/ql/jbot
+      - ninja:/ql/ninja
+    ports:
+      - 5700:5700
+      - 5701:5701
+    # network_mode: "bridge"
+    container_name: qinglong
+    restart: unless-stopped
+    healthcheck:
+      test: curl -f http://localhost:5700 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m

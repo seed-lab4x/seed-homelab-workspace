@@ -1,0 +1,17 @@
+#!/usr/bin/env -S ansible-playbook -vvv -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy ninja
+      when: qinglong.ninja is defined
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.deploy.yml"
