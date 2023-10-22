@@ -1,0 +1,30 @@
+version: "3.8"
+
+networks:
+  headscale:
+    name: headscale_headscale
+    attachable: true
+
+services:
+  headscale-ui:
+    image: ghcr.io/gurucomputing/headscale-ui:2023.01.30-beta-1
+    env_file: external_env-all.env
+    environment:
+      - HTTP_PORT=80
+      - HTTPS_PORT=443
+    volumes:
+      - ./bind_file-Caddyfile:/data/Caddyfile
+    ports:
+      - 8380:80
+      - 13443:443
+    networks:
+      - headscale
+    # network_mode: bridge
+    container_name: headscale-ui
+    restart: always
+    healthcheck:
+      test: nc -z localhost 80 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
