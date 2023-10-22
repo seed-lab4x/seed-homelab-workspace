@@ -1,0 +1,20 @@
+version: "3.8"
+
+networks:
+  transmission:
+    name: transmission_default
+    attachable: true
+
+services:
+  tracker-add:
+    image: andrewmhub/transmission-tracker-add:latest
+    env_file: external_env-all.env
+    # environment:
+      # - HOSTPORT=localhost:9091
+      # - TR_AUTH=user:password
+      # - TORRENTLIST=https://raw.githubusercontent.com/user/trackerslist/master/mylist.txt
+    networks:
+      transmission:
+    # network_mode: "bridge"
+    container_name: tracker-add
+    restart: always
