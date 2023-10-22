@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: assert param
+      ansible.builtin.assert:
+        that:
+          - ngrok.token is defined
+        msg: "var eval fail {{ ngrok.token }}"
+        quiet: true
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ ngrok | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                NGROK_AUTHTOKEN: "{{ ngrok.token }}"
+              ports:
+                - 25500:25500
+              command: http 80
+              hostname: ngrok
+              name: ngrok
+              image: ngrok/ngrok:latest
