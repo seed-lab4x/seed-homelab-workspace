@@ -1,0 +1,22 @@
+version: "3.8"
+
+networks:
+  frp:
+    name: frp_frp
+    attachable: true
+
+services:
+  frp-client:
+    image: fatedier/frpc:v0.44.0
+    env_file: external_env-all.env
+    entrypoint:
+      - "/usr/bin/frpc"
+      - "-c"
+      - "/app/frpc.ini"
+    volumes:
+      - ./bind_file-frpc.ini:/app/frpc.ini
+    networks:
+      - frp
+    # network_mode: "host"
+    container_name: frp-client
+    restart: always
