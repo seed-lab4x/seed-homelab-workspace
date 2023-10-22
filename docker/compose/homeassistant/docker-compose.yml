@@ -1,0 +1,28 @@
+version: '3.8'
+
+volumes:
+  config:
+    name: external_vol-homeassistant-config
+    external: true
+
+networks:
+  homeassistant:
+
+services:
+  homeassistant:
+    image: homeassistant/home-assistant:stable
+    env_file: external_env-all.env
+    # environment:
+    #   - PGID=1000
+    #   - PUID=1000
+    #   - DISABLE_JEMALLOC=true
+    volumes:
+      - config:/config
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - homeassistant
+    ports:
+      - 8123:8123
+    # network_mode: bridge
+    container_name: homeassistant
+    restart: always
