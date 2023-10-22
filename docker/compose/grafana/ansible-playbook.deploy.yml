@@ -1,0 +1,33 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          vars: "{{ mosquitto | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-grafana-data
+                driver: local
+              - name: external_vol-grafana-dashboards
+                driver: local
+              - name: external_vol-grafana-provisioning
+                driver: local
+            envs:
+              - file: external_env-all.env
+                content: ''
+            composes:
+              - file: docker-compose.yml
+                template: "{{ playbook_dir }}/docker-compose.yml"
