@@ -1,0 +1,28 @@
+version: '3.8'
+
+volumes:
+  data:
+    name: external_vol-homebridge-data
+    external: true
+
+networks:
+  homebridge:
+
+services:
+  homebridge:
+    image: oznu/homebridge:ubuntu
+    env_file: external_env-all.env
+    # environment:
+    #   - PGID=1000
+    #   - PUID=1000
+    volumes:
+      - ./bind_file-config.json:/homebridge/config.json
+      - data:/homebridge
+    networks:
+      - homebridge
+    ports:
+     - 8581:8581
+    #  - 52100-52150:52100-52150
+    # network_mode: bridge
+    container_name: homebridge
+    restart: always
