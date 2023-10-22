@@ -1,0 +1,30 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-mosquitto-data
+    external: true
+  log:
+    name: external_vol-mosquitto-log
+    external: true
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    env_file: external_env-all.env
+    volumes:
+      - data:/mosquitto/data
+      - log:/mosquitto/log
+      - ./bind_file-mosquitto.conf:/mosquitto/config/mosquitto.conf
+    ports:
+      - "1883:1883"
+    # network_mode: "bridge"
+    container_name: mosquitto
+    restart: always
+    healthcheck:
+      test: nc -z localhost 1883 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
+    
