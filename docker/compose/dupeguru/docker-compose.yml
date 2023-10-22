@@ -1,0 +1,23 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-dupeguru-config
+    external: true
+  storage:
+    name: external_vol-dupeguru-storage
+    external: true
+
+services:
+  portainer:
+    image: jlesage/dupeguru:latest
+    env_file: external_env-all.env
+    volumes:
+      - config:/config:rw
+      - storage:/storage:rw
+    ports:
+      - "5800:5800"
+    container_name: dupeguru
+    restart: always
+    privileged: true
+    user: root:root
