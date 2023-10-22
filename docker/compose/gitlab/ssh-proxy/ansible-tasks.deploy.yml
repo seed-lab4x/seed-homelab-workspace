@@ -1,0 +1,115 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: ssh-proxy.deploy|rescue|fail tasks
+    when:
+      - ssh_proxy | default(None) != None
+    ansible.builtin.fail:
+      msg: "deploy ssh_proxy fail. exclude attr undefined."
+
+  block:
+  - name: ssh-proxy.deploy|assert defined
+    ansible.builtin.assert:
+      that:
+        - ssh_proxy | default(None) != None
+      msg: "var eval fail {{ ssh_proxy }}"
+      quiet: true
+
+  - name: ssh-proxy.deploy|fact param
+    vars:
+      default:
+        url: "https://github.com/rendyanthony/gitlab-ssh-proxy.git"
+        src: "~/.gitlab/gitlab-ssh-proxy"
+        dir: "~/.seed/gitlab-ssh-proxy"
+    ansible.builtin.set_fact:
+      _ssh_proxy: "{{ default | combine(ssh_proxy, recursive=True) }}"
+
+  - name: ssh-proxy.deploy|mkdir src
+    run_once: true
+    delegate_to: localhost
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _ssh_proxy.src | dirname }}"
+
+  - name: ssh-proxy.deploy|git source
+    run_once: true
+    delegate_to: localhost
+    ansible.builtin.git:
+      repo: "{{ _ssh_proxy.url }}"
+      version: "{{ _ssh_proxy.version }}"
+      dest: "{{ _ssh_proxy.src }}"
+
+  - name: ssh-proxy.deploy|mkdir dest
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _ssh_proxy.dest | dirname }}"
+
+  - name: ssh-proxy.deploy|sync dest
+    ansible.posix.synchronize:
+      src: "{{ _ssh_proxy.src }}/"
+      dest: "{{ _ssh_proxy.dest }}"
+
+  - name: ssh-proxy.deploy|install setup 
+    become: true
+    environment:
+      SE_LINUX: 'no'
+    ansible.builtin.shell:
+      cmd: "bash setup.sh install"
+      chdir: "{{ _ssh_proxy.dest }}"
+    register: setup_shell_install
+
+  - name: ssh-proxy.deploy|add git user
+    become: true
+    ansible.builtin.user:
+      name: git
+
+  - name: ssh-proxy.deploy|generate ssh key
+    become: true
+    community.crypto.openssh_keypair:
+      path: "/home/git/.ssh/id_rsa"
+      size: 2048
+      type: rsa
+    # https://github.com/microsoft/WSL/issues/670
+    register: ssh_keypair_gen
+    until: ssh_keypair_gen is succeeded
+
+  - name: ssh-proxy.deploy|slurp ssh pub
+    become: true
+    ansible.builtin.slurp:
+      src: "/home/git/.ssh/id_rsa.pub"
+    register: ssh_pub_slurp
+
+  - name: ssh-proxy.deploy|wait container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+    vars:
+      container:
+        name: gitlab-ce
+        until:
+          - container_info.exists
+        retries: 60
+        delay: 60
+
+  - name: ssh-proxy.deploy|exec container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+    vars:
+      container:
+        container: gitlab-ce
+        command: "/bin/bash -c 'echo \"{{ ssh_pub_slurp['content'] | b64decode }}\" >> /var/opt/gitlab/.ssh/authorized_keys && cat /var/opt/gitlab/.ssh/authorized_keys'"
+        register: container_exec
+
+  - name: ssh-proxy.deploy|print exec
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['docker'])
+        | selectattr('value.container_exec','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.container_exec.stdout | default('',true) }}
+        {{ host.value.container_exec.stderr | default('',true) }}
+        {% endfor %}

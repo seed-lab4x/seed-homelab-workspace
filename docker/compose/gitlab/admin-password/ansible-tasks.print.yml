@@ -1,0 +1,36 @@
+# code: language=ansible
+---
+
+- name: gitlab-admin-password.print|wait container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+  vars:
+    container:
+      name: nexus
+      until:
+        - container_info.exists
+      retries: 60
+      delay: 60
+
+- name: gitlab-admin-password.print|exec container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+  vars:
+    container:
+      container: nexus
+      command: "bash -c \"[ -f /etc/gitlab/initial_root_password ] && cat /etc/gitlab/initial_root_password | grep 'Password:' || echo passwork already change\""
+      register: container_exec
+
+- name: gitlab-admin-password.print|print exec
+  vars:
+    docker_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',groups['docker'])
+      | selectattr('value.container_exec','defined') }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in docker_hostvars %}
+
+      [{{ host.key }}] =>
+      --------------------------------------------------
+      {{ host.value.container_exec.stdout | default('',true) }}
+      {{ host.value.container_exec.stderr | default('',true) }}
+      {% endfor %}
