@@ -1,0 +1,28 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-syncthing-data
+    external: true
+  home:
+    name: external_vol-syncthing-home
+    external: true
+
+services:
+  syncthing:
+    image: syncthing/syncthing:latest
+    env_file: external_env-all.env
+    # environment:
+    #   - PUID=0
+    #   - PGID=0
+    volumes:
+      - data:/var/syncthing
+      - home:/home/syncthing
+    ports:
+      - 8384:8384
+      - 21027:21027
+      - 22000:22000
+    # network_mode: bridge
+    container_name: syncthing
+    restart: always
+    privileged: true
