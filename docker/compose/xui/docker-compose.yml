@@ -1,0 +1,25 @@
+version: "3.8"
+
+networks:
+  xui:
+
+volumes:
+  etc:
+    name: xui-etc
+  cert:
+    name: xui-cert
+
+services:
+  xui:
+    image: enwaiax/x-ui:latest
+    env_file: external_env-all.env
+    volumes:
+      - cert:/root/cert/
+      - etc:/etc/x-ui
+    networks:
+      - xui
+    ports:
+      - 54321:54321
+    # network_mode: bridge
+    container_name: xui
+    restart: always
