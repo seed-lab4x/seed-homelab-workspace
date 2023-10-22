@@ -1,0 +1,43 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ subconverter | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              ports:
+                - 25500:25500
+              hostname: subconverter
+              name: subconverter
+              image: tindy2013/subconverter:latest
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ subweb | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              ports:
+                - 25501:80
+              hostname: subweb
+              name: subweb
+              image: careywong/subweb:latest
