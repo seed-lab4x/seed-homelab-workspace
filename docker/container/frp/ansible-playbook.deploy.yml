@@ -1,0 +1,61 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      when: frp.server is defined
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ frp.server | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/config/frps.ini"
+                dest: "{{ workpath.remote.full }}/bind_file-frps.ini"
+            container:
+              detach: true
+              restart_policy: always
+              entrypoint:
+                - "/usr/bin/frps"
+                - "-c"
+                - "/app/frps.ini"
+              volumes:
+                - "{{ workpath.remote.full }}/bind_file-frps.ini:/app/frps.ini"
+              network_mode: host
+              hostname: frp-server
+              name: frp-server
+              image: fatedier/frps:v0.44.0
+
+    - name: deploy container
+      when: frp.client is defined
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ frp.client | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/config/frpc.ini"
+                dest: "{{ workpath.remote.full }}/bind_file-frpc.ini"
+            container:
+              detach: true
+              restart_policy: always
+              entrypoint:
+                - "/usr/bin/frpc"
+                - "-c"
+                - "/app/frpc.ini"
+              volumes:
+                - "{{ workpath.remote.full }}/bind_file-frpc.ini:/app/frpc.ini"
+              network_mode: host
+              hostname: frp-client
+              name: frp-client
+              image: fatedier/frpc:v0.44.0
