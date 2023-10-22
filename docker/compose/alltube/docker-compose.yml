@@ -1,0 +1,10 @@
+version: "3.8"
+
+services:
+  alltube:
+    image: rudloff/alltube:latest
+    env_file: external_env-all.env
+    ports:
+      - 8980:80
+    container_name: alltube
+    restart: always
