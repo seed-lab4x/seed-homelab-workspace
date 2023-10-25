@@ -1,0 +1,35 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        volumes:
+          - name: external_vol-derper-certs
+            driver: local
+        container:
+          vars: "{{ tailscale.derper | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                DERP_CERT_DIR: /app/certs
+              volumes:
+                - external_vol-derper-certs:/app/certs
+                - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+              network_mode: host
+              hostname: derper
+              name: derper
+              image: fredliang/derper:latest
