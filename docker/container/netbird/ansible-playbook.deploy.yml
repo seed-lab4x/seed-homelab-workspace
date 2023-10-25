@@ -1,0 +1,37 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ tailscale | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-netbird-etc
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                TS_SOCKET: /var/run/tailscale/tailscaled.sock
+              volumes:
+                - external_vol-netbird-etc:/etc/netbird
+              capabilities:
+                - NET_ADMIN
+                - SYS_ADMIN
+                - SYS_RESOURCE
+              hostname: netbird
+              name: netbird
+              image: netbirdio/netbird:latest
