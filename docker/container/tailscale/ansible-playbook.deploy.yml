@@ -1,0 +1,39 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ tailscale | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                TS_SOCKET: /var/run/tailscale/tailscaled.sock
+              volumes:
+                - /dev/net/tun:/dev/net/tun
+                - /var/lib:/var/lib
+                # https://www.reddit.com/r/Tailscale/comments/104y6nq/docker_tailscale_and_caddy_with_https_a_love_story/
+                - /var/run/tailscale:/var/run/tailscale
+                # https://github.com/tailscale/tailscale/issues/6411
+                - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket
+              capabilities:
+                - NET_ADMIN
+                - SYS_ADMIN
+              command: tailscaled
+              hostname: tailscale
+              name: tailscale
+              image: tailscale/tailscale:latest
