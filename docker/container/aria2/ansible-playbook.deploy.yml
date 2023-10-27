@@ -1,0 +1,57 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ aria2 | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-aria2-config
+                driver: local
+              - name: external_vol-aria2-downloads
+                driver: local
+              - name: external_vol-aria2-completed
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-aria2-config:/config
+                - external_vol-aria2-downloads:/downloads
+                - external_vol-aria2-completed:/downloads/completed
+              ports:
+                - 6800:6800
+                - 6888:6888
+                - 6888:6888/udp
+              hostname: aria2-pro
+              name: aria2-pro
+              image: p3terx/aria2-pro:latest
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ aria2 | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              command: --port 6880 --ipv6
+              ports:
+                - 6880:6880
+              hostname: ariang
+              name: ariang
+              image: p3terx/ariang:latest
