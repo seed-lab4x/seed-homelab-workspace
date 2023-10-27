@@ -1,0 +1,51 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ transmission | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-transmission-config
+                driver: local
+              - name: external_vol-transmission-watch
+                driver: local
+              - name: external_vol-transmission-downloads
+                driver: local
+              - name: external_vol-transmission-complete
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                PUID: '1000'
+                PGID: '1000'
+                TRANSMISSION_WEB_HOME: /config/webui/transmissionic
+                USER: admin
+                PASS: transmission
+                TZ: Asia/Hong_Kong
+              volumes:
+                - config:/config
+                - watch:/watch
+                - downloads:/downloads
+                - complete:/downloads/complete
+              ports:
+                - 9091:9091
+                - 51413:51413
+                - 51413:51413/udp
+              hostname: transmission
+              name: transmission
+              image: linuxserver/transmission:latest
