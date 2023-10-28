@@ -1,0 +1,40 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ mosquitto | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/conf/mosquitto.conf"
+                dest: "{{ workpath.remote.full }}/bind_file-mosquitto.conf"
+            volumes:
+              - name: external_vol-mosquitto-data
+                driver: local
+              - name: external_vol-mosquitto-log
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-mosquitto-data:/mosquitto/data
+                - external_vol-mosquitto-log:/mosquitto/log
+                - "{{ workpath.remote.full }}/bind_file-mosquitto.conf:/mosquitto/config/mosquitto.conf"
+              ports:
+                - 1883:1883
+              hostname: mosquitto
+              name: mosquitto
+              image: eclipse-mosquitto:2.0
