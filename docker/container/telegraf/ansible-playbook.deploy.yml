@@ -1,0 +1,40 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: get docker gid
+      ansible.builtin.getent:
+        database: group
+        key: docker
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ telegraf | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/conf/telegraf.conf"
+                dest: "{{ workpath.remote.full }}/bind_file-telegraf.conf"
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - "{{ workpath.remote.full }}/bind_file-telegraf.conf:/etc/telegraf/telegraf.conf"
+                - /var/run/docker.sock:/var/run/docker.sock
+                - /usr/share/snmp/mibs/:/usr/share/snmp/mibs/
+                - /var/lib/mibs:/var/lib/mibs
+              user: "telegraf:{{ getent_group.docker[1] }}"
+              hostname: "{{ ansible_hostname }}"
+              name: telegraf 
+              image: telegraf:1.24.1
