@@ -1,0 +1,31 @@
+version: "3.8"
+
+networks:
+  traefik:
+
+services:
+  traefik:
+    image: traefik:latest
+    env_file: external_env-all.env
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+{% if VARS.VOLUMES | length > 0 %}
+      # like tailscale
+      # - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+      {{ VARS.VOLUMES | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+    networks:
+      - traefik
+{% if VARS.NETWORKS | length > 0 %}
+      {{ VARS.NETWORKS | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+{% if VARS.PORTS | length > 0 %}
+    ports:
+      # - 80:80
+      # - 443:443
+      # - 443:443/udp
+      # - 8080:8080
+      {{ VARS.PORTS | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+    container_name: traefik
+    restart: always
