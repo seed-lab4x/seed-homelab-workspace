@@ -1,0 +1,49 @@
+#!/usr/bin/env -S ansible-playbook -vvv -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ nfs_server | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/exports/exports"
+                dest: "{{ workpath.remote.full }}/bind_file-exports"
+            volumes:
+              - name: external_vol-nfs-server-data
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-nfs-server-data:/data
+                - /lib/modules:/lib/modules:ro
+                - "{{ workpath.remote.full }}/bind_file-exports:/etc/exports"
+              ports:
+                - 111:111
+                - 111:111/udp
+                - 2049:2049
+                - 2049:2049/udp
+                - 32765:32765
+                - 32765:32765/udp
+                - 32767:32767
+                - 32767:32767/udp
+              capabilities:
+                - SYS_ADMIN
+                - SYS_MODULE
+                - CAP_SYS_ADMIN
+              hostname: nfs-server
+              name: nfs-server
+              image: erichough/nfs-server:2.2.1
