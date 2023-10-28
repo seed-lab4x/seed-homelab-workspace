@@ -1,0 +1,49 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ influxdb | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/conf/influxdb.conf"
+                dest: "{{ workpath.remote.full }}/bind_file-influxdb.conf"
+            volumes:
+              - name: external_vol-influxdb-data
+                driver: local
+              - name: external_vol-influxdb-collectd
+                driver: local
+                push:
+                  - src: "{{ playbook_dir }}/collectd/types.db"
+                    dest: ""
+                    directory_mode: '0777'
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-influxdb-data:/var/lib/influxdb
+                - external_vol-influxdb-collectd:/usr/share/collectd
+                - "{{ workpath.remote.full }}/bind_file-influxdb.conf:/etc/influxdb/influxdb.conf"
+              ports:
+                - "8088:8088"
+                - "8086:8086"
+                - "2003:2003"
+                - "25826:25826/udp"
+                - "4242:4242"
+                - "8089:8089"
+              hostname: influxdb
+              name: influxdb
+              image: influxdb:1.8
