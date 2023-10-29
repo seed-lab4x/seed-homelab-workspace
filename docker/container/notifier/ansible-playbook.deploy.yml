@@ -1,0 +1,31 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ notifier | default({},true) }}"
+          default:
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock:ro
+              env:
+                TELEGRAM_NOTIFIER_BOT_TOKEN: "{{ notifier.token }}"
+                TELEGRAM_NOTIFIER_CHAT_ID: "{{ notifier.chat }}"
+              hostname: notifier
+              name: notifier
+              image: lorcas/docker-telegram-notifier:latest
