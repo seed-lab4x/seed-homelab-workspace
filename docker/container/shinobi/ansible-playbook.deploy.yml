@@ -1,0 +1,47 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ shinobi | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-shinobi-config
+                driver: local
+              - name: external_vol-shinobi-customAutoLoad
+                driver: local
+              - name: external_vol-shinobi-database
+                driver: local
+              - name: external_vol-shinobi-videos
+                driver: local
+              - name: external_vol-shinobi-plugins
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-shinobi-config:/config
+                - external_vol-shinobi-database:/var/lib/mysql
+                - external_vol-shinobi-videos:/home/Shinobi/videos
+                - external_vol-shinobi-plugins:/home/Shinobi/plugins
+                - external_vol-shinobi-customAutoLoad:/home/Shinobi/libs/customAutoLoad
+                - /dev/shm/Shinobi/streams:/dev/shm/streams
+                - /etc/localtime:/etc/localtime:ro
+              ports:
+                - 8580:8080
+              hostname: shinobi
+              name: shinobi
+              image: registry.gitlab.com/shinobi-systems/shinobi:dev
