@@ -1,0 +1,39 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ grafana | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-grafana-data
+                driver: local
+              - name: external_vol-grafana-config
+                driver: local
+              - name: external_vol-grafana-provisioning
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-grafana-data:/var/lib/grafana
+                - external_vol-grafana-dashboards:/var/lib/grafana/dashboards
+                - external_vol-grafana-provisioning:/etc/grafana/provisioning
+              ports:
+                - 3000:3000
+              hostname: grafana
+              name: grafana
+              image: grafana/grafana:latest
