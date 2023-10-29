@@ -1,0 +1,36 @@
+{
+	skip_install_trust
+	auto_https disable_redirects
+	http_port {$HTTP_PORT}
+	https_port {$HTTPS_PORT}
+}
+
+:{$HTTP_PORT} {
+	redir / /web
+
+    handle /api/* {
+        reverse_proxy * http://headscale:8080
+    }
+
+	uri strip_prefix /web
+	file_server {
+		root /web
+	}
+
+}
+
+:{$HTTPS_PORT} {
+	redir / /web
+
+    handle /api/* {
+        reverse_proxy * http://headscale:8080
+    }
+
+	uri strip_prefix /web
+	tls internal {
+		on_demand
+	}
+	file_server {
+		root /web
+	}
+}

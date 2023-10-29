@@ -1,0 +1,37 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ headscale_ui | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/config/Caddyfile"
+                dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - "{{ workpath.remote.full }}/bind_file-Caddyfile:/data/Caddyfile"
+              ports:
+                - 8380:80
+                - 13443:443
+              env:
+                HTTP_PORT: 80
+                HTTPS_PORT: 443
+              hostname: headscale-ui
+              name: headscale-ui
+              image: ghcr.io/gurucomputing/headscale-ui:2023.01.30-beta-1
