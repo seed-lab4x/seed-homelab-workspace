@@ -1,0 +1,41 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: headscale-apikey.build|rescue|fail
+    when:
+      - apikey is defined
+    ansible.builtin.fail:
+      msg: "build apikey fail. exclude param eval."
+
+  block:
+  - name: headscale-apikey.build|assert param
+    ansible.builtin.assert:
+      that:
+        - apikey is defined
+      msg: "var eval fail 'apikey'"
+      quiet: true
+  
+  - name: headscale-apikey.build|fact param
+    vars:
+      default:
+        dest: "{{ inventory_dir }}/host_vars/{{ inventory_hostname }}/headscale/apikey.yml"
+        src: "{{ playbook_dir }}/inventory.yml.j2"
+    ansible.builtin.set_fact:
+      _apikey: "{{ default | combine(apikey, recursive=True) }}"
+
+  - name: headscale-apikey.build|mkdir inventory
+    delegate_to: localhost
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _apikey.dest | dirname }}"
+
+  - name: headscale-apikey.build|template inventory
+    delegate_to: localhost
+    vars:
+      dest: "{{ inventory_dir }}/host_vars/{{ inventory_hostname }}/headscale/apikey.yml"
+      VARS:
+        headscale_apikeys: "{{ _apikey.data }}"
+    ansible.builtin.template:
+      src: "{{ _apikey.src }}"
+      dest: "{{ _apikey.dest }}"

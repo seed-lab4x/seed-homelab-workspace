@@ -1,0 +1,4 @@
+# code: language=ansible
+
+headscale_apikeys:
+  {{ VARS.headscale_apikeys | to_nice_yaml(indent=2) | trim | indent(2) }}
