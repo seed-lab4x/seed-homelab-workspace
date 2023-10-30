@@ -1,0 +1,45 @@
+#!/usr/bin/env -S ansible-playbook -vvv -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+      vars:
+        workpath:
+          index: -2
+
+    - name: fact dict result
+      ansible.builtin.set_fact:
+        _apikeys_result: {}
+
+    - name: fact list param
+      vars:
+        list: "{{ _apikeys | default([],true) }}"
+        attr:
+          index: "{{ item.key }}"
+          append: "_apikeys_result"
+        append: "{{ item.value | combine(attr, recursive=True) }}"
+      loop: "{{ headscale.apikeys | dict2items }}"
+      ansible.builtin.set_fact:
+        _apikeys: "{{ list + [append] }}"
+
+    - name: create apikey
+      loop: "{{ _apikeys }}"
+      loop_control:
+        loop_var: apikey
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.create.yml"
+
+    - name: build apikey
+      when: headscale.build.apikeys is defined
+      vars:
+        apikey:
+          build: "{{ headscale.build.apikeys }}"
+          data: "{{ _apikeys_result }}"
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.build.yml"
