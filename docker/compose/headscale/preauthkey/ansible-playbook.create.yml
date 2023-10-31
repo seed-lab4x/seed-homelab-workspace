@@ -1,0 +1,45 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+      vars:
+        workpath:
+          index: -2
+
+    - name: fact dict result
+      ansible.builtin.set_fact:
+        _preauthkeys_result: {}
+
+    - name: fact param
+      vars:
+        list: "{{ _preauthkeys | default([],true) }}"
+        attr:
+          user: "{{ item.key }}"
+          append: "_preauthkeys_result"
+        append: "{{ item.value | combine(attr, recursive=True) }}"
+      loop: "{{ headscale.users | dict2items }}"
+      ansible.builtin.set_fact:
+        _preauthkeys: "{{ list + [append] }}"
+
+    - name: create preauthkey
+      loop: "{{ _preauthkeys }}"
+      loop_control:
+        loop_var: preauthkey
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.create.yml"
+
+    - name: build preauthkey
+      when: headscale.build.preauthkeys is defined
+      vars:
+        preauthkey:
+          build: "{{ headscale.build.preauthkeys }}"
+          data: "{{ _preauthkeys_result }}"
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.build.yml"

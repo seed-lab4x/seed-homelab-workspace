@@ -1,0 +1,99 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: headscale-preauthkey.create|rescue|fail
+    when:
+      - preauthkey is defined
+      - preauthkey.preauthkeys is defined
+    ansible.builtin.fail:
+      msg: "create preauthkey fail. exclude param eval."
+
+  block:
+  - name: headscale-preauthkey.create|assert param
+    ansible.builtin.assert:
+      that:
+        - preauthkey is defined
+        - preauthkey.preauthkeys is defined
+      msg: "var eval fail 'preauthkey'"
+      quiet: true
+  
+  - name: headscale-preauthkey.create|fact param
+    ansible.builtin.set_fact:
+      _preauthkey: "{{ preauthkey }}"
+
+  - name: headscale-preauthkey.create|fact commands
+    vars:
+      command: "headscale preauthkey create -e {{ item.value | default('240h',true) }} -u {{ _preauthkey.user }} --reusable"
+      dict: "{{ _preauthkey.commands | default({},true) }}"
+      attr:
+        commands: "{{ dict | combine({item.key: command}) }}"
+    loop: "{{ _preauthkey.preauthkeys | dict2items }}"
+    ansible.builtin.set_fact:
+      _preauthkey: "{{ _preauthkey | combine(attr, recursive=True) }}"
+
+  - name: headscale-preauthkey.create|wait container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+    vars:
+      container:
+        name: headscale
+        until:
+          - container_info.exists
+        retries: 60
+        delay: 60
+
+  - name: headscale-preauthkey.create|exec container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+    vars:
+      container:
+        container: headscale
+        command: "{{ _preauthkey.commands.values() }}"
+        register: container_exec
+
+  - name: headscale-preauthkey.create|fact results
+    vars:
+      command: "{{ item.item | b64decode }}"
+      match_command_item: "{{ _preauthkey.commands | dict2items | selectattr('value','equalto',command) | first }}"
+      index: "{{ match_command_item.key }}"
+      key: "{{ item.stdout_lines[-1] }}"
+      dict: "{{ _preauthkey.results | default({},true) }}"
+      attr:
+        results: "{{ dict | combine({index: key}) }}"
+    loop: "{{ container_exec.results }}"
+    ansible.builtin.set_fact:
+      _preauthkey: "{{ _preauthkey | combine(attr, recursive=True) }}"
+
+  - name: headscale-preauthkey.create|append list
+    when: list | type_debug == 'list'
+    vars:
+      append:
+        user: "{{ _preauthkey.user }}"
+        keys: "{{ _preauthkey.results }}"
+      list: "{{ lookup('ansible.builtin.vars', _preauthkey.append) }}"
+    ansible.builtin.set_fact:
+      "{{ _preauthkey.append }}": "{{ list + [append] }}"
+
+  - name: headscale-preauthkey.create|append dict
+    when: dict | type_debug == 'dict'
+    vars:
+      dict: "{{ lookup('ansible.builtin.vars', _preauthkey.append) }}"
+    ansible.builtin.set_fact:
+      "{{ _preauthkey.append }}": "{{ dict | combine({_preauthkey.user: _preauthkey.results}) }}"
+
+  - name: headscale-preauthkey.create|print exec
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['docker'])
+        | selectattr('value.container_exec','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {% for item in host.value.container_exec.results %}
+        {{ item.stdout | default('',true) }}
+        {{ item.stderr | default('',true) }}
+        {% endfor %}
+        {% endfor %}
