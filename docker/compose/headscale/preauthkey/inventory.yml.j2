@@ -1,0 +1,4 @@
+# code: language=ansible
+
+headscale_preauthkeys:
+  {{ VARS.headscale_preauthkeys | to_nice_yaml(indent=2) | trim | indent(2) }}
