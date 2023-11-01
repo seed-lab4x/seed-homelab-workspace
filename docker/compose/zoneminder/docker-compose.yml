@@ -1,0 +1,26 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-zoneminder-data
+    external: true
+  config:
+    name: external_vol-zoneminder-config
+    external: true
+  log:
+    name: external_vol-zoneminder-log
+    external: true
+
+services:
+  zoneminder:
+    image: ghcr.io/zoneminder-containers/zoneminder-base:1.36.33
+    env_file: external_env-zoneminder.env
+    volumes:
+      - data:/data
+      - config:/config
+      - log:/log
+    ports:
+      - 8480:80
+    container_name: zoneminder
+    restart: unless-stopped
+    shm_size: 512mb
