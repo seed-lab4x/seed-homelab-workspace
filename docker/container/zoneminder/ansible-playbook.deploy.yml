@@ -1,0 +1,39 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ zoneminder | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-zoneminder-config
+                driver: local
+              - name: external_vol-zoneminder-cache
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              shm_size: 1G
+              volumes:
+                - external_vol-zoneminder-config:/config
+                - external_vol-zoneminder-cache:/var/cache/zoneminder
+                - /etc/localtime:/etc/localtime:ro
+              ports:
+                - 9443:443
+                - 9000:9000
+              hostname: zoneminder
+              name: zoneminder
+              image: dlandon/zoneminder.machine.learning:latest
