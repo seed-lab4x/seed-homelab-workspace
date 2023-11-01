@@ -1,0 +1,23 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-zoneminder-config
+    external: true
+  cache:
+    name: external_vol-zoneminder-cache
+    external: true
+
+services:
+  zoneminder:
+    image: nardo86/zoneminder:1.36
+    env_file: external_env-zoneminder.env
+    volumes:
+      - config:/config
+      - cache:/var/cache/zoneminder
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - 9443:443
+      - 9000:9000
+    container_name: zoneminder
+    restart: unless-stopped
