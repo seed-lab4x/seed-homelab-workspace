@@ -1,0 +1,43 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: headscale-node.build|rescue|fail
+    when:
+      - node is defined
+      - node.data.keys() | length > 0
+    ansible.builtin.fail:
+      msg: "build node fail. exclude param eval."
+
+  block:
+  - name: headscale-node.build|assert param
+    ansible.builtin.assert:
+      that:
+        - node is defined
+        - node.data.keys() | length > 0
+      msg: "var eval fail 'node'"
+      quiet: true
+  
+  - name: headscale-node.build|fact param
+    vars:
+      default:
+        dest: "{{ inventory_dir }}/host_vars/{{ inventory_hostname }}/headscale/node.yml"
+        src: "{{ playbook_dir }}/inventory.yml.j2"
+    ansible.builtin.set_fact:
+      _node: "{{ default | combine(node, recursive=True) }}"
+
+  - name: headscale-node.build|mkdir inventory
+    delegate_to: localhost
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _node.dest | dirname }}"
+
+  - name: headscale-node.build|template inventory
+    delegate_to: localhost
+    vars:
+      dest: "{{ inventory_dir }}/host_vars/{{ inventory_hostname }}/headscale/node.yml"
+      VARS:
+        headscale_nodes: "{{ _node.data }}"
+    ansible.builtin.template:
+      src: "{{ _node.src }}"
+      dest: "{{ _node.dest }}"

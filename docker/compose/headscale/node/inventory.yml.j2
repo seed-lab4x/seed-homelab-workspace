@@ -1,0 +1,4 @@
+# code: language=ansible
+
+headscale_nodes:
+  {{ VARS.headscale_nodes | to_nice_yaml(indent=2) | trim | indent(2) }}
