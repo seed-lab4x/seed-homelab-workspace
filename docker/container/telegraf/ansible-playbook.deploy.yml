@@ -12,6 +12,11 @@
     - name: fact workpath
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
 
+    - name: get docker gid
+      ansible.builtin.getent:
+        database: group
+        key: docker
+
     - name: deploy container
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
@@ -29,6 +34,7 @@
                 - /usr/share/snmp/mibs/:/usr/share/snmp/mibs/
                 - /var/lib/mibs:/var/lib/mibs
                 - "{{ workpath.remote.full }}/bind_file-telegraf.conf:/etc/telegraf/telegraf.conf"
+              user: "telegraf:{{ getent_group.docker[1] }}"
               hostname: "{{ ansible_hostname }}"
               name: telegraf 
               image: telegraf:1.24.1
