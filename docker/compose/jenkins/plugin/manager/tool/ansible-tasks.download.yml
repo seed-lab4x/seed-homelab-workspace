@@ -1,0 +1,36 @@
+# code: language=ansible
+---
+
+- name: jenkins-plugin-manager-tool.download|get latest
+  ansible.builtin.uri:
+    url: "https://api.github.com/repos/jenkinsci/plugin-installation-manager-tool/releases/latest"
+    return_content: true
+  register: manager_latest_get
+
+- name: jenkins-plugin-manager-tool.download|fact param
+  vars:
+    version: "{{ manager_latest_get.json.name }}"
+    asset: "{{ manager_latest_get.json.assets | selectattr('name', 'search', '.jar') | first }}"
+  ansible.builtin.set_fact:
+    _manager:
+      version: "{{ version }}"
+      url: "{{ asset.browser_download_url }}"
+      dest: "~/.jenkins/{{ asset.name }}"
+      name: "{{ asset.name }}"
+
+- name: jenkins-plugin-manager-tool.download|stat manager dest
+  ansible.builtin.stat:
+    path: "{{ _manager.dest }}"
+  register: manager_asset_dest_stat
+
+- name: jenkins-plugin-manager-tool.download|mkdir manager dest
+  when: not manager_asset_dest_stat.stat.exists
+  ansible.builtin.file:
+    state: directory
+    path: "~/.jenkins"
+
+- name: jenkins-plugin-manager-tool.download|download manager dest
+  when: not manager_asset_dest_stat.stat.exists
+  ansible.builtin.get_url:
+    url: "{{ _manager.url }}"
+    dest: "{{ _manager.dest }}"

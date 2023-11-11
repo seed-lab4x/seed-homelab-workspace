@@ -1,0 +1,44 @@
+# code: language=ansible
+---
+
+- name: jenkins-plugin-cli.download|deploy container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+  vars:
+    container:
+      vars: "{{ _plugin.container | default({},true) }}"
+      default:
+        files:
+          - dest: "{{ _plugin.output }}"
+            mode: "0777"
+          - src: "{{ _plugin.file }}"
+            dest: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
+        volumes:
+          - name: external_vol-jenkins-plugin
+            driver: local
+            driver_options:
+              type: none
+              device: "{{ _plugin.output }}"
+              o: bind
+            push:
+              - remote_src: true
+                src: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
+                dest: "{{ _plugin.file | basename }}"
+                bind: true
+        envs:
+          - file: external_env-all.env
+            content: ''
+        container:
+          detach: false
+          volumes:
+            - "external_vol-jenkins-plugin:/plugins"
+          command: >
+            jenkins-plugin-cli
+            --jenkins-version {{ _plugin.jenkins_version }}
+            --plugin-file /plugins/{{ _plugin.file | basename }}
+            --plugin-download-directory /plugins
+            {{ _plugin.flags }}
+          user: "1000:1000"
+          env_file: "{{ workpath.remote.full }}/external_env-all.env"
+          hostname: jenkins-plugin-cli-download
+          name: jenkins-plugin-cli-download
+          image: "{{ _plugin.docker_image }}"

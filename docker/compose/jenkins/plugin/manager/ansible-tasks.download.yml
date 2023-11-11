@@ -1,0 +1,57 @@
+# code: language=ansible
+---
+
+- name: jenkins-plugin-manager.download|download tool
+  include_tasks:
+    file: tool/ansible-tasks.download.yml
+    apply:
+      delegate_to: localhost
+
+- name: jenkins-plugin-manager.download|deploy container
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+  vars:
+    container:
+      vars: "{{ _plugin.container | default({},true) }}"
+      default:
+        files:
+          - dest: "{{ _plugin.output }}"
+            mode: "0777"
+          - src: "{{ _plugin.file }}"
+            dest: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
+          - src: "{{ _manager.dest }}"
+            dest: "{{ workpath.remote.full }}/{{ _manager.name }}"
+        volumes:
+          - name: external_vol-jenkins-plugin
+            driver: local
+            driver_options:
+              type: none
+              device: "{{ _plugin.output }}"
+              o: bind
+            push:
+              - remote_src: true
+                src: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
+                dest: "{{ _plugin.file | basename }}"
+                bind: true
+              - remote_src: true
+                src: "{{ workpath.remote.full }}/{{ _manager.name }}"
+                dest: "{{ _manager.name }}"
+                bind: true
+        envs:
+          - file: external_env-all.env
+            content: ''
+        container:
+          detach: false
+          volumes:
+            - "external_vol-jenkins-plugin:/plugins"
+          command: >
+            java
+            -jar /plugins/{{ _manager.name }}
+            --jenkins-version {{ _plugin.jenkins_version }}
+            --plugin-file /plugins/{{ _plugin.file | basename }}
+            --plugin-download-directory /plugins
+            {{ _plugin.flags }}
+          user: "1000:1000"
+          env_file: "{{ workpath.remote.full }}/external_env-all.env"
+          hostname: jenkins-plugin-manager-download
+          name: jenkins-plugin-manager-download
+          image: "{{ _plugin.docker_image }}"
