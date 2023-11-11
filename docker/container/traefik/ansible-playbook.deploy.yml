@@ -16,7 +16,7 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ caddy | default({},true) }}"
+          vars: "{{ traefik | default({},true) }}"
           default:
             container:
               detach: true

@@ -3,22 +3,12 @@ version: "3.8"
 networks:
   traefik:
 
-volumes:
-  data:
-    name: external_vol-caddy-data
-    external: true
-  config:
-    name: external_vol-caddy-config
-    external: true
-
 services:
   traefik:
     image: traefik:latest
     env_file: external_env-all.env
     volumes:
-      - ./bind_file-Caddyfile:/etc/caddy/Caddyfile
-      - data:/data
-      - config:/config
+      - /var/run/docker.sock:/var/run/docker.sock
 {% if VARS.VOLUMES | length > 0 %}
       # like tailscale
       # - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
