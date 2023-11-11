@@ -1,0 +1,35 @@
+version: "3.8"
+
+volumes:
+  home:
+    name: external_vol-jenkins-home
+    external: true
+  plugin:
+    name: external_vol-jenkins-plugin
+    external: true
+  user:
+    name: external_vol-jenkins-user
+    external: true
+
+services:
+  jenkins:
+    image: jenkins/jenkins:2.414.3-jdk17
+    env_file: external_env-all.env
+    # environment:
+    #   DOCKER_TLS_CERTDIR: /certs
+    #   JENKINS_UC: https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates
+    ports:
+      - 8080:8080
+      - 50000:50000
+    volumes:
+      - home:/var/jenkins_home
+      - plugin:/var/jenkins_home/plugins
+      - user:/home/jenkins
+    container_name: jenkins
+    restart: always
+    # healthcheck:
+    #   test: curl -f http://localhost:8080 || exit 1
+    #   interval: 60s
+    #   timeout: 5s
+    #   retries: 10
+    #   start_period: 10m

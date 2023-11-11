@@ -1,25 +1,25 @@
 # code: language=ansible
 ---
 
-- name: nexus-admin-password.print|wait container
+- name: jenkins-admin-password.print|wait container
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
   vars:
     container:
-      name: nexus3
+      name: jenkins
       until:
         - container_info.exists
       retries: 60
       delay: 60
 
-- name: nexus-admin-password.print|exec container
+- name: jenkins-admin-password.print|exec container
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
   vars:
     container:
-      container: nexus3
-      command: "bash -c '[ -f /nexus-data/admin.password ] && cat /nexus-data/admin.password || echo passwork already change'"
+      container: jenkins
+      command: "bash -c '[ -f /var/jenkins_home/secrets/initialAdminPassword ] && cat /var/jenkins_home/secrets/initialAdminPassword'"
       register: container_exec
 
-- name: nexus-admin-password.print|print exec
+- name: jenkins-admin-password.print|print exec
   vars:
     docker_hostvars: "{{ hostvars | dict2items
       | selectattr('key','in',groups['docker'])

@@ -1,0 +1,21 @@
+#!/usr/bin/env -S ansible-playbook -vvv -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: download
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+      vars:
+        workpath:
+          index: -2
+
+    - name: download plugin
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.download.yml"
+      vars:
+        plugin: "{{ jenkins.plugin | default(None,true) }}"

@@ -1,0 +1,46 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: jenkins-plugin.download|rescue|fail tasks
+    when:
+      - plugin is defined
+    ansible.builtin.fail:
+      msg: "download plugin fail. exclude var undefined."
+
+  block:
+  - name: jenkins-plugin.download|assert var
+    ansible.builtin.assert:
+      that:
+        - plugin is defined
+      msg: "var eval fail {{ plugin }}"
+      quiet: true
+
+  - name: jenkins-plugin.download|fact param
+    vars:
+      default:
+        mode: cli
+        version: "2.375"
+        file: "{{ playbook_dir }}/plugins.yml"
+        output: "{{ inventory_dir }}/../jenkins/plugin/{{ inventory_hostname }}/"
+        flags: "--verbose --latest false"
+    ansible.builtin.set_fact:
+      _plugin: "{{ default | combine(plugin, recursive=True) }}"
+
+  - name: jenkins-plugin.download|normal|download plugin
+    when:
+      - _plugin.mode in ['manager', 'cli']
+      - _plugin.delegate_to is undefined
+    include_tasks:
+      file: "{{ playbook_dir }}/{{ _plugin.mode }}/ansible-tasks.download.yml"
+
+  - name: jenkins-plugin.download|delegate|download plugin 
+    vars:
+      plugin: "{{ jenkins.plugin | default(None,true) }}"
+    when:
+      - _plugin.mode in ['manager', 'cli']
+      - _plugin.delegate_to is defined
+    include_tasks:
+      file: "{{ playbook_dir }}/{{ _plugin.mode }}/ansible-tasks.download.yml"
+      apply:
+        delegate_to: "{{ _plugin.delegate_to }}"
