@@ -9,7 +9,7 @@ volumes:
     external: true
 
 services:
-  portainer:
+  dupeguru:
     image: jlesage/dupeguru:latest
     env_file: external_env-all.env
     volumes:
