@@ -1,0 +1,151 @@
+# code: language=ansible
+---
+
+- name: docker-service.exec|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: service_share
+
+- vars:
+    group: "{{ service_share.group | default('docker',true) }}"
+  rescue:
+  - name: docker-service.exec|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "exec service fail. exclude wrong group."
+
+  block:
+  - name: docker-service.exec|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - service is defined
+      msg: "var eval fail {{ service }}"
+      quiet: true
+
+  - name: docker-service.exec|fact param
+    vars:
+      default:
+        register: "{{ service.register | default('service_exec',true) }}"
+        append: "{{ service.append | default('',true) }}"
+      command_str_b64encode: "{{ service.command | b64encode }}"
+      command_list_b64encode: "{{ service.command | map('b64encode') }}"
+      command_b64encode:
+        command: "{{ command_list_b64encode if(service.command | type_debug == 'list') else command_str_b64encode }}"
+    ansible.builtin.set_fact:
+      _service: "{{ service | default(default,true) | combine(command_b64encode , recursive=True) }}"
+
+  - rescue:
+    - name: docker-service.exec|rescue any other|fail
+      when:
+        - _service | default(None) != None
+      ansible.builtin.fail:
+        msg: "exec service '{{ _service.name }}' fail, exclude enable any: '{{ service_share.any | default(false) }}'."
+
+    block:
+    - name: docker-service.exec|register service ps
+      vars:
+        filters:
+          - "label=com.docker.swarm.service.name={{ _service.name }}"
+        option_filter: "-f {{ filters | select() | join(' -f ') }}"
+      ansible.builtin.shell:
+        cmd: "docker ps -q {{ option_filter }}"
+      register: service_ps
+
+    - when: _service.command | type_debug != 'list'
+      block:
+      - name: docker-service.exec|one|exec service command
+        loop: "{{ service_ps.stdout_lines if(service_ps.stdout_lines is defined) else [] }}"
+        loop_control:
+          loop_var: container_id
+        community.docker.docker_container_exec:
+          container: "{{ container_id }}"
+          command: "{{ _service.command | b64decode }}"
+        register: service_exec_one
+
+      # collect register var across hosts
+      - name: docker-service.exec|one|fact cross info
+        run_once: false
+        vars:
+          items_hostvars: "{{ hostvars | dict2items }}"
+          hosts_hostvars: "{{ items_hostvars | selectattr('key','in',groups[group]) | map(attribute='value') }}"
+          cross_hostvars: "{{ hosts_hostvars
+            | selectattr('_service','defined')
+            | selectattr('_service.name','equalto',_service.name) }}"
+          cross_service_exec_one: "{{ cross_hostvars
+            | selectattr('service_exec_one','defined')
+            | map(attribute='service_exec_one')
+            | map(attribute='results')
+            | flatten }}"
+          cross_attribute:
+            cross: "{{ cross_service_exec_one }}"
+        when: _service.cross | default(false) | bool
+        ansible.builtin.set_fact:
+          service_exec_one: "{{ service_exec_one | combine(cross_attribute, recursive=True) }}"
+
+      - name: docker-service.exec|one|fact append exec
+        vars:
+          append_list: "{{ lookup('ansible.builtin.vars', _service.append, default=[]) }}"
+        when: _service.append | default(None,true) != None
+        ansible.builtin.set_fact:
+          "{{ _service.append }}": "{{ append_list + [service_exec_one] }}"
+
+      - name: docker-service.exec|one|fact register exec
+        ansible.builtin.set_fact:
+          "{{ _service.register }}": "{{ service_exec_one }}"
+          service_exec_one: !!null
+
+    - when: _service.command | type_debug == 'list'
+      block:
+      - name: docker-service.exec|multi|exec service command
+        vars:
+          commands: "{{ _service.command if (_service.command | type_debug == 'list') else [] }}"
+          ids: "{{ service_ps.stdout_lines if(service_ps.stdout_lines is defined) else [] }}"
+          id_command_tuples: "{{ ids | product(commands)
+            | map('zip', ['id', 'command'])
+            | map('map', 'reverse')
+            | map('community.general.dict') }}"
+          id: "{{ item.id }}"
+          command: "{{ item.command | b64decode | regex_replace('\\\\\\\n') }}"
+        loop: "{{ id_command_tuples }}"
+        community.docker.docker_container_exec:
+          container: "{{ id }}"
+          command: "{{ command }}"
+        register: service_exec_multi
+
+      # collect register var across hosts
+      - name: docker-service.exec|multi|fact cross info
+        run_once: false
+        vars:
+          items_hostvars: "{{ hostvars | dict2items }}"
+          hosts_hostvars: "{{ items_hostvars | selectattr('key','in',groups[group]) | map(attribute='value') }}"
+          cross_hostvars: "{{ hosts_hostvars
+            | selectattr('_service','defined')
+            | selectattr('_service.name','equalto',_service.name) }}"
+          cross_service_exec_multi: "{{ cross_hostvars
+            | selectattr('service_exec_multi','defined')
+            | map(attribute='service_exec_multi')
+            | map(attribute='results')
+            | flatten }}"
+          cross_attribute:
+            cross: "{{ cross_service_exec_multi }}"
+        when: _service.cross | default(false) | bool
+        ansible.builtin.set_fact:
+          service_exec_multi: "{{ service_exec_multi | combine(cross_attribute, recursive=True) }}"
+
+      - name: docker-service.exec|multi|fact append info
+        vars:
+          append_list: "{{ lookup('ansible.builtin.vars', _service.append, default=[]) }}"
+        when: _service.append is defined
+        ansible.builtin.set_fact:
+          "{{ _service.append }}": "{{ append_list + [service_exec_multi] }}"
+
+      - name: docker-service.exec|multi|fact register exec
+        ansible.builtin.set_fact:
+          "{{ _service.register }}": "{{ service_exec_multi }}"
+          service_exec_multi: !!null
+
+    - name: docker-service.exec|unfact param
+      run_once: "{{ service_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _service: !!null

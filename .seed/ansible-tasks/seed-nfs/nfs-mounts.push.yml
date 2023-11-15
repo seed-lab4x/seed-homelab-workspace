@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: nfs-mounts.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: mounts_share
+
+- name: nfs-mounts.push|assert param
+  ansible.builtin.assert:
+    that:
+      - mounts is defined
+      - mounts | type_debug == 'list' or mounts.push | type_debug == 'list'
+    msg: "var eval fail {{ mounts }}"
+    quiet: true
+
+- name: nfs-mounts.push|fact param
+  ansible.builtin.set_fact:
+    _mounts: "{{ mounts | flatten }}"
+
+- vars:
+    share_mode: "{{ mounts_share.mode | default('index') }}"
+    share_group: "{{ mounts_share.group | default('nfs-client',true) }}"
+  block:
+  - name: nfs-mounts.push|index|loop
+    loop: "{{ range(0, _mounts | length, 1) | list }}"
+    loop_control:
+      loop_var: mount_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[mount_share.group] | default([],true)
+    include_tasks: nfs-mount.push.yml
+    vars:
+      mount: "{{ _mounts[mount_index] }}"
+      mount_share:
+        any: false
+        group: "{{ mount.group | default(share_group,true) }}"
+
+  - name: nfs-mounts.push|value|loop
+    loop: "{{ _mounts }}"
+    loop_control:
+      loop_var: mount
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[mount_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ mount.once | default(false) }}"
+        task: seed-nfs/nfs-mount.push.yml
+      mount_share:
+        any: "{{ mount.any | default(false) }}"
+        group: "{{ mount.group | default(share_group,true) }}"
+
+- name: nfs-mounts.push|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _mounts: !!null

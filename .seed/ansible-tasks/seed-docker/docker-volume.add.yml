@@ -1,0 +1,56 @@
+# code: language=ansible
+---
+
+- name: docker-volume.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: volume_share
+
+- vars:
+    group: "{{ volume_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-volume.add|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add volume fail. exclude wrong group."
+
+  block:
+  - name: docker-volume.add|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - volume is defined
+      msg: "var eval fail {{ volume }}"
+      quiet: true
+
+  - name: docker-volume.add|fact param
+    ansible.builtin.set_fact:
+      _volume: "{{ volume }}"
+
+  - rescue:
+    - name: docker-volume.add|rescue any other|fail
+      when:
+        - _volume | default(None) != None
+      ansible.builtin.fail:
+        msg: "add volume '{{ _volume.name }}' fail, exclude enable any: '{{ volume_share.any | default(false) }}'."
+
+    block:
+    - name: docker-volume.add|add by fact
+      vars:
+        keys_to_remove: ['group','once','any']
+        keys_to_keep: "{{ _volume.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _volume) | list }}"
+        volume_remove_key: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+        volume_merge_label:
+          labels:
+            "com.docker.stack.namespace": seed
+            "com.github.xiaoyao9184.docker-seed.type": "docker-volume.add"
+            "com.github.xiaoyao9184.docker-seed.creator": "{{ lookup('ansible.builtin.env', 'SEED_NAME') | default('docker-volume.add',true) }}"
+        args: "{{ volume_remove_key | combine(volume_merge_label, recursive=True) }}"
+      community.docker.docker_volume: "{{ args }}"
+
+    - name: docker-volume.add|unfact param
+      run_once: "{{ volume_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _volume: !!null

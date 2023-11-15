@@ -1,0 +1,52 @@
+# code: language=ansible
+---
+
+- name: docker-label.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: label_share
+
+- vars:
+    group: "{{ label_share.group | default('docker-manager',true) }}"
+  rescue:
+
+  - name: docker-label.add|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "add label fail. exclude wrong group."
+
+  block:
+  - name: docker-label.add|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - label is defined
+      msg: "var eval fail {{ label }}"
+      quiet: true
+
+  - name: docker-label.add|fact param
+    ansible.builtin.set_fact:
+      _label: "{{ label }}"
+
+  - rescue:
+    - name: docker-label.add|rescue any other|fail
+      when:
+        - _label | default(None) != None
+      ansible.builtin.fail:
+        msg: "add label '{{ _label.hostname }}' fail, exclude enable any: '{{ label_share.any | default(false) }}'."
+
+    block:
+    - name: docker-label.add|add by fact
+      vars:
+        keys_to_remove: ['group','once','any']
+        keys_to_keep: "{{ _label.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _label) | list }}"
+        args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      community.docker.docker_node: "{{ args }}"
+      register: label_add
+      until: label_add is succeeded
+
+    - name: docker-label.add|unfact param
+      run_once: "{{ label_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _label: !!null

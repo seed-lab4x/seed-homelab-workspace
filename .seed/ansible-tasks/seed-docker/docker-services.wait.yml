@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-services.wait|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: services_share
+
+- name: docker-services.wait|assert param
+  ansible.builtin.assert:
+    that:
+      - services is defined
+      - services | type_debug == 'list'
+    msg: "var eval fail {{ services }}"
+    quiet: true
+
+- name: docker-services.wait|fact param
+  ansible.builtin.set_fact:
+    _services: "{{ services | flatten }}"
+
+- vars:
+    share_mode: "{{ services_share.mode | default('index') }}"
+    share_group: "{{ services_share.group | default('docker',true) }}"
+  block:
+  - name: docker-services.wait|index|loop
+    loop: "{{ range(0, _services | length, 1) | list }}"
+    loop_control:
+      loop_var: service_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[service_share.group] | default([],true)
+    include_tasks: docker-service.wait.yml
+    vars:
+      service: "{{ _services[service_index] }}"
+      service_share:
+        any: false
+        group: "{{ service.group | default(share_group,true) }}"
+
+  - name: docker-services.wait|value|loop
+    loop: "{{ _services }}"
+    loop_control:
+      loop_var: service
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[service_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ service.once | default(false) }}"
+        task: seed-docker/docker-service.wait.yml
+      service_share:
+        any: "{{ service.any | default(false) }}"
+        group: "{{ service.group | default(share_group,true) }}"
+
+- name: docker-services.wait|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _services: !!null

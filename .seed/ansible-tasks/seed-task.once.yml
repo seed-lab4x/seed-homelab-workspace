@@ -1,0 +1,11 @@
+# code: language=ansible
+---
+
+- name: seed-task.once|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: task_share
+
+- name: seed-task.once|include task
+  run_once: "{{ task_share.run_once | default(false) }}"
+  include_tasks: "{{ task_share.task }}"

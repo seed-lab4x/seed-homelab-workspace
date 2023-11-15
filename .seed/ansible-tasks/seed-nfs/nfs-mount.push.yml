@@ -1,0 +1,109 @@
+# code: language=ansible
+---
+
+- name: nfs-mount.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: mount_share
+
+- vars:
+    group: "{{ mount_share.group | default('nfs-client',true) }}"
+  rescue:
+  - name: nfs-mount.push|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "push mount fail. exclude wrong group."
+
+  block:
+  - name: nfs-mount.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - mount is defined
+      msg: "var eval fail {{ mount }}"
+      quiet: true
+
+  - name: nfs-mount.push|fact param
+    ansible.builtin.set_fact:
+      _mount: "{{ mount }}"
+
+  - name: nfs-mount.push|tempfile mount path
+    when: _mount.nfs.path is undefined
+    ansible.builtin.tempfile:
+      state: directory
+      prefix: seed.nfs.mount.push
+    register: mount_temp
+
+  - vars:
+      # mount path default use tempfile
+      nfs_path: "{{ _mount.nfs.path | default(mount_temp.path,true) }}"
+      # copy dest need mount path prefix
+      dest_parts:
+        - "{{ nfs_path }}"
+        - "{{ _mount.dest | default('',true) }}"
+      dest_path: "{{ dest_parts | select() | path_join }}"
+    rescue:
+    - name: nfs-mount.push|rescue any other|fail
+      when:
+        - _mount | default(None) != None
+      ansible.builtin.fail:
+        msg: "push mount '{{ nfs_path }}' fail, exclude enable any: '{{ mount_share.any | default(false) }}'."
+
+    block:
+    - name: nfs-mount.push|mount nfs path
+      become: true
+      ansible.posix.mount:
+        state: mounted
+        fstype: nfs
+        src: "{{ _mount.nfs.src }}"
+        path: "{{ nfs_path }}"
+        opts: "{{ _mount.nfs.opts }}"
+      register: mount_nfs
+      # some time not work when use mount_temp
+      until: mount_nfs is succeeded
+
+    - name: nfs-mount.push|mkdir|by dest
+      become: true
+      when:
+        - _mount.src | default(None,true) == None
+      ansible.builtin.file:
+        state: directory
+        path: "{{ dest_path }}"
+        mode: "{{ _mount.mode | default(omit) }}"
+      register: mount_mkdir
+
+    - name: nfs-mount.push|copy|mkdir parent
+      become: true
+      when:
+        - _mount.src | default(None,true) != None
+        - _mount.dest | default(None,true) != None
+      ansible.builtin.file:
+        state: directory
+        path: "{{ dest_path | dirname }}"
+
+    - name: nfs-mount.push|copy|by fact
+      vars:
+        keys_to_remove: ['group','once','any','nfs']
+        keys_to_keep: "{{ _mount.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _mount) | list }}"
+        mount_args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+        dest_prefix:
+          dest: "{{ dest_path }}"
+        args: "{{ mount_args | combine(dest_prefix, recursive=True) }}"
+      become: true
+      when:
+        - _mount.src | default(None,true) != None
+      ansible.builtin.copy: "{{ args }}"
+      register: mount_copy
+
+    - name: nfs-mount.push|unmount nfs temp
+      become: true
+      when: mount_temp.path is defined
+      ansible.posix.mount:
+        state: absent
+        path: "{{ mount_temp.path }}"
+
+    - name: nfs-mount.push|unfact param
+      run_once: "{{ mount_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _mount: !!null

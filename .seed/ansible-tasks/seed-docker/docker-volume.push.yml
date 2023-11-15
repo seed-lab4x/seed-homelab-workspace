@@ -1,0 +1,71 @@
+# code: language=ansible
+---
+
+- name: docker-volume.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: volume_share
+
+- vars:
+    group: "{{ volume_share.group | default('docker',true) }}"
+  rescue:
+
+  - name: docker-volume.push|fail tasks
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "push volume fail. exclude wrong group."
+
+  block:
+  - name: docker-volume.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - volume is defined
+      msg: "var eval fail {{ volume }}"
+      quiet: true
+
+  - name: docker-volume.push|fact param
+    vars:
+      default:
+        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+    ansible.builtin.set_fact:
+      _volume: "{{ default | combine(volume, recursive=True) }}"
+
+  - rescue:
+    - name: docker-volume.push|rescue any other|fail
+      when:
+        - _volume | default(None) != None
+      ansible.builtin.fail:
+        msg: "push volume '{{ _volume.name }}' fail, exclude enable any: '{{ volume_share.any | default(false) }}'."
+
+    block:
+    - name: docker-volume.push|register volume info
+      community.docker.docker_volume_info:
+        name: "{{ _volume.name }}"
+      register: volume_info
+
+    - name: docker-volume.push|fail volume miss
+      when:
+        - not volume_info.exists
+      ansible.builtin.fail:
+        msg: "Volume '{{ volume.name }}' not exist."
+
+    - name: docker-volume.push|bind way
+      when:
+        - volume.bind | default(false) | bool
+        - volume_info.volume.Driver | default('NONE') == 'local'
+        - volume_info.volume.Options.type | default('NONE') == 'none'
+        - volume_info.volume.Options.o | default('NONE') == 'bind'
+      include_tasks: docker-volume-bind.push.yml
+      register: volume_bind
+
+    - name: docker-volume.push|normal way
+      when:
+        - volume_bind is skipped
+      include_tasks: docker-volume-normal.push.yml
+      register: volume_normal
+
+    - name: docker-volume.push|unfact param
+      run_once: "{{ volume_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _volume: !!null

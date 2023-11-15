@@ -1,0 +1,69 @@
+# code: language=ansible
+---
+
+- name: seed-file.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: file_share
+
+- vars:
+    group: "{{ file_share.group | default('all',true) }}"
+  rescue:
+  - name: seed-file.push|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "push file fail. exclude wrong group."
+
+  block:
+  - name: seed-file.push|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - file is defined
+      msg: "var eval fail {{ file }}"
+      quiet: true
+
+  - name: seed-file.push|fact param
+    ansible.builtin.set_fact:
+      _file: "{{ file }}"
+
+  - rescue:
+    - name: seed-file.push|rescue any other|fail
+      when:
+        - _file | default(None) != None
+      ansible.builtin.fail:
+        msg: "push file '{{ _file.dest }}' fail, exclude enable any: '{{ file_share.any | default(false) }}'."
+
+    block:
+    - name: seed-file.push|mkdir|by dest
+      when:
+        - _file.src | default(None,true) == None
+        - _file.dest | default(None,true) != None
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _file.dest }}"
+        mode: "{{ _file.mode | default(omit) }}"
+
+    - name: seed-file.push|copy|mkdir parent
+      when:
+        - _file.src | default(None,true) != None
+        - _file.dest | default(None,true) != None
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _file.dest | dirname }}"
+
+    - name: seed-file.push|copy|by fact
+      vars:
+        keys_to_remove: ['group','once','any']
+        keys_to_keep: "{{ _file.keys() | difference(keys_to_remove) }}"
+        values_to_keep: "{{ keys_to_keep | map('extract', _file) | list }}"
+        args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      when:
+        - _file.src | default(None,true) != None
+        - _file.dest | default(None,true) != None
+      ansible.builtin.copy: "{{ args }}"
+
+    - name: seed-file.push|unfact param
+      run_once: "{{ file_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _file: !!null

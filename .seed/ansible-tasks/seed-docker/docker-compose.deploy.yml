@@ -1,0 +1,86 @@
+# code: language=ansible
+---
+
+- name: docker-compose.deploy|fact workpath
+  when: workpath.remote is undefined
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+- name: docker-compose.deploy|assert compose
+  ansible.builtin.assert:
+    that:
+      - compose is defined
+    msg: "var eval fail {{ compose }}"
+    quiet: true
+
+- name: docker-compose.deploy|fact param
+  ansible.builtin.set_fact:
+    _compose_deploy: "{{ compose }}"
+
+- block:
+  - name: docker-compose.deploy|mkdir workpath
+    ansible.builtin.file:
+      state: directory
+      path: "{{ workpath.remote.full }}"
+
+  - name: docker-compose.deploy|push files
+    vars:
+      files: "{{ _compose_deploy.vars.files | default(files_default,true) }}"
+      files_default: "{{ _compose_deploy.default.files | default([],true) }}"
+      files_share: "{{ _compose_deploy.share.files | default({},true) }}"
+    when: files | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+
+  - name: docker-compose.deploy|init nfs-mounts
+    vars:
+      mounts: "{{ _compose_deploy.vars.mounts | default(mounts_default,true) }}"
+      mounts_default: "{{ _compose_deploy.default.mounts | default({},true) }}"
+      mounts_share: "{{ _compose_deploy.share.mounts | default({},true) }}"
+    when: mounts | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-nfs/nfs-mounts.init.yml"
+
+  - name: docker-compose.deploy|init volumes
+    vars:
+      volumes: "{{ _compose_deploy.vars.volumes | default(volumes_default,true) }}"
+      volumes_default: "{{ _compose_deploy.default.volumes | default({},true) }}"
+      volumes_share: "{{ _compose_deploy.share.volumes | default({},true) }}"
+    when: volumes | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.init.yml"
+
+  - name: docker-compose.deploy|init networks
+    vars:
+      networks: "{{ _compose_deploy.vars.networks | default(networks_default,true) }}"
+      networks_default: "{{ _compose_deploy.default.networks | default({},true) }}"
+      networks_share: "{{ _compose_deploy.share.networks | default({},true) }}"
+    when: networks | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-networks.init.yml"
+
+  - name: docker-compose.deploy|push envs
+    vars:
+      envs: "{{ _compose_deploy.vars.envs | default(envs_default,true) }}"
+      envs_default: "{{ _compose_deploy.default.envs | default({},true) }}"
+      envs_share: "{{ _compose_deploy.share.envs | default({},true) }}"
+    when: envs | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-envs.push.yml"
+
+  - vars:
+      composes: "{{ _compose_deploy.vars.composes | default(composes_default,true) }}"
+      composes_default: "{{ _compose_deploy.default.composes | default({},true) }}"
+      composes_share: "{{ _compose_deploy.share.composes | default({},true) }}"
+    when: composes | length > 0
+    block:
+    - name: docker-compose.deploy|push composes
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-composes.push.yml"
+
+    - name: docker-compose.deploy|add compose
+      vars:
+        compose:
+          type: compose
+          name: "{{ _compose_deploy.name | default(workpath.name,true) }}"
+          path: "{{ _compose_deploy.path | default(workpath.remote.full,true) }}"
+          files: "{{ composes | map(attribute='file') }}"
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.add.yml"
+
+- name: docker-compose.deploy|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _compose_deploy: !!null

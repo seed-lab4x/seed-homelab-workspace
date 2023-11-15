@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-networks.add|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: networks_share
+
+- name: docker-networks.add|assert param
+  ansible.builtin.assert:
+    that:
+      - networks is defined
+      - networks | type_debug == 'list'
+    msg: "var eval fail {{ networks }}"
+    quiet: true
+
+- name: docker-networks.add|fact param
+  ansible.builtin.set_fact:
+    _networks: "{{ networks | flatten }}"
+
+- vars:
+    share_mode: "{{ networks_share.mode | default('index') }}"
+    share_group: "{{ networks_share.group | default('docker',true) }}"
+  block:
+  - name: docker-networks.add|index|loop
+    loop: "{{ range(0, _networks | length, 1) | list }}"
+    loop_control:
+      loop_var: network_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[network_share.group] | default([],true)
+    include_tasks: docker-network.add.yml
+    vars:
+      network: "{{ _networks[network_index] }}"
+      network_share:
+        any: false
+        group: "{{ network.group | default(share_group,true) }}"
+
+  - name: docker-networks.add|value|loop
+    loop: "{{ _networks }}"
+    loop_control:
+      loop_var: network
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[network_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ network.once | default(false) }}"
+        task: seed-docker/docker-network.add.yml
+      network_share:
+        any: "{{ network.any | default(false) }}"
+        group: "{{ network.group | default(share_group,true) }}"
+
+- name: docker-networks.add|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _networks: !!null

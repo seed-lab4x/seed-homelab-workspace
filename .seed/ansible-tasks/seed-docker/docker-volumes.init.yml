@@ -1,0 +1,82 @@
+# code: language=ansible
+---
+
+- name: docker-volumes.init|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: volumes_share
+
+- name: docker-volumes.init|assert param
+  ansible.builtin.assert:
+    that:
+      - volumes is defined
+      - volumes | type_debug == 'list'
+    msg: "var eval fail {{ volumes }}"
+    quiet: true
+
+- name: docker-volumes.init|fact param
+  ansible.builtin.set_fact:
+    _volumes_init: "{{ volumes | flatten }}"
+
+- vars:
+    group: "{{ volumes_share.group | default('docker',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: docker-volumes.init|fact add loop param
+    vars:
+      keys_to_remove: ['push']
+      keys_to_keep: "{{ volume_init.keys() | difference(keys_to_remove) }}"
+      values_to_keep: "{{ keys_to_keep | map('extract', volume_init) | list }}"
+      volume_remove_push: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      volume_generic:
+        group: "{{ volume_init.group | default(group,true) }}"
+        any: "{{ volume_init.any | default(false) }}"
+      volume_add: "{{ volume_generic | combine(volume_remove_push | default({},true), recursive=True) }}"
+    loop: "{{ _volumes_init }}"
+    loop_control:
+      loop_var: volume_init
+    ansible.builtin.set_fact:
+      _volumes_add: "{{ _volumes_add | default([],true) + [volume_add] }}"
+
+  - name: docker-volumes.init|loop add
+    include_tasks: docker-volumes.add.yml
+    vars:
+      volumes: "{{ _volumes_add }}"
+
+  - name: docker-volumes.init|unfact add loop param
+    ansible.builtin.set_fact:
+      _volumes_add: !!null
+
+- vars:
+    group: "{{ volumes_share.group | default('docker',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: docker-volumes.init|fact push loop param
+    vars:
+      volume_generic:
+        group: "{{ volume_init.group | default(group,true) }}"
+        any: "{{ volume_init.any | default(false) }}"
+        name: "{{ volume_init.name }}"
+      volume_push: "{{ [volume_generic] | product(volume_init.push | default([],true)) | map('combine') }}"
+    loop: "{{ _volumes_init }}"
+    loop_control:
+      loop_var: volume_init
+    ansible.builtin.set_fact:
+      _volumes_push: "{{ _volumes_push | default([],true) + volume_push }}"
+
+  - name: docker-volumes.init|loop push
+    when: _volumes_push | length > 0
+    include_tasks: docker-volumes.push.yml
+    vars:
+      volumes: "{{ _volumes_push }}"
+
+  - name: docker-volumes.init|unfact push loop param
+    ansible.builtin.set_fact:
+      _volumes_push: !!null
+
+- name: docker-volumes.init|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _volumes_init: !!null

@@ -1,0 +1,88 @@
+# code: language=ansible
+---
+
+# NOTE donot use run_once
+# For clusters usually run_once to generate available to all nodes.
+# see https://medium.com/opsops/the-magic-of-run-once-e31d583eca62
+- vars:
+    workspace_fact: "{{ hostvars[inventory_hostname].workspace }}"
+  block:
+  - name: seed-workspace.fact|debug fact param
+    vars:
+      fact_param:
+        fact: "{{ workspace_fact }}"
+        param: "{{ workspace }}"
+    ansible.builtin.debug:
+      verbosity: 3
+      var: fact_param
+
+  - name: seed-workspace.fact|fact param
+    vars:
+      default:
+        local: "{{ playbook_dir }}"
+    ansible.builtin.set_fact:
+      workspace: "{{ default | combine(workspace | default({},true), recursive=True) }}"
+
+  - name: seed-workspace.fact|fact local attribute
+    vars:
+      local_realpath:
+        local: "{{ workspace_fact.local | realpath }}"
+    when: workspace_fact.local != local_realpath.local
+    ansible.builtin.set_fact:
+      workspace: "{{ workspace_fact | combine(local_realpath, recursive=True) }}"
+
+  - name: seed-workspace.fact|stat local seed.json
+    vars:
+      parts_meta:
+        - "{{ workspace_fact.local }}"
+        - "seed.json"
+    run_once: true
+    delegate_to: localhost
+    connection: local
+    ansible.builtin.stat:
+      path: "{{ parts_meta | path_join }}"
+    register: workspace_stat
+
+  - block:
+    - name: seed-workspace.fact|fail local seed.json
+      run_once: true
+      when: not workspace_stat.stat.exists
+      ansible.builtin.fail:
+        msg: "not workspace {{ workspace_fact.local }}"
+
+    - block:
+      # when remote uses relative paths ~,
+      # folders are created on all nodes for get absolute paths.
+      - name: seed-workspace.fact|mkdir remote workspace
+        vars:
+          default: "~/.seed/{{ workspace_fact.local | basename }}"
+        ansible.builtin.file:
+          state: directory
+          path: "{{ workspace_fact.remote | default(default,true) }}"
+        register: workspace_mkdir
+
+      - name: seed-workspace.fact|fact remote attribute
+        vars:
+          remote_realpath:
+            remote: "{{ workspace_mkdir.path | default(workspace_fact.remote,true) }}"
+            # synchronized mean: local and remote path of the workspace are same, no need to copy
+            synchronized: "{{ lookup('ansible.builtin.env', 'SEED_NAME') != '' and ansible_connection == 'local' }}"
+        ansible.builtin.set_fact:
+          workspace: "{{ workspace_fact | combine(remote_realpath, recursive=True) }}"
+          # https://medium.com/opsops/how-to-undefine-fact-in-ansible-5fff46432360
+          workspace_stat: !!null
+          workspace_mkdir: !!null
+
+    rescue:
+    - name: seed-workspace.fact|parent|fail workspace fact
+      run_once: true
+      when: workspace_fact.local == '/'
+      ansible.builtin.fail:
+        msg: 'fact workspace fail because cant find seed.json in ancestor directory'
+
+    - name: seed-workspace.fact|parent|retry workspace fact
+      vars:
+        local_dirname:
+          local: "{{ workspace_fact.local | regex_replace('\/$','') | dirname }}"
+        workspace: "{{ workspace_fact | combine(local_dirname, recursive=True) }}"
+      include_tasks: seed-workspace.fact.yml

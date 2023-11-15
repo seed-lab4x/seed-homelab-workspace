@@ -1,0 +1,92 @@
+# code: language=ansible
+---
+
+- name: docker-container.exec|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: container_share
+
+- vars:
+    group: "{{ container_share.group | default('docker',true) }}"
+  rescue:
+  - name: docker-container.exec|rescue wrong group|fail
+    when: inventory_hostname in groups[group] | default([],true)
+    ansible.builtin.fail:
+      msg: "exec container fail. exclude wrong group."
+
+  block:
+  - name: docker-container.exec|assert defined in group
+    ansible.builtin.assert:
+      that:
+        - inventory_hostname in groups[group] | default([],true)
+        - container is defined
+      msg: "var eval fail {{ container }}"
+      quiet: true
+
+  - name: docker-container.exec|fact param
+    vars:
+      default:
+        register: "{{ container.register | default('container_exec',true) }}"
+        append: "{{ container.append | default('',true) }}"
+      command_str_b64encode: "{{ container.command | b64encode }}"
+      command_list_b64encode: "{{ container.command | map('b64encode') }}"
+      command_b64encode:
+        command: "{{ command_list_b64encode if(container.command | type_debug == 'list') else command_str_b64encode }}"
+    ansible.builtin.set_fact:
+      _container: "{{ container | default(default,true) | combine(command_b64encode , recursive=True) }}"
+
+  - rescue:
+    - name: docker-container.exec|rescue any other|fail
+      when:
+        - _container | default(None) != None
+      ansible.builtin.fail:
+        msg: "exec container '{{ _container.container }}' fail, exclude enable any: '{{ container_share.any | default(false) }}'."
+
+    block:
+    - when: _container.command | type_debug != 'list'
+      block:
+      - name: docker-container.exec|one|exec container command
+        community.docker.docker_container_exec:
+          container: "{{ _container.container }}"
+          command: "{{ _container.command | b64decode }}"
+        register: container_exec_one
+
+      - name: docker-container.exec|one|fact append exec
+        vars:
+          append_list: "{{ lookup('ansible.builtin.vars', _container.append, default=[]) }}"
+        when: _container.append | default(None,true) != None
+        ansible.builtin.set_fact:
+          "{{ _container.append }}": "{{ append_list + [container_exec_one] }}"
+
+      - name: docker-container.exec|one|fact register exec
+        ansible.builtin.set_fact:
+          "{{ _container.register }}": "{{ container_exec_one }}"
+          container_exec_one: !!null
+
+    - when: _container.command | type_debug == 'list'
+      block:
+      - name: docker-container.exec|multi|exec container command
+        vars:
+          command: "{{ item | b64decode | regex_replace('\\\\\\\n') }}"
+        loop: "{{ _container.command if (_container.command | type_debug == 'list') else [] }}"
+        community.docker.docker_container_exec:
+          container: "{{ _container.container }}"
+          command: "{{ command }}"
+        register: container_exec_multi
+
+      - name: docker-container.exec|multi|fact append info
+        vars:
+          append_list: "{{ lookup('ansible.builtin.vars', _container.append, default=[]) }}"
+        when: _container.append is defined
+        ansible.builtin.set_fact:
+          "{{ _container.append }}": "{{ append_list + [container_exec_multi] }}"
+
+      - name: docker-container.exec|multi|fact register exec
+        ansible.builtin.set_fact:
+          "{{ _container.register }}": "{{ container_exec_multi }}"
+          container_exec_multi: !!null
+
+    - name: docker-container.exec|unfact param
+      run_once: "{{ container_share.any | default(false) }}"
+      ansible.builtin.set_fact:
+        _container: !!null

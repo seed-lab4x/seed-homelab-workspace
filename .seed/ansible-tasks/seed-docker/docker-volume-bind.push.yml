@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- vars:
+    # dest need prefix
+    dest_parts:
+      - "{{ volume_info.volume.Options.device | default('/',true) }}"
+      - "{{ _volume.dest | default('',true) }}"
+    dest_path: "{{ dest_parts | select() | path_join }}"
+  rescue:
+  - name: docker-volume-bind.push|rescue any other|fail
+    when:
+      - _volume | default(None) != None
+    ansible.builtin.fail:
+      msg: "push bind volume '{{ _volume.name }}' fail, exclude enable any: '{{ volume_share.any | default(false) }}'."
+
+  block:
+  - name: docker-volume-bind.push|mkdir|by dest
+    when:
+      - _volume.src | default(None,true) == None
+    ansible.builtin.file:
+      state: directory
+      path: "{{ dest_path }}"
+      mode: "{{ _volume.mode | default(omit) }}"
+
+  - name: docker-volume-bind.push|copy|mkdir parent
+    when:
+      - _volume.src | default(None,true) != None
+      - _volume.dest | default(None,true) != None
+    ansible.builtin.file:
+      state: directory
+      path: "{{ dest_path | dirname }}"
+
+  - name: docker-volume-bind.push|copy|from src
+    vars:
+      keys_to_remove: ['group','once','any','name','bind','type','id']
+      keys_to_keep: "{{ _volume.keys() | difference(keys_to_remove) }}"
+      values_to_keep: "{{ keys_to_keep | map('extract', _volume) | list }}"
+      volume_args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      dest_prefix:
+        dest: "{{ dest_path }}"
+      args: "{{ volume_args | combine(dest_prefix, recursive=True) }}"
+    when:
+      - _volume.src | default(None,true) != None
+    ansible.builtin.copy: "{{ args }}"
+    register: volume_copy
+    until: volume_copy is succeeded

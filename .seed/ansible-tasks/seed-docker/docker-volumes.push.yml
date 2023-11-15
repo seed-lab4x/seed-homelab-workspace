@@ -1,0 +1,58 @@
+# code: language=ansible
+---
+
+- name: docker-volumes.push|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: volumes_share
+
+- name: docker-volumes.push|assert param
+  ansible.builtin.assert:
+    that:
+      - volumes is defined
+      - volumes | type_debug == 'list'
+    msg: "var eval fail {{ volumes }}"
+    quiet: true
+
+- name: docker-volumes.push|fact param
+  ansible.builtin.set_fact:
+    _volumes: "{{ volumes | flatten }}"
+
+- vars:
+    share_mode: "{{ volumes_share.mode | default('index') }}"
+    share_group: "{{ volumes_share.group | default('docker',true) }}"
+  block:
+  - name: docker-volumes.push|index|loop
+    loop: "{{ range(0, _volumes | length, 1) | list }}"
+    loop_control:
+      loop_var: volume_index
+    when:
+      - share_mode == 'index'
+      - inventory_hostname in groups[volume_share.group] | default([],true)
+    include_tasks: docker-volume.push.yml
+    vars:
+      volume: "{{ _volumes[volume_index] }}"
+      volume_share:
+        any: false
+        group: "{{ volume.group | default(share_group,true) }}"
+
+  - name: docker-volumes.push|value|loop
+    loop: "{{ _volumes }}"
+    loop_control:
+      loop_var: volume
+    when:
+      - share_mode == 'value'
+      - inventory_hostname in groups[volume_share.group] | default([],true)
+    include_tasks: ../seed-task.once.yml
+    vars:
+      task_share:
+        run_once: "{{ volume.once | default(false) }}"
+        task: seed-docker/docker-volume.push.yml
+      volume_share:
+        any: "{{ volume.any | default(false) }}"
+        group: "{{ volume.group | default(share_group,true) }}"
+
+- name: docker-volumes.push|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _volumes: !!null

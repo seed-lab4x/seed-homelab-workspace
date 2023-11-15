@@ -1,0 +1,78 @@
+# code: language=ansible
+---
+
+- name: nfs-mounts.init|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: mounts_share
+
+- name: nfs-mounts.init|assert param
+  ansible.builtin.assert:
+    that:
+      - mounts is defined
+      - mounts | type_debug == 'list'
+    msg: "var eval fail {{ mounts }}"
+    quiet: true
+
+- name: nfs-mounts.init|fact param
+  ansible.builtin.set_fact:
+    _mounts_init: "{{ mounts | flatten }}"
+
+- vars:
+    group: "{{ mounts_share.group | default('nfs-client',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: nfs-mounts.init|fact wait loop param
+    vars:
+      mount_generic:
+        group: "{{ mount_init.group | default(group,true) }}"
+        any: "{{ mount_init.any | default(false) }}"
+        nfs: "{{ mount_init.nfs }}"
+      mount_wait: "{{ mount_generic | combine(mount_init.wait | default({},true), recursive=True) }}"
+    loop: "{{ _mounts_init }}"
+    loop_control:
+      loop_var: mount_init
+    ansible.builtin.set_fact:
+      _mounts_wait: "{{ _mounts_wait | default([],true) + [mount_wait] }}"
+
+  - name: nfs-mounts.init|loop wait
+    include_tasks: nfs-mounts.wait.yml
+    vars:
+      mounts: "{{ _mounts_wait }}"
+
+  - name: nfs-mounts.init|unfact wait loop param
+    ansible.builtin.set_fact:
+      _mounts_wait: !!null
+
+- vars:
+    group: "{{ mounts_share.group | default('nfs-client',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: nfs-mounts.init|fact push loop param
+    vars:
+      mount_generic:
+        group: "{{ mount_init.group | default(group,true) }}"
+        any: "{{ mount_init.any | default(false) }}"
+        nfs: "{{ mount_init.nfs }}"
+      mount_push: "{{ [mount_generic] | product(mount_init.push | default([],true)) | map('combine') }}"
+    loop: "{{ _mounts_init }}"
+    loop_control:
+      loop_var: mount_init
+    ansible.builtin.set_fact:
+      _mounts_push: "{{ _mounts_push | default([],true) + mount_push }}"
+
+  - name: nfs-mounts.init|loop push
+    include_tasks: nfs-mounts.push.yml
+    vars:
+      mounts: "{{ _mounts_push }}"
+
+  - name: nfs-mounts.init|unfact push loop param
+    ansible.builtin.set_fact:
+      _mounts_push: !!null
+
+- name: nfs-mounts.init|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _mounts_init: !!null

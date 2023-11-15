@@ -1,0 +1,82 @@
+# code: language=ansible
+---
+
+- name: docker-networks.init|debug share
+  ansible.builtin.debug:
+    verbosity: 3
+    var: networks_share
+
+- name: docker-networks.init|assert param
+  ansible.builtin.assert:
+    that:
+      - networks is defined
+      - networks | type_debug == 'list'
+    msg: "var eval fail {{ networks }}"
+    quiet: true
+
+- name: docker-networks.init|fact param
+  ansible.builtin.set_fact:
+    _networks_init: "{{ networks | flatten }}"
+
+- vars:
+    group: "{{ networks_share.group | default('docker',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: docker-networks.init|fact add loop param
+    vars:
+      keys_to_remove: ['wait']
+      keys_to_keep: "{{ network_init.keys() | difference(keys_to_remove) }}"
+      values_to_keep: "{{ keys_to_keep | map('extract', network_init) | list }}"
+      network_remove_wait: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      network_generic:
+        group: "{{ network_init.group | default(group,true) }}"
+        any: "{{ network_init.any | default(false) }}"
+      network_add: "{{ network_generic | combine(network_remove_wait | default({},true), recursive=True) }}"
+    loop: "{{ _networks_init }}"
+    loop_control:
+      loop_var: network_init
+    ansible.builtin.set_fact:
+      _networks_add: "{{ _networks_add | default([],true) + [network_add] }}"
+
+  - name: docker-networks.init|loop add
+    include_tasks: docker-networks.add.yml
+    vars:
+      networks: "{{ _networks_add }}"
+
+  - name: docker-networks.init|unfact add loop param
+    ansible.builtin.set_fact:
+      _networks_add: !!null
+
+- vars:
+    group: "{{ networks_share.group | default('docker',true) }}"
+  when:
+    - inventory_hostname in groups[group] | default([],true)
+  block:
+  - name: docker-networks.init|fact wait loop param
+    vars:
+      network_generic:
+        group: "{{ network_init.group | default(group,true) }}"
+        any: "{{ network_init.any | default(false) }}"
+        name: "{{ network_init.name }}"
+      network_wait: "{{ [network_generic | combine(network_init.wait, recursive=True)] if(network_init.wait is defined) else [] }}"
+    loop: "{{ _networks_init }}"
+    loop_control:
+      loop_var: network_init
+    ansible.builtin.set_fact:
+      _networks_wait: "{{ _networks_wait | default([],true) + network_wait }}"
+
+  - name: docker-networks.init|loop wait
+    when: _networks_wait | length > 0
+    include_tasks: docker-networks.wait.yml
+    vars:
+      networks: "{{ _networks_wait }}"
+
+  - name: docker-networks.init|unfact wait loop param
+    ansible.builtin.set_fact:
+      _networks_wait: !!null
+
+- name: docker-networks.init|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _networks_init: !!null

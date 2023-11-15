@@ -1,0 +1,77 @@
+# code: language=ansible
+---
+
+# NOTE donot use run_once
+# For clusters usually run_once to generate available to all nodes.
+# see https://medium.com/opsops/the-magic-of-run-once-e31d583eca62
+- name: seed-workpath.fact|assert workspace
+  ansible.builtin.assert:
+    that:
+      - workspace.local is defined
+      - workspace.remote is defined
+    msg: "var eval fail {{ workspace }}"
+    quiet: true
+
+- vars:
+    workpath_fact: "{{ hostvars[inventory_hostname].workpath }}"
+  block:
+  - name: seed-workpath.fact|debug fact param
+    vars:
+      fact_param:
+        fact: "{{ workpath_fact }}"
+        param: "{{ workpath }}"
+    ansible.builtin.debug:
+      verbosity: 3
+      var: fact_param
+
+  - name: seed-workpath.fact|fact param
+    vars:
+      default:
+        path: "{{ playbook_dir }}"
+        index: -1
+        length: 1
+        delimiter: '_'
+    ansible.builtin.set_fact:
+      workpath: "{{ default | combine(workpath | default({},true), recursive=True) }}"
+
+  - name: seed-workpath.fact|fact name attribute
+    vars:
+      full_realpath: "{{ workpath_fact.path | realpath }}"
+      full_parts: "{{ full_realpath | split('/') }}"
+      name_parts: "{{ full_parts[(workpath_fact.index | int):][:(workpath_fact.length | int)] }}"
+      name_join: "{{ name_parts | join(workpath_fact.delimiter) }}"
+      name_dict:
+        name: "{{ name_join }}"
+        names: "{{ name_parts }}"
+    ansible.builtin.set_fact:
+      workpath: "{{ workpath_fact | combine(name_dict, recursive=True) }}"
+
+  - name: seed-workpath.fact|fact local attribute
+    vars:
+      full_realpath: "{{ workpath_fact.path | realpath }}"
+      full_parts: "{{ full_realpath | split('/') }}"
+      parent_parts: "{{ full_parts[:(workpath_fact.index | int)] }}"
+      name_parts: "{{ parent_parts + workpath_fact.names }}"
+      local_dict:
+        local:
+          full: "{{ full_realpath }}"
+          parent: "/{{ parent_parts | path_join }}"
+          name: "/{{ name_parts | path_join }}"
+    ansible.builtin.set_fact:
+      workpath: "{{ workpath_fact | combine(local_dict, recursive=True) }}"
+
+  - name: seed-workpath.fact|fact remote attribute
+    vars:
+      full_realpath: "{{ workpath_fact.local.full | replace(workspace.local,workspace.remote) }}"
+      full_parts: "{{ full_realpath | split('/') }}"
+      parent_parts: "{{ full_parts[:(workpath_fact.index | int)] }}"
+      name_parts: "{{ parent_parts + workpath_fact.names }}"
+      remote_dict:
+        # mean: workpath local and remote path is same not need copy
+        synchronized: "{{ lookup('ansible.builtin.env', 'SEED_NAME') != '' and ansible_connection == 'local' }}"
+        remote:
+          full: "{{ full_realpath }}"
+          parent: "/{{ parent_parts | path_join }}"
+          name: "/{{ name_parts | path_join }}"
+    ansible.builtin.set_fact:
+      workpath: "{{ workpath_fact | combine(remote_dict, recursive=True) }}"
