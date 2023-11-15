@@ -1,0 +1,45 @@
+version: "3.8"
+
+networks:
+  caddy:
+
+volumes:
+  data:
+    name: external_vol-caddy-data
+    external: true
+  config:
+    name: external_vol-caddy-config
+    external: true
+
+services:
+  caddy:
+    image: lucaslorentz/caddy-docker-proxy:ci-alpine
+    env_file: external_env-all.env
+    environment:
+      - CADDY_DOCKER_CADDYFILE_PATH=/etc/caddy/Caddyfile
+    volumes:
+      - ./bind_file-Caddyfile:/etc/caddy/Caddyfile
+      - /var/run/docker.sock:/var/run/docker.sock
+      - data:/data
+      - config:/config
+{% if VARS.VOLUMES | length > 0 %}
+      # like tailscale
+      # - /var/run/tailscale/tailscaled.sock:/var/run/tailscale/tailscaled.sock
+      {{ VARS.VOLUMES | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+    networks:
+      - caddy
+{% if VARS.NETWORKS | length > 0 %}
+      {{ VARS.NETWORKS | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+{% if VARS.PORTS | length > 0 %}
+    ports:
+      # - 80:80
+      # - 443:443
+      # - 443:443/udp
+      # - 2019:2019
+      {{ VARS.PORTS | to_nice_yaml(indent=2) | trim | indent(6) }}
+{% endif %}
+    # network_mode: "host"
+    container_name: caddy
+    restart: always
