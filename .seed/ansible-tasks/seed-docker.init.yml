@@ -1,0 +1,72 @@
+# code: language=ansible
+---
+
+- name: seed-docker.init|init _docker
+  vars:
+    docker_optional:
+      package:
+        - python3-pip
+        - rsync
+      pip:
+        - jsondiff==2.0.0
+        - jmespath==1.0.1
+        # bug for https://github.com/yaml/pyyaml/issues/724
+        - PyYAML==5.3.1
+        - lxml==4.9.2
+        # bug for https://github.com/docker/docker-py/issues/3113
+        - requests==2.28.1
+        - docker==6.0.1
+        - docker-compose==1.29.2
+    docker_param: "{{ docker_optional | combine(docker | default({},true), recursive=True) }}"
+  ansible.builtin.set_fact:
+    _docker: "{{ docker_param }}"
+
+- name: seed-docker.init|install system package
+  become: true
+  loop: "{{ _docker.package }}"
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  register: package_install
+  until: package_install is succeeded
+
+- name: seed-docker.init|config pip index
+  when: pip.mirror is defined
+  ansible.builtin.shell: pip3 config set global.index-url {{ pip.mirror }}
+
+- name: seed-docker.init|install python pip
+  loop: "{{ _docker.pip }}"
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: latest
+  register: pip_install
+  until: pip_install is succeeded
+
+- name: seed-docker.init|gather fact
+  ansible.builtin.setup:
+
+- name: seed-docker.init|add docker group
+  become: true
+  ansible.builtin.group:
+    state: present
+    name: docker
+
+- name: seed-docker.init|user docker group
+  become: true
+  ansible.builtin.user:
+    name: "{{ ansible_user_id }}"
+    groups: docker
+    append: true
+
+- name: seed-docker.init|mkdir docker home
+  become: true
+  ansible.builtin.file:
+    path: /home/docker
+    state: directory
+    owner: "{{ ansible_user_id }}"
+    group: docker
+    mode: 0774
+
+- name: seed-docker.init|unfact _docker
+  ansible.builtin.set_fact:
+    _docker: !!null

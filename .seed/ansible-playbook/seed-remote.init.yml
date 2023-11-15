@@ -1,0 +1,7 @@
+#!/usr/bin/env -S ansible-playbook -k -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- import_playbook: seed-ssh.init.yml
+
+- import_playbook: seed-system.init.yml

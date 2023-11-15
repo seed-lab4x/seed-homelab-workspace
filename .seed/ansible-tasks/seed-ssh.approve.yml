@@ -1,0 +1,14 @@
+# code: language=ansible
+---
+
+- name: seed-ssh.approve|authorized key
+  vars:
+    parts_keypair_path:
+      - "{{ ssh.dir }}"
+      - "{{ ssh.name }}"
+      - "id_rsa.pub"
+    local_pub_path: "{{ parts_keypair_path | path_join }}"
+  ansible.posix.authorized_key:
+    state: present
+    user: "{{ hostvars[inventory_hostname].ansible_user | default('root',true) }}"
+    key: "{{ lookup('file', local_pub_path | path_join) }}"

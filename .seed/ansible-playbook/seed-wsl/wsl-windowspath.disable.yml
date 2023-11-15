@@ -1,0 +1,19 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: disable
+  hosts: wsl
+  become: false
+  gather_facts: true
+  tasks:
+
+    - name: disable wsl conf
+      vars:
+        conf:
+          list:
+            - section: interop
+              option: appendWindowsPath
+              value: 'false'
+          shutdown: true
+      include_tasks: ../../ansible-tasks/seed-wsl/wsl-conf.change.yml

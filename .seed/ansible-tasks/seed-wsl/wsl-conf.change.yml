@@ -1,0 +1,63 @@
+# code: language=ansible
+---
+
+- block:
+  - name: wsl-conf.change|assert wsl
+    ansible.builtin.assert:
+      that:
+        - ansible_env.WSL_DISTRO_NAME is defined
+      msg: "not in wsl"
+      quiet: true
+
+  - name: wsl-conf.change|fact param
+    ansible.builtin.set_fact:
+      _conf:
+        list: "{{ conf.list | default([],true) }}"
+        shutdown: "{{ conf.shutdown | default(false) }}"
+
+  - name: wsl-conf.change|touch wsl.conf
+    become: true
+    ansible.builtin.file:
+      path: /etc/wsl.conf
+      mode: u=rw,g=rw,o=rw
+      state: touch
+
+  - name: wsl-conf.change|change wsl.conf
+    become: true
+    loop: "{{ _conf.list }}"
+    community.general.ini_file:
+      path: /etc/wsl.conf
+      backup: yes
+      section: "{{ item.section }}"
+      option: "{{ item.option }}"
+      value: "{{ item.value }}"
+
+  - when: _conf.shutdown
+    block:
+    - name: wsl-conf.change|check host command
+      ansible.builtin.shell: "command -v wsl.exe"
+      ignore_errors: true
+      register: wsl_command_check
+
+    - name: wsl-conf.change|shutdown host wsl
+      when: wsl_command_check.stdout | default(None,true) != None
+      ansible.builtin.shell: "wsl.exe --terminate {{ ansible_env.WSL_DISTRO_NAME }}"
+
+  - name: wsl-conf.change|unfact param
+    ansible.builtin.set_fact:
+      _conf: !!null
+
+  - name: wsl-conf.change|print shutdown
+    vars:
+      wsl_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',groups['wsl']) }}"
+    when: wsl_command_check.stdout | default(None,true) == None
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in wsl_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        You need exit wsl and run 'wsl --shutdown' or 'wsl --terminate {{ ansible_env.WSL_DISTRO_NAME }}'
+        {% endfor %}

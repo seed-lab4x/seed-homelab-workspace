@@ -1,0 +1,48 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: init.local
+  hosts: localhost
+  connection: local
+  pre_tasks:
+
+    - name: prompt group
+      when:
+        - system.group | default(None,true) == None
+        - groups.docker is undefined
+      ansible.builtin.pause:
+        prompt: "What is system group(ansible group for init system)?"
+      register: prompt_group
+
+  tasks:
+
+    - name: seed-system.init|fact param
+      run_once: true
+      vars:
+        system_optional:
+          group: "{{ 'docker' if(groups.docker is defined) else '' }}"
+          init_task: "../ansible-tasks/seed-docker.init.yml"
+        system_param: "{{ system_optional | combine(system | default({},true), recursive=True) }}"
+        system_required:
+          group: "{{ system_param.group | default(prompt_group.user_input,true) }}"
+      ansible.builtin.set_fact:
+        _system: "{{ system_param | combine(system_required, recursive=True) }}"
+
+
+- name: init.remote
+  vars:
+    _system: "{{ hostvars['localhost']._system }}"
+  hosts: "{{ hostvars['localhost']._system.group }}"
+  # disable gather_facts for miss python on target
+  gather_facts: false
+  # env not work with disable gather_facts
+  # environment:
+  #   PATH: "{{ ansible_env.PATH }}:{{ env_path | default('') }}"
+
+  tasks:
+
+    - name: seed-system.init|init system
+      include_tasks: "{{ _system.init_task }}"
+      vars:
+        system: "{{ _system }}"
