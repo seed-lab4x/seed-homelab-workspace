@@ -1,0 +1,44 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ caddy.docker_proxy | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/config/Caddyfile"
+                dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+            volumes:
+              - name: external_vol-caddy-data
+                driver: local
+              - name: external_vol-caddy-config
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - "{{ workpath.remote.full }}/bind_file-Caddyfile:/etc/caddy/Caddyfile"
+                - /var/run/docker.sock:/var/run/docker.sock
+                - external_vol-caddy-data:/data
+                - external_vol-caddy-config:/config
+              ports:
+                - 80:80
+                - 443:443
+                - 443:443/udp
+                - 2019:2019
+              hostname: caddy
+              name: caddy 
+              image: lucaslorentz/caddy-docker-proxy:ci-alpine
