@@ -1,0 +1,28 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-mariadb-data
+    external: true
+
+networks:
+  mariadb:
+
+services:
+  mariadb:
+    image: mariadb:11.1.2
+    env_file: external_env-all.env
+    volumes:
+      - data:/var/lib/mysql
+    networks:
+      - mariadb
+    ports:
+      - 3306:3306
+    container_name: mariadb
+    restart: always
+    healthcheck:
+      test: healthcheck.sh --su-mysql --connect --innodb_initialized
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
