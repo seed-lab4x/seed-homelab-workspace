@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ mariadb | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-mariadb-data
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              env:
+                MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 1
+                MYSQL_ROOT_PASSWORD: mariadb.123
+              volumes:
+                - external_vol-mariadb-data:/var/lib/mysql 
+              ports:
+                - 3306:3306
+              hostname: mariadb
+              name: mariadb
+              image: mariadb:11.1.2
