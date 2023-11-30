@@ -1,0 +1,48 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ devbox.mode | default('normal',true) }}"
+      when: devbox is defined
+      block:
+      - when: mode == 'normal'
+        block:
+        - name: download get devbox
+          ansible.builtin.get_url:
+            url: "https://get.jetpack.io/devbox"
+            dest: "~/get-devbox.sh"
+          register: devbox_get
+
+        - name: shell get devbox
+          become: true
+          ansible.builtin.shell: "bash {{ devbox_get.dest }} -f"
+          register: devbox_sh
+          ignore_errors: true
+
+        - name: chown fix permission denied
+          become: true
+          ansible.builtin.file:
+            path: /usr/local/bin/devbox
+            owner: "{{ ansible_user_id }}"
+            group: "{{ ansible_user_id }}"
+
+        - name: print get devbox
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',groups['linux'])
+              | selectattr('value.devbox_sh','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.devbox_sh.stdout | default('',true) }}
+              {{ host.value.devbox_sh.stderr | default('',true) }}
+              {% endfor %}
