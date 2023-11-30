@@ -1,0 +1,14 @@
+{
+  "packages": ["ansible@2.15.5"],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to devbox!' > /dev/null",
+      "export LC_ALL='C.UTF-8'"
+    ],
+    "scripts": {
+      "test": [
+        "echo \"Error: no test specified\" && exit 1"
+      ]
+    }
+  }
+}
