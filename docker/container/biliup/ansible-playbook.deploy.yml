@@ -1,0 +1,34 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ biliup | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-biliup-opt
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              command: --http
+              volumes:
+                - external_vol-biliup-opt:/opt
+              ports:
+                - 19159:19159
+              hostname: biliup
+              name: biliup
+              image: hcr.io/biliup/caution:latest
