@@ -1,0 +1,21 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-srs-data
+    external: true
+
+services:
+  srs:
+    image: ossrs/srs-stack:5
+    env_file: external_env-all.env
+    volumes:
+      - data:/data
+    ports:
+      - 2022:2022
+      - 2443:2443
+      - 1935:1935
+      - 8000:8000/udp
+      - 10080:10080/udp
+    container_name: srs-stack
+    restart: always
