@@ -1,0 +1,18 @@
+version: "3.8"
+
+volumes:
+  opt:
+    name: external_vol-biliup-opt
+    external: true
+
+services:
+  biliup:
+    image: ghcr.io/biliup/caution:latest
+    env_file: external_env-all.env
+    command: --http
+    volumes:
+      - opt:/opt
+    ports:
+      - 19159:19159
+    container_name: biliup
+    restart: always
