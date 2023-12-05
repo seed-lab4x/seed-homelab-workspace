@@ -1,0 +1,4 @@
+mqtt:
+  enabled: False
+
+cameras: {}
