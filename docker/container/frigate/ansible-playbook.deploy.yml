@@ -1,0 +1,48 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ frigate | default({},true) }}"
+          default:
+            files:
+              - src: "{{ playbook_dir }}/conf/frigate.yml"
+                dest: "{{ workpath.remote.full }}/bind_file-frigate.yml"
+            volumes:
+              - name: external_vol-frigate-config
+                driver: local
+              - name: external_vol-frigate-storage
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              shm_size: 64mb
+              privileged: true
+              capabilities:
+                - CAP_PERFMON
+              volumes:
+                - external_vol-frigate-config:/config
+                - external_vol-frigate-storage:/media/frigate
+                - /etc/localtime:/etc/localtime:ro
+                - "{{ workpath.remote.full }}/bind_file-frigate.yml:/config/config.yml"
+              ports:
+                - 5000:5000
+                - 8554:8554
+                - 8555:8555/tcp
+                - 8555:8555/udp
+              hostname: frigate
+              name: frigate
+              image: ghcr.io/blakeblackshear/frigate:0.13.0-beta6
