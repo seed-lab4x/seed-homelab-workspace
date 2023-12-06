@@ -78,6 +78,13 @@
         path: "{{ _file.src }}"
       register: file_src_stat
 
+    - name: esxi-file.add|url|mkdir file src
+      delegate_to: localhost
+      when: not file_src_stat.stat.exists
+      ansible.builtin.file:
+        state: directory
+        path: "{{ _file.src | dirname }}"
+
     - name: esxi-file.add|url|download file src
       delegate_to: localhost
       when: not file_src_stat.stat.exists
