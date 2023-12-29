@@ -1,0 +1,34 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          name: bitcomet
+          vars: "{{ bitcomet | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-bitcomet-shared
+                driver: local
+            envs:
+              - file: external_env-all.env
+                content: |
+                  VNC_PASSWORD=123456
+                  HTTP_PASSWORD=123456
+                  USER=sandbox
+                  PASSWORD=123456
+            composes:
+              - file: docker-compose.yml
+                src: "{{ playbook_dir }}/docker-compose.yml"

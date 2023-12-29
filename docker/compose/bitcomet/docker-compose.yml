@@ -1,0 +1,33 @@
+version: "3.8"
+
+volumes:
+  shared:
+    name: external_vol-bitcomet-shared
+    external: true
+
+networks:
+  bitcomet:
+
+services:
+  bitcomet:
+    image: wxhere/bitcomet:v2.5.1
+    env_file: external_env-all.env
+    volumes:
+      - shared:/home/sandbox/shared
+      # lib:/home/sandbox/.config/BitComet
+    networks:
+      - bitcomet
+    ports:
+      # VNC GUI client port
+      - 5900:5900
+      # Web GUI client port
+      - 6080:80
+    # network_mode: bridge
+    container_name: bitcomet
+    restart: always
+    healthcheck:
+      test: nc -z localhost 80 || exit 1
+      interval: 60s
+      timeout: 5s
+      retries: 10
+      start_period: 10m
