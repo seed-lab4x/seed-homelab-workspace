@@ -32,6 +32,11 @@
           - "{{ winget.packages | default([],true) }}"
           - "{{ group_vars }}"
         packages: "{{ packages_all | flatten }}"
+      loop:
+        - src: "{{ playbook_dir }}/winget.install.ps1.j2"
+          dest: "{{ inventory_dir }}/../winget/{{ inventory_hostname }}/winget.install.ps1"
+        - src: "{{ playbook_dir }}/winget.install.cmd.j2"
+          dest: "{{ inventory_dir }}/../winget/{{ inventory_hostname }}/winget.install.cmd"
       ansible.builtin.template:
-        src: "{{ playbook_dir }}/winget.install.ps1.j2"
-        dest: "{{ inventory_dir }}/../winget/{{ inventory_hostname }}/winget.install.ps1"
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"

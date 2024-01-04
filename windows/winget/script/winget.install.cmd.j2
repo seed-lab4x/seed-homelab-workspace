@@ -1,0 +1,11 @@
+{% for package in packages %}
+winget install --accept-package-agreements ^
+{%  if package.id is defined %}
+    --id "{{ package.id }}" ^
+{%   endif %}
+{%  if package.name is defined %}
+    "{{ package.name }}"
+{% else %}
+    "{{ package }}"
+{%   endif %}
+{% endfor %}
