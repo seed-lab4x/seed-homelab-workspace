@@ -1,0 +1,48 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: mkdir pyenv.path
+      ansible.windows.win_file:
+        path: "{{ pyenv.path }}"
+        state: directory
+
+    - name: stat pyenv path
+      ansible.windows.win_stat:
+        path: '%USERPROFILE%\.pyenv\pyenv-win'
+      register: python_stat
+
+    - name: mv pyenv path
+      when:
+        - python_stat.stat.exists
+        - python_stat.stat.lnk_target is undefined
+      ansible.windows.win_copy:
+        remote_src: true
+        src: "{{ python_stat.stat.path }}\\"
+        dest: "{{ pyenv.path }}"
+
+    - name: remove pyenv python
+      ansible.windows.win_file:
+        path: '%USERPROFILE%\.pyenv\pyenv-win'
+        state: absent
+
+    - name: link pyenv python
+      ansible.windows.win_command:
+        cmd: "cmd.exe /k mklink /j pyenv-win {{ pyenv.path }}"
+        chdir: '%USERPROFILE%\.pyenv'
+
+    - name: install python
+      loop: "{{ pyenv.python }}"
+      ansible.windows.win_command:
+        cmd: "pyenv.bat install {{ item }}"
+        chdir: '%USERPROFILE%\.pyenv\pyenv-win\bin'
+
+    - name: set global
+      when: pyenv.global is defined
+      ansible.windows.win_command:
+        cmd: "pyenv.bat global {{ pyenv.global }}"
+        chdir: '%USERPROFILE%\.pyenv\pyenv-win\bin'
