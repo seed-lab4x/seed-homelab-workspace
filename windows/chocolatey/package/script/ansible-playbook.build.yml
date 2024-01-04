@@ -26,28 +26,7 @@
           Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
           //////////////////////////////////////////////////
 
-    - name: template packages script
-      delegate_to: localhost
-      connection: local
-      vars:
-        group_names: "{{ chocolatey.groups | default([],true) }}"
-        group_vars: "{{ chocolatey_groups | default({},true)
-          | dict2items
-          | selectattr('key','in',group_names)
-          | selectattr('value.packages','defined')
-          | rejectattr('value.packages','equalto',None) }}"
-        group_packages_all:
-          - group: default
-            packages: "{{ chocolatey.packages | default([],true)
-              | selectattr('ignore_checksums','defined') }}"
-          - "{{ group_vars
-              | community.general.json_query('[].{group:key,packages:value.packages[?ignore_checksums]}') }}"
-        configs: "{{ group_packages_all | flatten }}"
-      ansible.builtin.template:
-        src: "{{ playbook_dir }}/choco.install.ps1.j2"
-        dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.install.ps1"
-
-    - name: template group packages config
+    - name: template install packages config
       delegate_to: localhost
       connection: local
       vars:
@@ -69,3 +48,44 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/package.config.j2"
         dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/{{ item.group }}.config"
+
+    - name: template install packages script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ chocolatey.groups | default([],true) }}"
+        group_vars: "{{ chocolatey_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | rejectattr('value.packages','equalto',None) }}"
+        group_packages_all:
+          - group: default
+            packages: "{{ chocolatey.packages | default([],true)
+              | selectattr('ignore_checksums','defined') }}"
+          - "{{ group_vars
+              | community.general.json_query('[].{group:key,packages:value.packages[?ignore_checksums]}') }}"
+        configs: "{{ group_packages_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/choco.install.ps1.j2"
+        dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.install.ps1"
+
+    - name: template upgrade packages script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ chocolatey.groups | default([],true) }}"
+        group_vars: "{{ chocolatey_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | rejectattr('value.packages','equalto',None) }}"
+        group_packages_all:
+          - group: default
+            packages: "{{ chocolatey.packages | default([],true) }}"
+          - "{{ group_vars
+              | community.general.json_query('[].{group:key,packages:value.packages}') }}"
+        configs: "{{ group_packages_all | flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/choco.upgrade.ps1.j2"
+        dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.upgrade.ps1"

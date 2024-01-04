@@ -1,0 +1,9 @@
+
+{% for config in configs %}
+{%   for package in config.packages %}
+
+choco upgrade -y `
+    {{ package.name }}
+{%   endfor %}
+
+{% endfor %}
