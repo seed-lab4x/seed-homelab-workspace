@@ -1,0 +1,13 @@
+{% if jabba.home is defined %}
+[System.Environment]::SetEnvironmentVariable('JABBA_HOME','{{ jabba.home }}','User')
+$env:JABBA_HOME='{{ jabba.home }}'
+Write-Host JABBA_HOME=$env:JABBA_HOME
+
+$Path = [Environment]::GetEnvironmentVariable("PATH", "User") + [IO.Path]::PathSeparator + '%JABBA_HOME%\bin'
+[Environment]::SetEnvironmentVariable("Path", $Path, "User")
+{% endif %}
+
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Invoke-Expression (
+    Invoke-WebRequest {{ jabba.url | default('https://github.com/shyiko/jabba/raw/master/install.ps1') }} -UseBasicParsing
+).Content

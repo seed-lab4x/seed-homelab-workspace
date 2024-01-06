@@ -1,0 +1,27 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../jabba/{{ inventory_hostname }}"
+
+    - name: template script
+      delegate_to: localhost
+      connection: local
+      loop:
+        - src: "{{ playbook_dir }}/jabba.install.ps1.j2"
+          dest: "{{ inventory_dir }}/../jabba/{{ inventory_hostname }}/jabba.install.ps1"
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
