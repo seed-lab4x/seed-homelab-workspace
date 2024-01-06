@@ -1,0 +1,4 @@
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+Invoke-Expression (
+    Invoke-WebRequest {{ ansible.remoting.url | default('https://raw.githubusercontent.com/ansible/ansible-documentation/devel/examples/scripts/ConfigureRemotingForAnsible.ps1') }} -UseBasicParsing
+).Content
