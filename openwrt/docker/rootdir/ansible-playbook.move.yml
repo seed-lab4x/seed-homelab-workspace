@@ -141,11 +141,11 @@
         - name: partition|stat docker dev
           ansible.builtin.stat:
             path: "{{ _docker.partition.dev }}"
-          register: rootfs_dev_stat
+          register: docker_dev_stat
 
         - when:
             - docker_disk_info.partitions | selectattr('num','equalto',_docker.partition.part | int) | length == 0
-            - not rootfs_dev_stat.stat.exists
+            - not docker_dev_stat.stat.exists
           block:
           - vars:
               blk_keys:
@@ -210,7 +210,7 @@
 
         - when:
             - docker_disk_info.partitions | selectattr('num','equalto',_docker.partition.part | int) | length == 1
-            - rootfs_dev_stat.stat.exists
+            - docker_dev_stat.stat.exists
           block:
           - name: partition|exists|list fstype blk
             ansible.builtin.shell: |
