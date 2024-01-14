@@ -1,0 +1,24 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: linux
+  tasks:
+
+    - name: set by name
+      become: true
+      loop: "{{ sysctl }}"
+      when: item.name is defined
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+      ignore_errors: true
+
+    - name: set by path
+      become: true
+      loop: "{{ sysctl }}"
+      when: item.path is defined
+      ansible.builtin.shell: "echo {{ item.value }} | tee {{ item.path }}"
+      ignore_errors: true
