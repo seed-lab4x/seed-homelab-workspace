@@ -21,13 +21,15 @@
             files:
               - src: "{{ playbook_dir }}/conf/influxdb.conf"
                 dest: "{{ workpath.remote.full }}/bind_file-influxdb.conf"
+              - src: "{{ playbook_dir }}/collectd/types.db"
+                dest: "{{ workpath.remote.full }}/collectd/types.db"
             volumes:
               - name: external_vol-influxdb-data
                 driver: local
               - name: external_vol-influxdb-collectd
                 driver: local
                 push:
-                  - src: "{{ playbook_dir }}/collectd/types.db"
+                  - src: "{{ workpath.remote.full }}/collectd/types.db"
                     dest: ""
                     directory_mode: '0777'
             envs:
