@@ -8,6 +8,30 @@ choco install -y `
 {%     if package.ignore_checksums | default(true) %}
     --ignore-checksums `
 {%     endif %}
+{%     if package.version is defined %}
+    --version="{{ package.version }}"
+{%     endif %}
+{%     if package.source is defined %}
+    --source="{{ package.source }}"
+{%     endif %}
+{%     if package.installArguments is defined %}
+    --installarguments="{{ package.installArguments }}"
+{%     endif %}
+{%     if package.packageParameters is defined %}
+    --packageparameters="{{ package.packageParameters }}"
+{%     endif %}
+{%     if package.forceX86 is defined %}
+    --forcex86="{{ package.forceX86 }}"
+{%     endif %}
+{%     if package.ignoreDependencies is defined %}
+    --ignore-dependencies="{{ package.ignoreDependencies }}"
+{%     endif %}
+{%     if package.executionTimeout is defined %}
+    --execution-timeout="{{ package.executionTimeout }}"
+{%     endif %}
+{%     if package.force is defined %}
+    --force `
+{%     endif %}
     {{ package.name }}
 {%   endfor %}
 
