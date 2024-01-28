@@ -39,7 +39,7 @@
     - name: print jabba
       vars:
         windows_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['windows'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.jabba_version.skipped','equalto',false) }}"
       ansible.builtin.pause:
         seconds: 1

@@ -206,7 +206,7 @@
       - name: always|print part blk
         vars:
           openwrt_hostvars: "{{ hostvars | dict2items
-            | selectattr('key','in',groups['openwrt'])
+            | selectattr('key','in',ansible_play_hosts)
             | selectattr('value.rootfs_part_list','defined')
             | selectattr('value.rootfs_blk_list','defined') }}"
         ansible.builtin.pause:

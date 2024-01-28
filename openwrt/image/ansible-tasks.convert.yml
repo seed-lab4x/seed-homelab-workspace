@@ -90,7 +90,7 @@
   - name: image.resize|always|print converter convert
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['openwrt'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.converter_image_convert','defined') }}"
     ansible.builtin.pause:
       seconds: 1
@@ -107,7 +107,7 @@
   - name: image.resize|always|print converter output
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['openwrt'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.converter_output_move','defined') }}"
     ansible.builtin.pause:
       seconds: 1

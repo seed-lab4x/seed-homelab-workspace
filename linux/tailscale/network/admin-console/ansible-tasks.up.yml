@@ -41,7 +41,7 @@
 - name: admin-console.up|print log authenticate url
   vars:
     linux_hostvars: "{{ hostvars | dict2items
-      | selectattr('key','in',groups['linux'])
+      | selectattr('key','in',ansible_play_hosts)
       | selectattr('value.log_slurp','defined') }}"
   ansible.builtin.pause:
     seconds: 1
@@ -73,7 +73,7 @@
 - name: admin-console.up|print log finished
   vars:
     linux_hostvars: "{{ hostvars | dict2items
-      | selectattr('key','in',groups['linux'])
+      | selectattr('key','in',ansible_play_hosts)
       | selectattr('value.log_slurp','defined') }}"
   ansible.builtin.pause:
     seconds: 1

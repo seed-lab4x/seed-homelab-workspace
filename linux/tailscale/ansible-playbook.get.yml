@@ -22,7 +22,7 @@
     - name: print get tailscale
       vars:
         linux_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['linux'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.tailscale_sh','defined') }}"
       ansible.builtin.pause:
         seconds: 1

@@ -87,7 +87,7 @@
     - name: print mdstat
       vars:
         dsm_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['dsm'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.mdstat_get','defined') }}"
       ansible.builtin.pause:
         seconds: 1

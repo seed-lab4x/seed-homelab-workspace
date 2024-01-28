@@ -53,7 +53,7 @@
         - name: print get rclone
           vars:
             dsm_hostvars: "{{ hostvars | dict2items
-              | selectattr('key','in',groups['dsm'])
+              | selectattr('key','in',ansible_play_hosts)
               | selectattr('value.rclone_sh','defined') }}"
           ansible.builtin.pause:
             seconds: 1
@@ -73,7 +73,7 @@
     - name: print version rclone
       vars:
         dsm_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['dsm'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.rclone_version','defined') }}"
       ansible.builtin.pause:
         seconds: 1

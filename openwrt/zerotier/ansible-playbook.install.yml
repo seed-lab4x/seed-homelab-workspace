@@ -59,7 +59,7 @@
     - name: print zerotier info
       vars:
         openwrt_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['openwrt'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.zerotier_info','defined') }}"
       ansible.builtin.pause:
         seconds: 1

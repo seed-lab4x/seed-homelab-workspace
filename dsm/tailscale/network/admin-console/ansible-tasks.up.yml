@@ -41,7 +41,7 @@
 - name: admin-console.up|print log authenticate url
   vars:
     dsm_hostvars: "{{ hostvars | dict2items
-      | selectattr('key','in',groups['dsm'])
+      | selectattr('key','in',ansible_play_hosts)
       | selectattr('value.log_slurp','defined') }}"
   ansible.builtin.pause:
     seconds: 1
@@ -73,7 +73,7 @@
 - name: admin-console.up|print log finished
   vars:
     dsm_hostvars: "{{ hostvars | dict2items
-      | selectattr('key','in',groups['dsm'])
+      | selectattr('key','in',ansible_play_hosts)
       | selectattr('value.log_slurp','defined') }}"
   ansible.builtin.pause:
     seconds: 1

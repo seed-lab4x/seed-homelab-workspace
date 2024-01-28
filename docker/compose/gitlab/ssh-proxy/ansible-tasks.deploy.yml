@@ -101,7 +101,7 @@
   - name: ssh-proxy.deploy|print exec
     vars:
       docker_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['docker'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.container_exec','defined') }}"
     ansible.builtin.pause:
       seconds: 1

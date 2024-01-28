@@ -37,7 +37,7 @@
   - name: print network
     vars:
       linux_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['linux'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.zerotier_join','defined') }}"
     ansible.builtin.pause:
       seconds: 1

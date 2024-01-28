@@ -12,7 +12,7 @@
     - name: print upsmon status
       vars:
         esxi_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['esxi'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.upsmon_shell_install','defined') }}"
       ansible.builtin.pause:
         seconds: 1

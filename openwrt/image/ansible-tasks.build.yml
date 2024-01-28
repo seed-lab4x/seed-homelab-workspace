@@ -108,7 +108,7 @@
   - name: image.build|print builder info
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['openwrt'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.builder_info_make','defined') }}"
     ansible.builtin.pause:
       seconds: 1
@@ -202,7 +202,7 @@
   - name: image.build|always|print make image
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['openwrt'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.builder_image_make','defined') }}"
     ansible.builtin.pause:
       seconds: 1
@@ -218,7 +218,7 @@
   - name: image.build|always|print copy output
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['openwrt'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.builder_output_copy','defined') }}"
     ansible.builtin.pause:
       seconds: 1

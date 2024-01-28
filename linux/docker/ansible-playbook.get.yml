@@ -39,7 +39,7 @@
       - name: print get docker
         vars:
           linux_hostvars: "{{ hostvars | dict2items
-            | selectattr('key','in',groups['linux'])
+            | selectattr('key','in',ansible_play_hosts)
             | selectattr('value.docker_sh','defined') }}"
         ansible.builtin.pause:
           seconds: 1

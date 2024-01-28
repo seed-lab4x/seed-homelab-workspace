@@ -46,7 +46,7 @@
         - name: print get sdkman
           vars:
             linux_hostvars: "{{ hostvars | dict2items
-              | selectattr('key','in',groups['linux'])
+              | selectattr('key','in',ansible_play_hosts)
               | selectattr('value.sdkman_sh.skipped','equalto',false) }}"
           ansible.builtin.pause:
             seconds: 1

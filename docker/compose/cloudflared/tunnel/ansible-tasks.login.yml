@@ -59,7 +59,7 @@
   - name: cloudflared-tunnel.login|print log authenticate url
     vars:
       docker_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['docker'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.tunnel_log_slurp','defined') }}"
     ansible.builtin.pause:
       seconds: 1
@@ -95,7 +95,7 @@
   - name: cloudflared-tunnel.login|print log exited
     vars:
       docker_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['docker'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.tunnel_log_slurp','defined') }}"
     ansible.builtin.pause:
       seconds: 1

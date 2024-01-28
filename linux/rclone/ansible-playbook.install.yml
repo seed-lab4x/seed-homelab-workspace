@@ -31,7 +31,7 @@
         - name: print get rclone
           vars:
             linux_hostvars: "{{ hostvars | dict2items
-              | selectattr('key','in',groups['linux'])
+              | selectattr('key','in',ansible_play_hosts)
               | selectattr('value.rclone_sh','defined') }}"
           ansible.builtin.pause:
             seconds: 1
@@ -51,7 +51,7 @@
     - name: print version rclone
       vars:
         linux_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['linux'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.rclone_version','defined') }}"
       ansible.builtin.pause:
         seconds: 1

@@ -11,7 +11,7 @@
 - name: setup-key.up|print network
   vars:
     openwrt_hostvars: "{{ hostvars | dict2items
-      | selectattr('key','in',groups['openwrt'])
+      | selectattr('key','in',ansible_play_hosts)
       | selectattr('value.netbird_up','defined') }}"
   ansible.builtin.pause:
     seconds: 1

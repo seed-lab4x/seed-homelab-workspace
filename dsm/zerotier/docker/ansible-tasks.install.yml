@@ -55,7 +55,7 @@
   - name: docker.install|print zerotier status
     vars:
       dsm_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',groups['dsm'])
+        | selectattr('key','in',ansible_play_hosts)
         | selectattr('value.zerotier_status','defined') }}"
     ansible.builtin.pause:
       seconds: 1

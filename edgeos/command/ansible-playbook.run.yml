@@ -15,7 +15,7 @@
     - name: debug command
       vars:
         edgeos_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['edgeos'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.command_run.skipped','equalto',false) }}"
       ansible.builtin.pause:
         seconds: 1
@@ -49,7 +49,7 @@
     - name: debug group command
       vars:
         edgeos_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',groups['edgeos'])
+          | selectattr('key','in',ansible_play_hosts)
           | selectattr('value.command_run.skipped','equalto',false) }}"
       ansible.builtin.pause:
         seconds: 1
