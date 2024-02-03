@@ -1,0 +1,40 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  environment: "{{ env_all }}"
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].pyenv | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "install fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].pyenv | default(None,true) != None
+          msg: "host var assert fail 'pyenv'"
+          quiet: true
+
+      - vars:
+          pyenv_home: "{{ pyenv.path | default(ansible_env.HOME,true) }}"
+          pyenv_root: "{{ pyenv.path | default(ansible_env.HOME,true) }}/.pyenv"
+          pyenv_python_versions: "{{ pyenv.python | default(['3.8.1'],true) }}"
+          pyenv_global: "{{ pyenv.global | default('3.8.1') }} system"
+        block:
+        - name: include vars
+          when: pyenv.vars_file is defined
+          ansible.builtin.include_vars:
+            file: "{{ pyenv.vars_file }}"
+
+        - name: include role
+          ansible.builtin.include_role:
+            name: markosamuli.pyenv
+            apply:
+              become: true
