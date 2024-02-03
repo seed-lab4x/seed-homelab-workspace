@@ -1,0 +1,23 @@
+wsl -l -v
+
+{% for distro in distros %}
+
+echo {{ distro.name }}
+wsl -t {{ distro.name }}
+wsl --export {{ distro.name }} "{{ distro.path }}.tar"
+wsl --unregister {{ distro.name }}
+wsl --import {{ distro.name }} "{{ distro.path }}" "{{ distro.path }}.tar"
+{%  if distro.user is defined %}
+echo user...
+{{ distro.name }}.exe config --default-user {{ distro.user }}
+{%   endif %}
+{%  if distro.default is defined %}
+echo default...
+wsl --set-default {{ distro.name }}
+{%   endif %}
+
+{%  if distro.clean is defined %}
+echo clean...
+del "{{ distro.path }}.tar"
+{%   endif %}
+{% endfor %}

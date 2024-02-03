@@ -1,0 +1,42 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../wsl/{{ inventory_hostname }}"
+
+    - name: template distros
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ wsl.groups | default([],true) }}"
+        group_vars: "{{ wsl_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.distros','defined')
+          | rejectattr('value.distros','equalto',None)
+          | map(attribute='value.distros')
+          | flatten }}"
+        distros_all:
+          - "{{ wsl.distros | default([],true) }}"
+          - "{{ group_vars }}"
+        distros: "{{ distros_all | flatten }}"
+      loop:
+        - src: "{{ playbook_dir }}/wsl.move.ps1.j2"
+          dest: "{{ inventory_dir }}/../wsl/{{ inventory_hostname }}/wsl.move.ps1"
+        - src: "{{ playbook_dir }}/wsl.move.cmd.j2"
+          dest: "{{ inventory_dir }}/../wsl/{{ inventory_hostname }}/wsl.move.cmd"
+      ansible.builtin.template:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
