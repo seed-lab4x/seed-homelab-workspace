@@ -1,0 +1,70 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: windows
+  tasks:
+
+    - name: run shell
+      loop: "{{ shell.shells | default([],true) }}"
+      vars:
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      ansible.windows.win_shell:
+      args: "{{ args }}"
+      register: shell_run
+      until: shell_run is succeeded
+
+    - name: debug shell
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.shell_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.shell_run.stdout | default('',true) }}
+          {{ host.value.shell_run.stderr | default('',true) }}
+          {% endfor %}
+
+    - name: run group shell
+      vars:
+        group_names: "{{ shell.groups | default([],true) }}"
+        group_vars: "{{ shell_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.shells','defined')
+          | rejectattr('value.shells','equalto',None)
+          | map(attribute='value.shells')
+          | flatten }}"
+        params:
+          _raw_params: "{{ item }}"
+        args: "{{ item if(item | type_debug == 'dict') else params }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_shell:
+      args: "{{ args }}"
+      register: shell_run
+      until: shell_run is succeeded
+
+    - name: debug group shell
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.shell_run.skipped','equalto',false) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.shell_run.stdout | default('',true) }}
+          {{ host.value.shell_run.stderr | default('',true) }}
+          {% endfor %}
+
