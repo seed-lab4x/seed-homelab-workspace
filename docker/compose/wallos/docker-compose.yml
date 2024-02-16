@@ -1,0 +1,23 @@
+version: "3.8"
+
+volumes:
+  db:
+    name: external_vol-wallos-db
+    external: true
+  logos:
+    name: external_vol-wallos-logos
+    external: true
+
+services:
+  wallos:
+    image: bellamy/wallos:latest
+    env_file: external_env-all.env
+    # environment:
+    #   TZ: 'America/Toronto'
+    volumes:
+      - db:/var/www/html/db
+      - logos:/var/www/html/images/uploads/logos
+    ports:
+      - 8282:80
+    container_name: wallos
+    restart: always
