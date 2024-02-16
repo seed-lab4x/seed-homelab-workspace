@@ -1,0 +1,31 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-speedtest-config
+    external: true
+  web:
+    name: external_vol-speedtest-web
+    external: true
+
+services:
+  speedtest-tracker:
+    image: lscr.io/linuxserver/speedtest-tracker:latest
+    env_file: external_env-speedtest.env
+    # environment:
+    #   - PUID=1000
+    #   - PGID=1000
+    #   - DB_CONNECTION=mysql
+    #   - DB_HOST=db
+    #   - DB_PORT=3306
+    #   - DB_DATABASE=speedtest_tracker
+    #   - DB_USERNAME=speedy
+    #   - DB_PASSWORD=password
+    volumes:
+      - config:/config
+      - web:/etc/ssl/web
+    ports:
+      - 80
+      - 443
+    container_name: speedtest-tracker
+    restart: unless-stopped
