@@ -1,0 +1,29 @@
+version: "3.8"
+
+volumes:
+  database:
+    name: external_vol-librespeed-database
+    external: true
+
+services:
+  librespeed:
+    image: ghcr.io/librespeed/speedtest:latest
+    env_file: external_env-librespeed.env
+    # environment:
+    #   - MODE=standalone
+    #   - TITLE=LibreSpeed
+    #   - TELEMETRY=false
+    #   - ENABLE_ID_OBFUSCATION=false
+    #   - REDACT_IP_ADDRESSES=false
+    #   - PASSWORD=
+    #   - EMAIL=
+    #   - DISABLE_IPINFO=false
+    #   - DISTANCE=km
+    #   - WEBPORT=80
+    volumes:
+      - ./bind_file-servers.json:/servers.json
+      - database:/database
+    ports:
+      - 80
+    container_name: librespeed
+    restart: unless-stopped
