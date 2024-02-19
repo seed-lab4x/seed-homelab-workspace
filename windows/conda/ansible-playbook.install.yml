@@ -1,0 +1,79 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: install package
+      chocolatey.chocolatey.win_chocolatey:
+        state: present
+        name: "{{ conda.package | default('anaconda3',true) }}"
+
+    - name: set env
+      when: conda.home is defined
+      ansible.windows.win_environment:
+        name: CONDA_HOME
+        value: "{{ conda.home }}"
+        level: user
+        state: present
+
+    - name: append path
+      loop: "{{ conda.paths | default([],true) }}"
+      when:
+        - conda.home is defined
+        - item is defined
+      ansible.windows.win_path:
+        name: PATH
+        elements: "%CONDA_HOME%\\{{ item }}"
+        scope: user
+        state: present
+
+    - name: version conda
+      vars:
+        cli_dir: "{{ conda.home }}\\Scripts"
+      ansible.windows.win_command:
+        cmd: conda --version
+        chdir: "{{ (conda.home is defined) | ternary(cli_dir,omit) }}"
+      register: conda_version
+
+    - name: add config
+      vars:
+        cli_dir: "{{ conda.home }}\\Scripts"
+        transform_q: >-
+          [*].{"key": [0].key, "value": [1]}
+        flatten_cfgs: "{{ conda.configs | dict2items | subelements('value') | map('flatten')
+          | json_query(transform_q) }}"
+      loop: "{{ flatten_cfgs }}"
+      when: item.value | default(None,true) != None
+      ansible.windows.win_command:
+        cmd: "conda config --add {{ item.key }} {{ item.value }}"
+        chdir: "{{ (conda.home is defined) | ternary(cli_dir,omit) }}"
+      register: conda_config
+
+    - name: get config
+      vars:
+        cli_dir: "{{ conda.home }}\\Scripts"
+      ansible.windows.win_command:
+        cmd: conda config --get
+        chdir: "{{ (conda.home is defined) | ternary(cli_dir,omit) }}"
+      register: conda_version
+
+    - name: print conda
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.conda_version.stdout | default('',true) }}
+          {{ host.value.conda_version.stderr | default('',true) }}
+          --------------------------------------------------
+          {{ host.value.conda_config.stdout | default('',true) }}
+          {{ host.value.conda_config.stderr | default('',true) }}
+          {% endfor %}
