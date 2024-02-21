@@ -1,0 +1,27 @@
+# code: language=ansible
+---
+
+- when:
+    - key is defined
+  block:
+  - name: configure|mkdir keys
+    ansible.builtin.file:
+      state: directory
+      path: /etc/opkg/keys
+
+  - name: configure|save key
+    when:
+      - key.url is defined
+      - key.id is defined
+    ansible.builtin.copy:
+      content: "{{ lookup('ansible.builtin.url', key.url, wantlist=True) }}"
+      dest: "/etc/opkg/keys/{{ key.id }}"
+
+- name: configure|configure
+  when: content is defined
+  ansible.builtin.blockinfile:
+    path: "{{ file | default('/etc/opkg/customfeeds.conf',true) }}"
+    block: "{{ content }}"
+    marker: "# ANSIBLE MANAGED BLOCK group: {{ group_name | default('<NONE>',true) }} {mark}"
+  register: feed_configure
+  until: feed_configure is succeeded

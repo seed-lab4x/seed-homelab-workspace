@@ -1,0 +1,26 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: configure
+  hosts: openwrt
+  tasks:
+
+    - name: configure feed
+      vars:
+        key: "{{ feed.key | default('',true) }}"
+        content: "{{ feed.content | default('',true) }}"
+        file: "{{ feed.file | default('',true) }}"
+      include_tasks: ansible-tasks.configure.yml
+
+    - name: configure group feed
+      vars:
+        group_names: "{{ feed.groups | default([],true) }}"
+        group_var: "{{ feed_groups[group_name] | default({},true) }}"
+        key: "{{ group_var.key | default('',true) }}"
+        content: "{{ group_var.content | default('',true) }}"
+        file: "{{ group_var.file | default('',true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.configure.yml
