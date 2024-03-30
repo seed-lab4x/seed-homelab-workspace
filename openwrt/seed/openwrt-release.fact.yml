@@ -1,0 +1,26 @@
+# code: language=ansible
+---
+
+- vars:
+    keys:
+      - DISTRIB_ID
+      - DISTRIB_RELEASE
+      - DISTRIB_REVISION
+      - DISTRIB_TARGET
+      - DISTRIB_ARCH
+      - DISTRIB_DESCRIPTION
+      - DISTRIB_TAINTS
+  block:
+  - name: openwrt-release.fact|read values /etc/openwrt_release
+    loop: "{{ keys }}"
+    ansible.builtin.shell:
+      cmd: "source /etc/openwrt_release; echo ${{ item | upper }}"
+    register: openwrt_distribution
+    changed_when: false
+
+  - name: openwrt-release.fact|fact values openwrt_distribution
+    vars:
+      values: "{{ openwrt_distribution.results | map(attribute='stdout') }}"
+    ansible.builtin.set_fact:
+      openwrt_distribution: "{{ dict(keys | zip(values)) }}"
+    changed_when: false
