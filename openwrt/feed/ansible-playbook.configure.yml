@@ -6,6 +6,9 @@
   hosts: openwrt
   tasks:
 
+    - name: fact release
+      include_tasks: ../seed/openwrt-release.fact.yml
+
     - name: configure feed
       vars:
         key: "{{ feed.key | default('',true) }}"
