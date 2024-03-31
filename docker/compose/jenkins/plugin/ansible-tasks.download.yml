@@ -19,10 +19,20 @@
   - name: jenkins-plugin.download|fact param
     vars:
       default:
+        # delegate_to: undefined
+        # default use jenkins-plugin-cli
         mode: cli
-        version: "2.375"
+        docker_image: "jenkins/jenkins:2.440.2-jdk17"
+        # or use jenkins-plugin-manager
+        # mode: manager
+        # docker_image: "eclipse-temurin:11-jre-jammy"
+        jenkins_version: "2.440.2"
+        # default from playbook_dir to workpath
         file: "{{ playbook_dir }}/plugins.yml"
-        output: "{{ inventory_dir }}/../jenkins/plugin/{{ inventory_hostname }}/"
+        output: "{{ workpath.remote.full }}/.plugin"
+        # or from inventory_dir to inventory_dir
+        # file: "{{ inventory_dir }}/../jenkins/plugins.yml"
+        # output: "{{ inventory_dir }}/../jenkins/plugin/{{ inventory_hostname }}/"
         flags: "--verbose --latest false"
     ansible.builtin.set_fact:
       _plugin: "{{ default | combine(plugin, recursive=True) }}"

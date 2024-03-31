@@ -1,4 +1,4 @@
-#!/usr/bin/env -S ansible-playbook -vvv -i ${PWD}/ansible-inventories
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
 # code: language=ansible
 ---
 
