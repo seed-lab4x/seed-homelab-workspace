@@ -19,11 +19,11 @@
           vars: "{{ jenkins | default({},true) }}"
           default:
             volumes:
-              - name: external_vol-jenkins-home
+              - name: external_vol-jenkins-data
                 driver: local
               - name: external_vol-jenkins-plugin
                 driver: local
-              - name: external_vol-jenkins-user
+              - name: external_vol-jenkins-home
                 driver: local
             envs:
               - file: external_env-all.env

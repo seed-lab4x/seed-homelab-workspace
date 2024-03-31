@@ -1,14 +1,14 @@
 version: "3.8"
 
 volumes:
-  home:
-    name: external_vol-jenkins-home
+  data:
+    name: external_vol-jenkins-data
     external: true
   plugin:
     name: external_vol-jenkins-plugin
     external: true
-  user:
-    name: external_vol-jenkins-user
+  home:
+    name: external_vol-jenkins-home
     external: true
 
 services:
@@ -22,9 +22,9 @@ services:
       - 8780:8080
       - 50000:50000
     volumes:
-      - home:/var/jenkins_home
+      - data:/var/jenkins_home
       - plugin:/var/jenkins_home/plugins
-      - user:/home/jenkins
+      - home:/home/jenkins
     container_name: jenkins
     restart: always
     # healthcheck:
