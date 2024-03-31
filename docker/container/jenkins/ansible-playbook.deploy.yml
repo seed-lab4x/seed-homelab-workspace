@@ -37,4 +37,4 @@
                 - 50000:50000
               hostname: jenkins
               name: jenkins
-              image: jenkins/jenkins:2.414.3-jdk17
+              image: jenkins/jenkins:2.440.2-jdk17
