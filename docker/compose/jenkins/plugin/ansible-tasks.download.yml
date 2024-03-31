@@ -18,24 +18,53 @@
 
   - name: jenkins-plugin.download|fact param
     vars:
-      default:
+      static:
+        # playbook delegate: change it when remote node cant online download
         # delegate_to: undefined
-        # default use jenkins-plugin-cli
+
+        # playbook tasks selector: default use jenkins-plugin-cli
         mode: cli
-        docker_image: "jenkins/jenkins:2.440.2-jdk17"
         # or use jenkins-plugin-manager
         # mode: manager
-        # docker_image: "eclipse-temurin:11-jre-jammy"
-        jenkins_version: "2.440.2"
-        # default from playbook_dir to workpath
+
+        # container image：auto set
+        image: jenkins/jenkins:2.440.2-jdk17
+
+        # container name/hostname: change it if want keep exist
+        container: "anonymous_ctr-{{ lookup('community.general.random_string', upper=false, special=false) }}"
+        # like this
+        # container: jenkins-plugin-cli-download
+
+        # jenkins version
+        version: 2.440.2
+
+        # jenkins plugin-file: default from playbook_dir
         file: "{{ playbook_dir }}/plugins.yml"
-        output: "{{ workpath.remote.full }}/.plugin"
-        # or from inventory_dir to inventory_dir
+        # or from inventory_dir
         # file: "{{ inventory_dir }}/../jenkins/plugins.yml"
-        # output: "{{ inventory_dir }}/../jenkins/plugin/{{ inventory_hostname }}/"
+
+        # container volume for bind jenkins plugin-download-directory: change it if want keep exist
+        volume: "anonymous_vol-{{ lookup('community.general.random_string', upper=false, special=false) }}"
+        # like this
+        # volume: external_vol-jenkins-plugin
+
+        # jenkins plugin-download-directory: auto set
+        directory: "{{ workpath.remote.full }}/external_vol-jenkins-plugin"
+
+        # jenkins cli flags
         flags: "--verbose --latest false"
+      when_cli:
+        image: jenkins/jenkins:2.440.2-jdk17
+      when_manager:
+        image: eclipse-temurin:11-jre-jammy
+      when_local:
+        directory: "{{ inventory_dir }}/../jenkins/plugin/{{ inventory_hostname }}/"
+      when_remote:
+        directory: "{{ workpath.remote.full }}/external_vol-jenkins-plugin"
+      auto_mode: "{{ static | combine((plugin.mode | default('cli',true) == 'cli') | ternary(when_cli,when_manager), recursive=True) }}"
+      auto_delegate: "{{ auto_mode | combine((plugin.delegate_to | default(None,true) == 'localhost') | ternary(when_local,when_remote), recursive=True) }}"
     ansible.builtin.set_fact:
-      _plugin: "{{ default | combine(plugin, recursive=True) }}"
+      _plugin: "{{ auto_delegate | combine(plugin, recursive=True) }}"
 
   - name: jenkins-plugin.download|normal|download plugin
     when:

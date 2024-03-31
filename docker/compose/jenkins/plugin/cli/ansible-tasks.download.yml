@@ -5,19 +5,19 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
   vars:
     container:
-      vars: "{{ _plugin.container | default({},true) }}"
+      vars: "{{ _plugin.override.container | default({},true) }}"
       default:
         files:
-          - dest: "{{ _plugin.output }}"
+          - dest: "{{ _plugin.directory }}"
             mode: "0777"
           - src: "{{ _plugin.file }}"
             dest: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
         volumes:
-          - name: external_vol-jenkins-plugin
+          - name: "{{ _plugin.volume }}"
             driver: local
             driver_options:
               type: none
-              device: "{{ _plugin.output }}"
+              device: "{{ _plugin.directory }}"
               o: bind
             push:
               - remote_src: true
@@ -30,15 +30,27 @@
         container:
           detach: false
           volumes:
-            - "external_vol-jenkins-plugin:/plugins"
+            - "{{ _plugin.volume }}:/plugins"
           command: >
             jenkins-plugin-cli
-            --jenkins-version {{ _plugin.jenkins_version }}
+            --jenkins-version {{ _plugin.version }}
             --plugin-file /plugins/{{ _plugin.file | basename }}
             --plugin-download-directory /plugins
             {{ _plugin.flags }}
           user: "1000:1000"
           env_file: "{{ workpath.remote.full }}/external_env-all.env"
-          hostname: jenkins-plugin-cli-download
-          name: jenkins-plugin-cli-download
-          image: "{{ _plugin.docker_image }}"
+          hostname: "{{ _plugin.container }}"
+          name: "{{ _plugin.container }}"
+          image: "{{ _plugin.image }}"
+
+- name: jenkins-plugin-manager.download|remove container
+  when: _plugin.container is regex('^anonymous_.*')
+  community.docker.docker_container:
+    name: "{{ _plugin.container }}"
+    state: absent
+
+- name: jenkins-plugin-manager.download|remove volume
+  when: _plugin.volume is regex('^anonymous_.*')
+  community.docker.docker_volume:
+    name: "{{ _plugin.volume }}"
+    state: absent
