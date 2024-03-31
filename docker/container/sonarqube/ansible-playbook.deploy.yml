@@ -1,0 +1,39 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy container
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+      vars:
+        container:
+          vars: "{{ sonarqube | default({},true) }}"
+          default:
+            volumes:
+              - name: external_vol-sonarqube-data
+                driver: local
+              - name: external_vol-sonarqube-logs
+                driver: local
+              - name: external_vol-sonarqube-extensions
+                driver: local
+            container:
+              detach: true
+              restart_policy: always
+              volumes:
+                - external_vol-sonarqube-data:/opt/sonarqube/data
+                - external_vol-sonarqube-logs:/opt/sonarqube/logs
+                - external_vol-sonarqube-extensions:/opt/sonarqube/extensions
+              ports:
+                - 9100:9000
+              hostname: sonarqube
+              name: sonarqube
+              image: sonarqube:10.4.1-community
