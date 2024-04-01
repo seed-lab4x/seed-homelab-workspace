@@ -48,6 +48,7 @@
   community.docker.docker_container:
     name: "{{ _plugin.container }}"
     state: absent
+    keep_volumes: false
 
 - name: jenkins-plugin-manager.download|remove volume
   when: _plugin.volume is regex('^anonymous_.*')
