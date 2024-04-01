@@ -1,5 +1,8 @@
 {
-  "packages": ["ansible@2.15.5"],
+  "packages": [
+    "ansible@2.15.5",
+    "python311Packages.pip@latest"
+  ],
   "shell": {
     "init_hook": [
       "echo 'Welcome to devbox!' > /dev/null",

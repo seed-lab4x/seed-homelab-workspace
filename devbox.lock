@@ -20,6 +20,90 @@
           "store_path": "/nix/store/8mps70bcv68nskq2sra6c0hfsr6q0vzp-python3.11-ansible-core-2.15.5"
         }
       }
+    },
+    "python311Packages.pip@latest": {
+      "last_modified": "2024-03-22T11:26:23Z",
+      "resolved": "github:NixOS/nixpkgs/a3ed7406349a9335cb4c2a71369b697cecd9d351#python311Packages.pip",
+      "source": "devbox-search",
+      "version": "24.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ywyg311x8ylfphg35b4rvn48npszk7k9-python3.11-pip-24.0",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/yv8fc72994k99fy6nhacvyqnh6c7z3sl-python3.11-pip-24.0-man",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/885g8lkpva5vr5m6p2jyjh80wd3pjfja-python3.11-pip-24.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/ywyg311x8ylfphg35b4rvn48npszk7k9-python3.11-pip-24.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/sin1rm4v0s7ww766qycngss8zf8srs8a-python3.11-pip-24.0",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/i1qb6138a44z7pcb3ym35j6ww2hr0qcd-python3.11-pip-24.0-man",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/irfy90m1fxqkj9k0wggmgqn37x26j2gq-python3.11-pip-24.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/sin1rm4v0s7ww766qycngss8zf8srs8a-python3.11-pip-24.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/s9cyvvk1h2jqjv9yplwaahzdqsr8c0y8-python3.11-pip-24.0",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/a1bgzwk4hywk3hcbh4wpscr0kxn7hj18-python3.11-pip-24.0-man",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/nv69yih709q4q9b5sjhcmghjb0h7dcq7-python3.11-pip-24.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/s9cyvvk1h2jqjv9yplwaahzdqsr8c0y8-python3.11-pip-24.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ns7zsm9q0ndgaq4zfjzqza6bhk19m1jn-python3.11-pip-24.0",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/x92a905nbv6ajagpl5wlclxc4f46a0cc-python3.11-pip-24.0-man",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/bmkjjib038m272iy1ziklw91c1d2jcrl-python3.11-pip-24.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/ns7zsm9q0ndgaq4zfjzqza6bhk19m1jn-python3.11-pip-24.0"
+        }
+      }
     }
   }
 }
