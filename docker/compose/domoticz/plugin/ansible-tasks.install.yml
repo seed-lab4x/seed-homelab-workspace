@@ -1,28 +1,74 @@
 # code: language=ansible
 ---
 
+- rescue:
+  - name: domoticz-plugin.install|rescue|fail tasks
+    when:
+      - plugin is defined
+    ansible.builtin.fail:
+      msg: "install plugin fail. exclude var undefined."
+
+  block:
+  - name: domoticz-plugin.install|assert var
+    ansible.builtin.assert:
+      that:
+        - plugin is defined
+      msg: "var eval fail {{ plugin }}"
+      quiet: true
+
+  - name: domoticz-plugin.install|fact param
+    vars:
+      default:
+        gits: []
+          # - dest: "{{ inventory_dir }}/../domoticz/userdata/{{ inventory_hostname }}/plugins/Domoticz-XAir-Plugin"
+          #   repo: https://github.com/xiaoyao9184/Domoticz-XAir-Plugin.git
+        # file for push
+        files: []
+          # - dest: "{{ workpath.remote.full }}/.plugin/Domoticz-XAir-Plugin"
+          #   src: "{{ inventory_dir }}/../domoticz/userdata/{{ inventory_hostname }}/plugins/Domoticz-XAir-Plugin"
+        volume:
+          name: external_vol-domoticz-userdata
+          driver: local
+          push: []
+            # - src: "{{ workpath.remote.full }}/.plugin/Domoticz-XAir-Plugin/XAir-B35-Quality-Moniter"
+            #   dest: "./plugins"
+            #   directory_mode: '0777'
+            #   bind: true
+        # restart/exec container
+        container: domoticz
+        # restart container      
+        restart: true
+        # show file
+        show: /opt/domoticz/userdata/plugins/
+    ansible.builtin.set_fact:
+      _plugin: "{{ default | combine(plugin, recursive=True) }}"
+
 - name: domoticz-plugin.install|clone source
-  loop: "{{ plugin.gits | default([],true) }}"
+  loop: "{{ _plugin.gits }}"
   ansible.builtin.git: "{{ item }}"
 
 - name: domoticz-plugin.install|push files
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
   vars:
-    files: "{{ plugin.files | default([],true) }}"
+    files: "{{ _plugin.files }}"
 
-- name: domoticz-plugin.install|push files
-  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+- name: domoticz-plugin.install|init volume
+  include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.init.yml"
   vars:
     volumes:
-      - name: external_vol-domoticz-userdata
-        driver: local
-        push: "{{ plugin.volume_pushs | default([],true) }}"
+      - "{{ _plugin.volume }}"
+
+- name: domoticz-plugin.install|restart container
+  when: _plugin.restart
+  community.docker.docker_container:
+    name: "{{ _plugin.container }}"
+    restart: true
 
 - name: domoticz-plugin.install|wait container
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
   vars:
     container:
-      name: domoticz
+      name: "{{ _plugin.container }}"
       until:
         - container_info.exists
       retries: 60
@@ -32,8 +78,8 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
   vars:
     container:
-      container: domoticz
-      command: "ls -l /opt/domoticz/userdata/plugins/"
+      container: "{{ _plugin.container }}"
+      command: "ls -l {{ _plugin.show }}"
       register: container_exec
 
 - name: domoticz-plugin.install|print exec

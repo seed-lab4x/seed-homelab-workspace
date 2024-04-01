@@ -17,13 +17,6 @@
 
     - name: install plugin
       when: domoticz.plugin is defined
-      include_tasks: "{{ playbook_dir }}/ansible-tasks.reload.yml"
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.install.yml"
       vars:
         plugin: "{{ domoticz.plugin }}"
-
-    - name: restart compose
-      when: domoticz.plugin.restart | default(false) | bool
-      community.docker.docker_compose:
-        project_src: "{{ workpath.remote.name }}"
-        build: false
-        restarted: true
