@@ -2,6 +2,8 @@
 
 source_directory="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+# TODO remount it with meta
+
 workspace_path="$source_directory"
 while [[ ! -f "$workspace_path/seed.json" ]];
 do
@@ -13,4 +15,4 @@ do
     fi
 done
 
-chmod -R +x $workspace_path
+sudo chmod -R +x $workspace_path
