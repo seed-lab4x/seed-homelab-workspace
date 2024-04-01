@@ -4,7 +4,7 @@
 - rescue:
   - name: jenkins-plugin.download|rescue|fail tasks
     when:
-      - plugin is defined
+      - plugin | default(None,true) != None
     ansible.builtin.fail:
       msg: "download plugin fail. exclude var undefined."
 
@@ -12,7 +12,7 @@
   - name: jenkins-plugin.download|assert var
     ansible.builtin.assert:
       that:
-        - plugin is defined
+        - plugin | default(None,true) != None
       msg: "var eval fail {{ plugin }}"
       quiet: true
 
