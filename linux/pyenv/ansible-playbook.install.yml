@@ -4,7 +4,7 @@
 
 - name: install
   hosts: linux
-  environment: "{{ env_all }}"
+  environment: "{{ env_all | default({},true) }}"
   tasks:
 
     - rescue:
@@ -36,5 +36,5 @@
         - name: include role
           ansible.builtin.include_role:
             name: markosamuli.pyenv
-            apply:
-              become: true
+            # apply:
+            #   become: true
