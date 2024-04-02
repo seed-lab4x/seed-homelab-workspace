@@ -4,6 +4,7 @@
 
 - name: get
   hosts: linux
+  environment: "{{ env_all | default({},true) }}"
   tasks:
 
     - vars:
