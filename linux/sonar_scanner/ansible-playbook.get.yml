@@ -1,0 +1,25 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  environment: "{{ env_all | default({},true) }}"
+  tasks:
+
+    - name: mkdir directory
+      become: "{{ sonar_scanner.become | default(true) }}"
+      ansible.builtin.file:
+        state: directory
+        path: "{{ sonar_scanner.directory }}"
+
+    # TODO need auto become when sonar_scanner_path is /usr/local/bin
+    - name: role sonar_scanner
+      vars:
+        sonar_scanner_version: "{{ sonar_scanner.version | default('latest',true) }}"
+        sonar_scanner_directory: "{{ sonar_scanner.directory | default('/opt',true) }}"
+        sonar_scanner_path: "{{ sonar_scanner.path | default('/usr/local/bin',true) }}"
+      ansible.builtin.include_role:
+        name: diodonfrost.sonar_scanner
+        apply:
+          become: "{{ sonar_scanner.become | default(true) }}"
