@@ -35,11 +35,64 @@
   register: package_install
   until: package_install is succeeded
 
+- name: seed-workspace.init|retrieve info of pipx ansible-core
+  community.general.pipx_info:
+    executable: pipx
+    name: ansible-core
+    include_deps: true
+    include_injected: true
+    include_raw: true
+  ignore_errors: true
+  register: pipx_ansible
+
+- name: seed-workspace.init|check ansible command does exist
+  ansible.builtin.shell: realpath $(which ansible)
+  ignore_errors: true
+  changed_when: false
+  register: which_ansible
+
+- vars:
+    bin_path_all: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.main_package.app_paths | map(attribute='__Path__') }}"
+    bin_path_ansible: "{{ which_ansible.stdout_lines[0] }}"
+    bin_path_dir: "{{ bin_path_ansible | dirname }}"
+  when:
+    - pipx_ansible is success
+    - which_ansible is success
+    - pipx_ansible.application | length > 0
+    - which_ansible.stdout_lines | length > 0
+    - which_ansible.stdout_lines[0] in bin_path_all
+  block:
+
+  - name: seed-workspace.init|create pip wrapper in pipx ansible-core
+    vars:
+      bin_path_pip: "{{ [bin_path_dir,'pip'] | path_join }}"
+      bin_path_python: "{{ [bin_path_dir,'python'] | path_join }}"
+    become: true
+    ansible.builtin.copy:
+      dest: "{{ bin_path_pip }}"
+      owner: root
+      group: pipx
+      mode: u+rwx,g+rwx,o+rx
+      content: |
+        #!/bin/bash
+
+        exec {{ bin_path_python }} -m pip $@
+
+  - name: seed-workspace.init|fact pip virtualenv
+    vars:
+      ws_env:
+        venv_path: "{{ bin_path_dir | dirname }}"
+        venv_command: "{{ [bin_path_dir,'python'] | path_join }} -m venv"
+    ansible.builtin.set_fact:
+      _ws: "{{ _ws | combine(ws_env, recursive=True) }}"
+
 - name: seed-workspace.init|install python pip
   loop: "{{ _ws.pip }}"
   ansible.builtin.pip:
     name: "{{ item }}"
     state: latest
+    virtualenv: "{{ _ws.venv_path | default(omit,true) }}"
+    virtualenv_command: "{{ _ws.venv_command | default(omit,true) }}"
   register: pip_install
   until: pip_install is succeeded
 
