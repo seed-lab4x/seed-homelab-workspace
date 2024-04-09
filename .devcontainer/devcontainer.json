@@ -5,16 +5,12 @@
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
 	"features": {
+		"ghcr.io/devcontainers-contrib/features/curl-apt-get:1": {},
 		"ghcr.io/devcontainers-contrib/features/ansible:2": {
 			"version": "latest"
 		},
-		"ghcr.io/devcontainers-contrib/features/curl-apt-get:1": {},
 		"ghcr.io/eitsupi/devcontainer-features/jq-likes:2": {
-			"jqVersion": "latest",
-			"yqVersion": "latest",
-			"gojqVersion": "latest",
-			"xqVersion": "latest",
-			"jaqVersion": "latest"
+			"jqVersion": "latest"
 		},
 		"ghcr.io/hspaans/devcontainer-features/sshpass:1": {
 			"installDirectlyFromGitHubRelease": true,
@@ -38,8 +34,10 @@
 	// Fix no access to the Internet
 	"runArgs": [
 		"--network=host"
-	]
+	],
 
-	// TODO 
-	// "postStartCommand": "ansible-playbook -i ${PWD}/.config/all@devcontainer/ansible-inventories seed-local.init.yml" 
+	"postStartCommand": {
+		"git": "git config --global core.fileMode false",
+		"workspace": "ansible-playbook -i ${containerWorkspaceFolder}/.config/local@devcontainer/localhost/ansible-inventories ${containerWorkspaceFolder}/.seed/ansible-playbook/seed-local.init.yml"
+	}
 }
