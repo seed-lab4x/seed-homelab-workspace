@@ -22,14 +22,14 @@ else
 fi
 
 # install nix
-if [[ -z "$(command -v ~/.nix-profile/bin/nix)" ]];
+if [[ -z "$(command -v nix)" ]];
 then
     # sh <(curl -L https://nixos.org/nix/install) --no-daemon
     curl -fsSL https://nixos.org/nix/install | bash -s -- --no-daemon
 fi
 
 # check nix version
-~/.nix-profile/bin/nix --version
+nix --version
 
 # install devbox
 if [[ -z "$(command -v devbox)" ]];
