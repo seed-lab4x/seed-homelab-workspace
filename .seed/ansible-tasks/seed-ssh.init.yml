@@ -36,8 +36,11 @@
   ansible.builtin.set_fact:
     _ssh: "{{ ssh_param | combine(ssh_required, recursive=True) }}"
 
-- run_once: true
-  delegate_to: localhost
+- delegate_to: localhost
+  run_once: true
+  vars:
+    # https://willthames.github.io/2018/07/01/connection-local-vs-delegate_to-localhost.html
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
   block:
   - name: seed-ssh.init|keypair|mkdir
     ansible.builtin.file:
@@ -66,6 +69,7 @@
   - name: seed-ssh.init|known_hosts|loop add by keyscan
     vars:
       list_host_scan: "{{ groups[_ssh.group]
+          | intersect(ansible_play_hosts)
           | product(_ssh.known_scan)
           | map('zip', ['name', 'type'])
           | map('map', 'reverse')
@@ -99,8 +103,11 @@
     vars:
       ssh: "{{ _ssh }}"
 
-- run_once: true
-  delegate_to: localhost
+- delegate_to: localhost
+  run_once: true
+  vars:
+    # https://willthames.github.io/2018/07/01/connection-local-vs-delegate_to-localhost.html
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
   when: _ssh.config_path | default(None,true) != None
   block:
   - name: seed-ssh.init|known_hosts|mark end
@@ -124,7 +131,7 @@
       item_host: "{{ hostvars[host_name].ansible_host | default(host_name,true) }}"
       item_port: "{{ hostvars[host_name].ansible_port | default('',true) }}"
       item_user: "{{ hostvars[host_name].ansible_user | default('root',true) }}"
-    loop: "{{ groups[_ssh.group] }}"
+    loop: "{{ groups[_ssh.group] | intersect(ansible_play_hosts) }}"
     loop_control:
       loop_var: host_name
     community.general.ssh_config:
