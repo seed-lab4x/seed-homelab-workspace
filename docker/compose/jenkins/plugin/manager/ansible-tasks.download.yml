@@ -16,10 +16,10 @@
         files:
           - dest: "{{ _plugin.directory }}"
             mode: "0777"
-          - src: "{{ _plugin.file }}"
-            dest: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
-          - src: "{{ _manager.dest }}"
-            dest: "{{ workpath.remote.full }}/{{ _manager.name }}"
+          - dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+            src: "{{ _plugin.file }}"
+          - dest: "{{ workpath.remote.full }}/bind_file-{{ _manager.name }}"
+            src: "{{ _manager.dest }}"
         volumes:
           - name: "{{ _plugin.volume }}"
             driver: local
@@ -27,15 +27,6 @@
               type: none
               device: "{{ _plugin.directory }}"
               o: bind
-            push:
-              - remote_src: true
-                src: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
-                dest: "{{ _plugin.file | basename }}"
-                bind: true
-              - remote_src: true
-                src: "{{ workpath.remote.full }}/{{ _manager.name }}"
-                dest: "{{ _manager.name }}"
-                bind: true
         envs:
           - file: external_env-all.env
             content: ''
@@ -43,11 +34,13 @@
           detach: false
           volumes:
             - "{{ _plugin.volume }}:/plugins"
+            - "{{ workpath.remote.full }}/bind_file-plugins.yml:/usr/share/jenkins/ref/plugins.yml"
+            - "{{ workpath.remote.full }}/bind_file-{{ _manager.name }}:/opt/jenkins-plugin-manager.jar"
           command: >
             java
-            -jar /plugins/{{ _manager.name }}
+            -jar /opt/jenkins-plugin-manager.jar
             --jenkins-version {{ _plugin.version }}
-            --plugin-file /plugins/{{ _plugin.file | basename }}
+            --plugin-file /usr/share/jenkins/ref/plugins.yml
             --plugin-download-directory /plugins
             {{ _plugin.flags }}
           user: "1000:1000"

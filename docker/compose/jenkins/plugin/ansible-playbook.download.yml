@@ -6,16 +6,31 @@
   hosts: docker
   tasks:
 
-    - name: fact workspace
-      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].jenkins.plugin is defined
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
 
-    - name: fact workpath
-      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
-      vars:
-        workpath:
-          index: -2
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].jenkins.plugin is defined
+          msg: "host var assert fail 'jenkins.plugin'"
+          quiet: true
 
-    - name: download plugin
-      include_tasks: "{{ playbook_dir }}/ansible-tasks.download.yml"
-      vars:
-        plugin: "{{ jenkins.plugin | default(None,true) }}"
+      - name: fact workspace
+        include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+      - name: fact workpath
+        include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+        vars:
+          workpath:
+            index: -2
+
+      - name: download plugin
+        include_tasks: "{{ playbook_dir }}/ansible-tasks.download.yml"
+        vars:
+          plugin: "{{ jenkins.plugin | default({},true) }}"

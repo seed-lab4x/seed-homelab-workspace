@@ -11,7 +11,7 @@
           - dest: "{{ _plugin.directory }}"
             mode: "0777"
           - src: "{{ _plugin.file }}"
-            dest: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
+            dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
         volumes:
           - name: "{{ _plugin.volume }}"
             driver: local
@@ -19,11 +19,6 @@
               type: none
               device: "{{ _plugin.directory }}"
               o: bind
-            push:
-              - remote_src: true
-                src: "{{ workpath.remote.full }}/{{ _plugin.file | basename }}"
-                dest: "{{ _plugin.file | basename }}"
-                bind: true
         envs:
           - file: external_env-all.env
             content: ''
@@ -31,10 +26,11 @@
           detach: false
           volumes:
             - "{{ _plugin.volume }}:/plugins"
+            - "{{ workpath.remote.full }}/bind_file-plugins.yml:/usr/share/jenkins/ref/plugins.yml"
           command: >
             jenkins-plugin-cli
             --jenkins-version {{ _plugin.version }}
-            --plugin-file /plugins/{{ _plugin.file | basename }}
+            --plugin-file /usr/share/jenkins/ref/plugins.yml
             --plugin-download-directory /plugins
             {{ _plugin.flags }}
           user: "1000:1000"
