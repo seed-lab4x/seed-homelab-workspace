@@ -17,13 +17,13 @@ services:
     env_file: external_env-all.env
     # environment:
     #   DOCKER_TLS_CERTDIR: /certs
-    #   JENKINS_UC: https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates
+    #   JENKINS_UC: https://mirrors.tuna.tsinghua.edu.cn/jenkins/updates/dynamic-stable-2.440.2/update-center.actual.json
     ports:
       - 8780:8080
       - 50000:50000
     volumes:
       - data:/var/jenkins_home
-      - plugin:/var/jenkins_home/plugins
+      - plugin:/usr/share/jenkins/ref/plugins
       - home:/home/jenkins
     container_name: jenkins
     restart: always
