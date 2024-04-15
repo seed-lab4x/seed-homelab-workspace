@@ -31,31 +31,18 @@
   # ansible mode
   - when: volume_type == 'ansible'
     block:
-    - name: docker-volume-normal.push|ansible|fact param
+    # only support file
+    - name: docker-volume-normal.push|ansible|copy to container
       vars:
-        keys_to_remove: ['group','once','name','bind','type','src','dest','id']
-        keys_to_keep: "{{ _volume.keys() | difference(keys_to_remove) }}"
-        values_to_keep: "{{ keys_to_keep | map('extract', _volume) | list }}"
-        volume_args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
         # container_path need prefix
         paths_container_path:
           - "/seed_vol"
           - "{{ _volume.dest | default('',true) }}"
-        volume_merge_dest:
-          # map attributes to `community.docker.docker_container_copy_into`
-          path: "{{ _volume.src | default(omit,true) }}"
-          container: "{{ _volume.name }}.{{ _volume.id }}"
-          container_path: "{{ paths_container_path | path_join }}"
-        args: "{{ volume_args | combine(volume_merge_dest, recursive=True) }}"
-      ansible.builtin.set_fact:
-        _volume_container: "{{ args }}"
-
-    - name: docker-volume-normal.push|ansible|copy to container
-      community.docker.docker_container_copy_into: "{{ _volume_container }}"
-
-    - name: docker-volume-normal.push|ansible|unfact param
-      ansible.builtin.set_fact:
-        _volume_container: !!null
+      community.docker.docker_container_copy_into:
+        path: "{{ _volume.src | default(omit,true) }}"
+        container: "{{ _volume.name }}.{{ _volume.id }}"
+        container_path: "{{ paths_container_path | path_join }}"
+        mode: "{{ _volume.mode | default(omit,true) }}"
 
   # docker mode
   - when: volume_type == 'docker'

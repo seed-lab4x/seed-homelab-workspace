@@ -30,6 +30,7 @@
     ansible.builtin.file:
       state: directory
       path: "{{ dest_path | dirname }}"
+      mode: "{{ _volume.directory_mode | default(omit) }}"
 
   - name: docker-volume-bind.push|copy|from src
     vars:
