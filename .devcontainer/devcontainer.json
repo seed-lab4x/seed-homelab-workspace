@@ -32,9 +32,9 @@
 	// "remoteUser": "root"
 
 	// Fix no access to the Internet
-	"runArgs": [
-		"--network=host"
-	],
+	// "runArgs": [
+	// 	"--network=host"
+	// ],
 
 	"postStartCommand": {
 		"git": "git config --global core.fileMode false",
