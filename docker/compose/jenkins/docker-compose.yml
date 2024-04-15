@@ -4,6 +4,9 @@ volumes:
   data:
     name: external_vol-jenkins-data
     external: true
+  ref:
+    name: external_vol-jenkins-ref
+    external: true
   plugin:
     name: external_vol-jenkins-plugin
     external: true
@@ -23,6 +26,7 @@ services:
       - 50000:50000
     volumes:
       - data:/var/jenkins_home
+      - ref:/usr/share/jenkins/ref
       - plugin:/usr/share/jenkins/ref/plugins
       - home:/home/jenkins
     container_name: jenkins
