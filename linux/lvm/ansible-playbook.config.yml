@@ -1,0 +1,55 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  tasks:
+
+    - name: install parted
+      become: true
+      package:
+        state: present
+        name: parted
+
+    - name: get device info
+      become: true
+      loop: "{{ lvm.parted }}"
+      community.general.parted: 
+        device: "{{ item.device }}"
+        unit: MiB
+      register: device_info
+
+    - name: add device partition
+      become: true
+      loop: "{{ lvm.parted }}"
+      community.general.parted:
+        state: present
+        flags: [ lvm ]
+        label: gpt
+        # name: 
+        device: "{{ item.device }}"
+        number: "{{ item.number }}"
+        part_type: "{{ item.part_type }}"
+        part_start: "{{ item.part_start }}"
+        part_end: "{{ item.part_end }}"
+        
+    - name: add logical volume group
+      become: true
+      loop: "{{ lvm.lvg }}"
+      community.general.lvg:
+        state: present
+        pvresize: true
+        vg: "{{ item.vg }}"
+        pvs: "{{ item.pvs }}"
+        
+    - name: add logical volume
+      become: true
+      loop: "{{ lvm.lvol }}"
+      community.general.lvol:
+        state: present
+        resizefs: "{{ item.resizefs }}"
+        lv: "{{ item.lv }}"
+        vg: "{{ item.vg }}"
+        pvs: "{{ item.pvs | default(omit,true) }}"
+        size: "{{ item.size }}"
