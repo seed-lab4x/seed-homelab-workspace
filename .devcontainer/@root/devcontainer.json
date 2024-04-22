@@ -42,7 +42,7 @@
 	> Not when UID or GID are taken by another user or group in the container.
 
 	*/
-	"remoteUser": "${localEnv:REMOTE_USER:vscode}",
+	"remoteUser": "root",
 	// "containerUser": "root",
 
 	// Fix no access to the Internet

@@ -18,12 +18,34 @@ do
     fi
 done
 
-# ssh path
-mkdir -p $HOME/.ssh
-chmod 777 $HOME/.ssh
+# make ssh dir
+mkdir -p "$HOME/.ssh"
 
-# up devcontainer
-devcontainer up \
-    --workspace-folder $workspace_path \
-    --mount type=bind,source=$HOME/.ssh,target=/home/vscode/.ssh \
-    --remove-existing-container
+# check user id
+user_id="$(id -u)"
+
+# mount ssh path
+if [[ "$user_id" == "0" ]];
+then
+    # export REMOTE_USER=root
+    # up devcontainer
+    # override config remote user to root
+    # mount root user ssh path
+    devcontainer up \
+        --workspace-folder $workspace_path \
+        --remove-existing-container \
+        --config $workspace_path/.devcontainer/@root/devcontainer.json \
+        --mount type=bind,source=/root/.ssh,target=/root/.ssh \
+        "$@"
+else
+    # up devcontainer
+    # mount current user ssh path
+    # update container user(vscode)'s UID/GID to match your current user
+    devcontainer up \
+        --workspace-folder $workspace_path \
+        --remove-existing-container \
+        --config $workspace_path/.devcontainer/devcontainer.json \
+        --mount type=bind,source=$HOME/.ssh,target=/home/vscode/.ssh \
+        --update-remote-user-uid-default on \
+        "$@"
+fi
