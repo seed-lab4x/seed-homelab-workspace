@@ -17,10 +17,20 @@
       quiet: true
 
   - name: upsmon.install|download upsmon
+    vars:
+      download:
+        url: "{{ install.url | default(None) }}"
+        mode: "{{ install.mode | default(None) }}"
     include_tasks:
       file: ansible-tasks.download.yml
       apply:
         delegate_to: localhost
+
+  - name: upsmon.install|copy upsmon
+    ansible.builtin.copy:
+      src: "{{ upsmon_package_download.dest }}"
+      dest: "/tmp/{{ upsmon_package_download.dest | basename }}"
+    register: upsmon_file_copy
 
   - name: upsmon.install|community software acceptance
     delegate_to: localhost
@@ -33,29 +43,96 @@
       acceptance_level: 'community'
       state: present
 
-  - name: upsmon.install|mkdir upsmon
-    ansible.builtin.file:
-      state: directory
-      path: "~/.esxi/{{ _upsmon.version }}"
+  # - rescue:
+  #   - name: upsmon.install|sh|fail tasks
+  #     when: upsmon_package_download.mode == 'sh'
+  #     ansible.builtin.fail:
+  #       msg: "install upsmon fail."
+  - when: upsmon_package_download.mode == 'sh'
+    block:
+    # - name: upsmon.install|sh|assert when
+    #   ansible.builtin.assert:
+    #     that:
+    #       - upsmon_package_download.mode == 'sh'
+    #     msg: "install mode not match."
+    #     quiet: true
 
-  - name: upsmon.install|copy upsmon
-    ansible.builtin.copy:
-      src: "{{ _upsmon.dest }}"
-      dest: "~/.esxi"
-    register: upsmon_file_copy
+    - name: upsmon.install|sh|mkdir upsmon
+      ansible.builtin.file:
+        state: directory
+        path: "/tmp/{{ upsmon_package_download.version }}"
+      register: upsmon_sh_mkdir
 
-  - name: upsmon.install|unarchive upsmon
-    ansible.builtin.shell: tar -xzvf {{ upsmon_file_copy.dest }} -C ~/.esxi/{{ _upsmon.version }}
+    # miss zipinfo
+    # - name: upsmon.install|sh|unarchive upsmon
+    #   ansible.builtin.unarchive:
+    #     remote_src: true
+    #     src: "{{ upsmon_file_copy.dest }}"
+    #     dest: "{{ upsmon_sh_mkdir.path }}"
 
-  # miss zipinfo
-  # - name: upsmon.install|unarchive upsmon
-  #   ansible.builtin.unarchive:
-  #     remote_src: true
-  #     src: "{{ upsmon_file_copy.dest }}"
-  #     dest: "~/.esxi/{{ _upsmon.version }}"
+    - name: upsmon.install|sh|unarchive upsmon
+      ansible.builtin.shell: tar -xzvf {{ upsmon_file_copy.dest }} -C {{ upsmon_sh_mkdir.path }}
 
-  - name: upsmon.install|install upsmon
-    ansible.builtin.shell:
-      cmd: ./upsmon-install.sh
-      chdir: "~/.esxi/{{ _upsmon.version }}"
-    register: upsmon_shell_install
+    - name: upsmon.install|sh|get upsmon
+      ansible.builtin.shell: esxcli software vib get -n upsmon
+      register: upsmon_software_get
+      failed_when: false
+
+    - name: upsmon.install|sh|update upsmon
+      when:
+        - upsmon_software_get.rc == 0
+      ansible.builtin.shell:
+        cmd: ./upsmon-update.sh
+        chdir: "{{ upsmon_sh_mkdir.path }}"
+      register: upsmon_sh_update
+
+    - name: upsmon.install|sh|install upsmon
+      when:
+        - upsmon_software_get.rc == 1
+      ansible.builtin.shell:
+        cmd: ./upsmon-install.sh
+        chdir: "{{ upsmon_sh_mkdir.path }}"
+      register: upsmon_sh_install
+
+  # - rescue:
+  #   - name: upsmon.install|esxcli|fail tasks
+  #     when: upsmon_package_download.mode == 'esxcli'
+  #     ansible.builtin.fail:
+  #       msg: "install upsmon fail."
+  - when: upsmon_package_download.mode == 'esxcli'
+    block:
+    # - name: upsmon.install|esxcli|assert when
+    #   ansible.builtin.assert:
+    #     that:
+    #       - upsmon_package_download.mode == 'esxcli'
+    #     msg: "install mode not match."
+    #     quiet: true
+
+    - name: upsmon.install|esxcli|get upsmon
+      ansible.builtin.shell: esxcli software vib get -n upsmon2
+      register: upsmon_software_get
+      failed_when: false
+
+    - name: upsmon.install|esxcli|update upsmon
+      when:
+        - upsmon_software_get.rc == 0
+      ansible.builtin.shell:
+        cmd: "esxcli software vib update -d {{ upsmon_file_copy.dest }}"
+      register: upsmon_esxcli_update
+
+    - name: upsmon.install|esxcli|install upsmon
+      when:
+        - upsmon_software_get.rc == 1
+      ansible.builtin.shell:
+        cmd: "esxcli software vib install -d {{ upsmon_file_copy.dest }}"
+      register: upsmon_esxcli_install
+
+  - name: upsmon.install|fact upsmon_package_install
+    vars:
+      results:
+        - "{{ upsmon_sh_update }}"
+        - "{{ upsmon_sh_install }}"
+        - "{{ upsmon_esxcli_update }}"
+        - "{{ upsmon_esxcli_install }}"
+    ansible.builtin.set_fact:
+      upsmon_package_install: "{{ results | reject('skipped') | first }}"

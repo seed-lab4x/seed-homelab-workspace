@@ -51,3 +51,11 @@
             {{ host.value.docker_sh.stdout | default('',true) }}
             {{ host.value.docker_sh.stderr | default('',true) }}
             {% endfor %}
+
+    # TODO add user to docker group
+    # sudo usermod -aG docker {{ ansible_user }}
+
+    # TODO add docker home
+    # sudo mkdir /home/docker
+    # sudo chown root:docker /home/docker/
+    # sudo chmod g+w /home/docker/

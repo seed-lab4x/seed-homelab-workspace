@@ -1,25 +1,46 @@
 # code: language=ansible
 ---
 
-- name: upsmon.download|get latest
-  ansible.builtin.uri:
-    url: "https://api.github.com/repos/rgc2000/NutClient-ESXi/releases/latest"
-    return_content: true
-  register: latest_get
+- when:
+    - download.url | default(None,true) == None
+  block:
+  - name: upsmon.download|get latest
+    ansible.builtin.uri:
+      url: "https://api.github.com/repos/rgc2000/NutClient-ESXi/releases/latest"
+      return_content: true
+    register: upsmon_latest_get
 
-- name: upsmon.download|fact _upsmon
-  vars:
-    version: "{{ latest_get.json.name }}"
-    asset: "{{ latest_get.json.assets | selectattr('name', 'search', 'x86_64.tar.gz') | first }}"
-  ansible.builtin.set_fact:
-    _upsmon:
-      version: "{{ version }}"
-      url: "{{ asset.browser_download_url }}"
-      dest: "~/.esxi/{{ asset.name }}"
+  - name: upsmon.download|fact upsmon_package_download by latest
+    vars:
+      asset_x86_64_tar_gz: "{{ upsmon_latest_get.json.assets | selectattr('name', 'search', 'x86_64.tar.gz') | first }}"
+      asset_offline_bundle_zip: "{{ upsmon_latest_get.json.assets | selectattr('name', 'search', 'offline_bundle.zip') | first }}"
+      asset: "{{ (download.mode | default('esxcli',true) == 'esxcli' )
+        | ternary(asset_offline_bundle_zip, asset_x86_64_tar_gz) }}"
+    ansible.builtin.set_fact:
+      upsmon_package_download:
+        mode: "{{ download.mode | default('esxcli',true) }}"
+        url: "{{ asset.browser_download_url }}"
+        dest: "~/.esxi/{{ asset.name }}"
+        version: "{{ upsmon_latest_get.json.name }}"
+    ignore_errors: true
+
+- when:
+    - download.url | default(None,true) != None
+  block:
+  - name: upsmon.download|fact upsmon_package_download by url
+    vars:
+      filename: "{{ download.url | regex_search('[^\/]+(?=\/$|$)') }}"
+    ansible.builtin.set_fact:
+      upsmon_package_download:
+        mode: "{{ download.mode }}"
+        url: "{{ download.url }}"
+        dest: "~/.esxi/{{ filename }}"
+        version: "{{ filename | splitext | first }}"
+    ignore_errors: true
 
 - name: upsmon.download|stat upsmon dest
   ansible.builtin.stat:
-    path: "{{ _upsmon.dest }}"
+    path: "{{ upsmon_package_download.dest }}"
   register: asset_dest_stat
 
 - name: upsmon.download|mkdir upsmon dest
@@ -31,5 +52,5 @@
 - name: upsmon.download|download upsmon dest
   when: not asset_dest_stat.stat.exists
   ansible.builtin.get_url:
-    url: "{{ _upsmon.url }}"
-    dest: "{{ _upsmon.dest }}"
+    url: "{{ upsmon_package_download.url }}"
+    dest: "{{ upsmon_package_download.dest }}"

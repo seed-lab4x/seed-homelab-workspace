@@ -8,12 +8,16 @@
 
     - name: install upsmon
       include_tasks: ansible-tasks.install.yml
+      vars:
+        install:
+          url: "{{ nut.install.url | default(None) }}"
+          mode: "{{ nut.install.mode | default(None) }}"
 
     - name: print upsmon status
       vars:
         esxi_hostvars: "{{ hostvars | dict2items
           | selectattr('key','in',ansible_play_hosts)
-          | selectattr('value.upsmon_shell_install','defined') }}"
+          | selectattr('value.upsmon_package_install','defined') }}"
       ansible.builtin.pause:
         seconds: 1
         prompt: |
@@ -21,6 +25,6 @@
 
           [{{ host.key }}] =>
           --------------------------------------------------
-          {{ host.value.upsmon_shell_install.stdout | default('',true) }}
-          {{ host.value.upsmon_shell_install.stderr | default('',true) }}
+          {{ host.value.upsmon_package_install.stdout | default('',true) }}
+          {{ host.value.upsmon_package_install.stderr | default('',true) }}
           {% endfor %}

@@ -8,17 +8,14 @@
 
     - name: config upsmon
       include_tasks: ansible-tasks.config.yml
-
-    - name: test nut server
-      ansible.builtin.shell:
-        cmd: "/opt/nut/bin/upsc {{ nut.upsname }}"
-      register: upsc_nut_test
+      vars:
+        config: "{{ nut.config | default(None) }}"
 
     - name: print test status
       vars:
         esxi_hostvars: "{{ hostvars | dict2items
           | selectattr('key','in',ansible_play_hosts)
-          | selectattr('value.upsc_nut_test','defined') }}"
+          | selectattr('value.upsmon_package_config','defined') }}"
       ansible.builtin.pause:
         seconds: 1
         prompt: |
@@ -26,6 +23,6 @@
 
           [{{ host.key }}] =>
           --------------------------------------------------
-          {{ host.value.upsc_nut_test.stdout | default('',true) }}
-          {{ host.value.upsc_nut_test.stderr | default('',true) }}
+          {{ host.value.upsmon_package_config.stdout | default('',true) }}
+          {{ host.value.upsmon_package_config.stderr | default('',true) }}
           {% endfor %}

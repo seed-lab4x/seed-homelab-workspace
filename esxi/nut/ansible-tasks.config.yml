@@ -4,7 +4,6 @@
 - rescue:
   - name: upsmon.config|rescue|fail tasks
     when:
-      - nut is defined
       - vmware is defined
     ansible.builtin.fail:
       msg: "config upsmon fail. exclude var undefined."
@@ -13,23 +12,24 @@
   - name: upsmon.config|assert var
     ansible.builtin.assert:
       that:
-        - nut is defined
         - vmware is defined
-      msg: "var eval fail {{ nut }} {{ vmware }}"
+      msg: "var eval fail {{ vmware }}"
       quiet: true
 
   - name: upsmon.config|set upsmon
     loop:
-      - esxcli system settings advanced set -o "/UserVars/NutUpsName" --string-value "{{ nut.upsname | default('upsname@nutserver',true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutUser" --string-value "{{ nut.user | default('upsuser',true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutPassword" --string-value "{{ nut.password | default('upspassword',true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutFinalDelay" --int-value "{{ nut.finaldelay | default(5,true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutOnBatteryDelay" --int-value "{{ nut.onnatterydelay | default(0,true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutSendMail" --int-value "{{ nut.sendmail | default(0,true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutMailTo" --string-value "{{ nut.mailto | default('root@domain',true) }}"
-      - esxcli system settings advanced set -o "/UserVars/NutMinSupplies" --int-value "{{ nut.minsupplies | default(1,true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutUpsName" --string-value "{{ config.upsname | default('upsname@nutserver',true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutUser" --string-value "{{ config.user | default('upsuser',true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutPassword" --string-value "{{ config.password | default('upspassword',true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutFinalDelay" --int-value "{{ config.finaldelay | default(5,true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutOnBatteryDelay" --int-value "{{ config.onbatterydelay | default(0,true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutSendMail" --int-value "{{ config.sendmail | default(0,true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutMailTo" --string-value "{{ config.mailto | default('root@domain',true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutMinSupplies" --int-value "{{ config.minsupplies | default(1,true) }}"
+      - esxcli system settings advanced set -o "/UserVars/NutSmtpRelay" --string-value "{{ config.smtprelay | default('',true) }}"
     ansible.builtin.shell:
       cmd: "{{ item }}"
+    register: upsmon_esxcli_config
 
   - name: upsmon.config|on service policy
     delegate_to: localhost
@@ -47,3 +47,9 @@
     ansible.builtin.shell:
       cmd: "/etc/init.d/upsmon restart"
     register: upsmon_service_restart
+
+  - name: upsmon.config|test upsmon server
+    ansible.builtin.shell:
+      cmd: "/opt/nut/bin/upsc {{ config.upsname | default('upsname@nutserver',true) }}"
+    register: upsmon_package_config
+    failed_when: false
