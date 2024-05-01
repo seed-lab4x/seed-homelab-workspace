@@ -2,21 +2,35 @@
 # code: language=ansible
 ---
 
-- name: reload
+- name: install
   hosts: docker
   tasks:
 
-    - name: fact workspace
-      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].domoticz.plugin is defined
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
 
-    - name: fact workpath
-      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
-      vars:
-        workpath:
-          index: -2
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].domoticz.plugin is defined
+          msg: "host var assert fail 'domoticz.plugin'"
+          quiet: true
 
-    - name: install plugin
-      when: domoticz.plugin is defined
-      include_tasks: "{{ playbook_dir }}/ansible-tasks.install.yml"
-      vars:
-        plugin: "{{ domoticz.plugin }}"
+      - name: fact workspace
+        include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+      - name: fact workpath
+        include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+        vars:
+          workpath:
+            index: -2
+
+      - name: install plugin
+        include_tasks: "{{ playbook_dir }}/ansible-tasks.install.yml"
+        vars:
+          plugin: "{{ domoticz.plugin }}"

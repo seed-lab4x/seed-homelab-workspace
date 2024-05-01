@@ -44,6 +44,7 @@
       _plugin: "{{ default | combine(plugin, recursive=True) }}"
 
 - name: domoticz-plugin.install|clone source
+  delegate_to: localhost
   loop: "{{ _plugin.gits }}"
   ansible.builtin.git: "{{ item }}"
 
