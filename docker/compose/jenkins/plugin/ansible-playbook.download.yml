@@ -33,4 +33,4 @@
       - name: download plugin
         include_tasks: "{{ playbook_dir }}/ansible-tasks.download.yml"
         vars:
-          plugin: "{{ jenkins.plugin | default({},true) }}"
+          plugin: "{{ jenkins.plugin }}"
