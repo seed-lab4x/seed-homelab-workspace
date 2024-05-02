@@ -48,6 +48,7 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/package.config.j2"
         dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/{{ item.group }}.config"
+      register: package_config_template
 
     - name: template install packages script
       delegate_to: localhost
@@ -69,6 +70,7 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/choco.install.ps1.j2"
         dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.install.ps1"
+      register: package_install_template
 
     - name: template upgrade packages script
       delegate_to: localhost
@@ -89,3 +91,20 @@
       ansible.builtin.template:
         src: "{{ playbook_dir }}/choco.upgrade.ps1.j2"
         dest: "{{ inventory_dir }}/../choco/{{ inventory_hostname }}/choco.upgrade.ps1"
+      register: package_upgrade_template
+
+    - name: export build
+      delegate_to: localhost
+      connection: local
+      vars:
+        dests:
+          - "{{ package_config_template.results | map(attribute='dest') }}"
+          - "{{ package_install_template.dest }}"
+          - "{{ package_upgrade_template.dest }}"
+        scripts: "{{ dests | flatten }}"
+      when:
+        - chocolatey.script.export | default(false)
+      loop: "{{ scripts }}"
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "{{ chocolatey.script.export.dest }}"
