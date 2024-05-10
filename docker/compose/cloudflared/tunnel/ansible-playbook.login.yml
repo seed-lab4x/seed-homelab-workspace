@@ -16,3 +16,6 @@
 
       - name: login tunnel
         include_tasks: "{{ playbook_dir }}/ansible-tasks.login.yml"
+
+      # TODO delegate to localhost
+      # TODO export cert.pem

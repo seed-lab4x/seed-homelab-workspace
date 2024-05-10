@@ -30,36 +30,23 @@
     ansible.builtin.set_fact:
       _tunnel: "{{ cloudflared.tunnel | default(default_tunnel,true) }}"
 
-  - name: cloudflared-tunnel.create|create tunnel container
+  - name: cloudflared-tunnel.create|add create container
     community.docker.docker_container:
+      detach: false
       name: cloudflared-tunnel-create
       image: cloudflare/cloudflared:latest
       command: "tunnel create {{ _tunnel.name }}"
       volumes:
         - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
     register: tunnel_container_create
-
-  - name: cloudflared-tunnel.create|info tunnel container
-    community.docker.docker_container_info:
-      name: cloudflared-tunnel-create
-    register: tunnel_container_info
-
-  - name: cloudflared-tunnel.create|slurp tunnel log
-    ansible.builtin.shell:
-      cmd: "docker logs '{{ tunnel_container_info.container.Id }}' 2>&1"
-    register: tunnel_log_slurp
+    ignore_errors: true
 
   - name: cloudflared-tunnel.create|remove create container
     community.docker.docker_container:
       state: absent
       name: cloudflared-tunnel-create
 
-  - name: cloudflared-tunnel.create|remove info container
-    community.docker.docker_container:
-      state: absent
-      name: cloudflared-tunnel-info
-
-  - name: cloudflared-tunnel.create|info tunnel container
+  - name: cloudflared-tunnel.create|add info container
     community.docker.docker_container:
       detach: false
       name: cloudflared-tunnel-info
@@ -68,14 +55,18 @@
       volumes:
         - /home/{{ ansible_user_id }}/.cloudflared:/home/nonroot/.cloudflared
     register: tunnel_container_info
+    ignore_errors: true
 
   - name: cloudflared-tunnel.create|remove info container
     community.docker.docker_container:
       state: absent
       name: cloudflared-tunnel-info
 
+  # TODO rename to export
   - name: cloudflared-tunnel.create|fetch tunnel cred
     become: true
+    when:
+      - tunnel_container_info is success
     vars:
       tunnel_info: "{{ tunnel_container_info.container.Output | from_json }}"
     ansible.builtin.fetch:
@@ -87,7 +78,7 @@
     vars:
       docker_hostvars: "{{ hostvars | dict2items
         | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.tunnel_log_slurp','defined') }}"
+        | selectattr('value.tunnel_container_info','defined') }}"
     ansible.builtin.pause:
       seconds: 1
       prompt: |
@@ -95,7 +86,7 @@
 
         [{{ host.key }}] =>
         --------------------------------------------------
-        {% if host.value.tunnel_log_slurp.stdout is defined %}
-        {{ host.value.tunnel_log_slurp.stdout }}
+        {% if host.value.tunnel_container_info.container.Output is defined %}
+        {{ host.value.tunnel_container_info.container.Output }}
         {% endif %}
         {% endfor %}
