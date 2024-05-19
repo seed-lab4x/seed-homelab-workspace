@@ -22,7 +22,7 @@ services:
     container_name: uptime-kuma
     restart: always
     # healthcheck:
-    #   test: nc -z localhost 80 || exit 1
+    #   test: nc -z localhost 3001 || nc -z 127.0.0.1 3001 || exit 1
     #   interval: 60s
     #   timeout: 5s
     #   retries: 10
