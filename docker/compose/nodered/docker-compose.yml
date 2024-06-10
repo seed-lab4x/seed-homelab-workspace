@@ -1,0 +1,17 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-nodered-data
+    external: true
+
+services:
+  nodered:
+    image: nodered/node-red:latest
+    env_file: external_env-all.env
+    ports:
+      - 1880:1880
+    volumes:
+      - data:/data
+    container_name: nodered
+    restart: always
