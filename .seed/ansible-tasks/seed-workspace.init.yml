@@ -55,6 +55,7 @@
     bin_path_all: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.main_package.app_paths | map(attribute='__Path__') }}"
     bin_path_ansible: "{{ which_ansible.stdout_lines[0] }}"
     bin_path_dir: "{{ bin_path_ansible | dirname }}"
+    py_path: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.source_interpreter['__Path__'] }}"
   when:
     - pipx_ansible is success
     - which_ansible is success
@@ -83,14 +84,19 @@
       ws_env:
         venv_path: "{{ bin_path_dir | dirname }}"
         venv_command: "{{ [bin_path_dir,'python'] | path_join }} -m venv"
+        pip_executable: "{{ [bin_path_dir,'pip'] | path_join }}"
+        python_interpreter: "{{ py_path }}"
     ansible.builtin.set_fact:
       _ws: "{{ _ws | combine(ws_env, recursive=True) }}"
 
 - name: seed-workspace.init|install python pip
+  vars:
+    ansible_python_interpreter: "{{ _ws.python_interpreter }}"
   loop: "{{ _ws.pip }}"
   ansible.builtin.pip:
     name: "{{ item }}"
     state: latest
+    # executable: "{{ _ws.pip_executable }}"
     virtualenv: "{{ _ws.venv_path | default(omit,true) }}"
     virtualenv_command: "{{ _ws.venv_command | default(omit,true) }}"
   register: pip_install
