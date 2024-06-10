@@ -3,17 +3,23 @@
 {
 	"name": "seed-homelab-devcontainer",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/base:bullseye",
+	"image": "mcr.microsoft.com/devcontainers/python:3.9",
 	"features": {
-		"ghcr.io/devcontainers-contrib/features/curl-apt-get:1": {},
+		// "ghcr.io/devcontainers/features/python:1": {
+		// 	"version": "3.9.2",
+		// 	"toolsToInstall": "pipx==1.5.0"
+		// },
+		// bug https://github.com/devcontainers-contrib/features/issues/607
 		"ghcr.io/devcontainers-contrib/features/pipx-package:1": {
 			"package": "ansible-core",
-			"version": "2.15.5"
+			"version": "2.15.5",
+			"injections": "ansible==8.5.0"
 		},
 		// bug https://github.com/devcontainers-contrib/features/issues/597
 		// "ghcr.io/devcontainers-contrib/features/ansible:2": {
 		// 	"version": "2.15.5"
 		// },
+		"ghcr.io/devcontainers-contrib/features/curl-apt-get:1": {},
 		"ghcr.io/eitsupi/devcontainer-features/jq-likes:2": {
 			"jqVersion": "latest"
 		},
@@ -56,7 +62,8 @@
 	// ],
 
 	"postCreateCommand": {
-		"git": "git config --global core.fileMode false",
+		"git": "git config --global core.fileMode false && git config --global --add safe.directory '*'",
+		"executable": "bash ${containerWorkspaceFolder}/.seed/bash/workspace.executable.sh",
 		"workspace": "ansible-playbook -i ${containerWorkspaceFolder}/.config/local@devcontainer/localhost/ansible-inventories ${containerWorkspaceFolder}/.seed/ansible-playbook/seed-local.init.yml"
 	}
 }
