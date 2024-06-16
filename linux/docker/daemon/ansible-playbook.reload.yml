@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: sighup docker
+      become: true
+      ansible.builtin.shell:
+        cmd: "kill -SIGHUP $(pidof dockerd)"
+        # fix https://command-line.bazadanni.com/linux/kill.html
+        executable: /bin/bash
+      register: sighup_sh
+      ignore_errors: true
+
+    - name: info docker
+      become: true
+      ansible.builtin.shell: "docker info"
+      register: info_sh
+      ignore_errors: true
+
+    - name: info print
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.info_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.info_sh.stdout | default('',true) }}
+          {{ host.value.info_sh.stderr | default('',true) }}
+          {% endfor %}
