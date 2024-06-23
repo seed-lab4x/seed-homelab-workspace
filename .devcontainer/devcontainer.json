@@ -2,8 +2,11 @@
 // README at: https://github.com/devcontainers/templates/tree/main/src/debian
 {
 	"name": "seed-homelab-devcontainer",
+
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
 	"image": "mcr.microsoft.com/devcontainers/python:3.9",
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
 	"features": {
 		// "ghcr.io/devcontainers/features/python:1": {
 		// 	"version": "3.9.2",
@@ -30,14 +33,24 @@
 		// "ghcr.io/dlouwers/devcontainer-features/devbox:1": {}
 	},
 
-	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"dbaeumer.vscode-eslint",
+				"ms-python.autopep8",
+				"ms-python.debugpy",
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"redhat.ansible",
+				"redhat.vscode-yaml",
+				"samuelcolvin.jinjahtml"
+			]
+		}
+	},
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	/*
