@@ -1,0 +1,47 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: backup
+  hosts: docker
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].influxdb.snapshot is defined
+        ansible.builtin.fail:
+          msg: "backup fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].influxdb.snapshot is defined
+          msg: "host var assert fail 'influxdb.snapshot'"
+          quiet: true
+
+      - name: fact workspace
+        include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+      - name: fact workpath
+        include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+        vars:
+          workpath:
+            index: -2
+
+      - name: backup snapshot
+        include_tasks: ansible-tasks.backup.yml
+        vars:
+          snapshot: "{{ influxdb.snapshot | default({}, True) }}"
+
+      - name: backup group snapshot
+        vars:
+          group_names: "{{ influxdb.snapshot.groups | default([],true) }}"
+          group_var: "{{ influxdb.snapshot_groups[group_name] | default({},true) }}"
+          snapshot: "{{ group_var }}"
+        loop: "{{ group_names }}"
+        loop_control:
+          loop_var: group_name
+        include_tasks: ansible-tasks.backup.yml
+

@@ -1,0 +1,115 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: influxdb-snapshot.restore|rescue|fail tasks
+    when:
+      - snapshot | type_debug == 'dict'
+    ansible.builtin.fail:
+      msg: "restore fail. exclude task var assert."
+
+  block:
+  - name: influxdb-snapshot.restore|assert var
+    ansible.builtin.assert:
+      that:
+        - snapshot | type_debug == 'dict'
+      msg: "task var assert fail 'snapshot'"
+      quiet: true
+
+  - name: influxdb-snapshot.restore|fact param
+    vars:
+      comb_default:
+        when: true
+        var:
+          # portable format only support oss 1.5–1.8
+          format: portable
+
+          # empty mean all databases
+          database: ''
+
+          # influxdb snapshot restore destination
+          directory: ''
+
+      comb_param:
+        when: true
+        var: "{{ snapshot | default({},True) }}"
+
+      comb_dir:
+        when: "{{ last.directory == '' }}"
+        var:
+          directory: "/var/lib/influxdb/snapshot/{{ last.database }}.latest"
+
+      conditional: "{{ lookup('ansible.builtin.vars', name).when }}"
+      item: "{{ lookup('ansible.builtin.vars', name).var }}"
+      last: "{{ _snapshot | default({},true) }}"
+    loop:
+      - comb_default
+      - comb_param
+      - comb_dir
+    loop_control:
+      loop_var: name
+    when: conditional
+    ansible.builtin.set_fact:
+      _snapshot: "{{ last | combine(item, recursive=true) }}"
+
+  - name: influxdb-snapshot.restore|append commands
+    vars:
+      append_restore:
+        when: "{{ _snapshot.directory != '' }}"
+        cmd:
+          - >
+            influxd
+            restore
+            {{ (_snapshot.format == 'portable') | ternary('-portable','') }}
+            {{ (_snapshot.database != '') | ternary('-db','') }}
+            {{ (_snapshot.database != '') | ternary(_snapshot.database,'') }}
+            {{ _snapshot.directory }}
+
+      conditional: "{{ lookup('ansible.builtin.vars', name).when }}"
+      item: "{{ lookup('ansible.builtin.vars', name).cmd }}"
+      last: "{{ _snapshot.commands | default([],true) }}"
+
+      result: "{{ last + item }}"
+      combine:
+        commands: "{{ result }}"
+    loop:
+      - append_restore
+    loop_control:
+      loop_var: name
+    when: conditional
+    set_fact:
+      _snapshot: "{{ _snapshot | combine(combine, recursive=true) }}"
+
+  - name: influxdb-snapshot.restore|wait container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
+    vars:
+      container:
+        name: influxdb
+        until:
+          - container_info.exists
+        retries: 60
+        delay: 60
+
+  - name: influxdb-snapshot.restore|exec container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
+    vars:
+      container:
+        container: influxdb
+        command: "{{ _snapshot.commands }}"
+        register: container_exec
+
+  - name: influxdb-snapshot.restore|print exec
+    vars:
+      docker_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',ansible_play_hosts)
+        | selectattr('value.container_exec','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in docker_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.container_exec.stdout | default('',true) }}
+        {{ host.value.container_exec.stderr | default('',true) }}
+        {% endfor %}
