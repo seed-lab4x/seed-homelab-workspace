@@ -31,7 +31,9 @@
       path: "{{ _file.path }}"
     register: file_path_stat
 
-  - when: file_path_stat.stat.exists
+  - when:
+      - file_path_stat.stat.exists
+      - not file_path_stat.stat.isdir
     block:
     - name: esxi-file.add|exists|stat file src
       delegate_to: localhost
@@ -42,6 +44,7 @@
     - name: esxi-file.add|exists|fact skip attr
       when:
         - file_src_stat.stat.exists
+        - not file_src_stat.stat.isdir
         - file_src_stat.stat.checksum == file_path_stat.stat.checksum
       vars:
         attr:
