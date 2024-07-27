@@ -16,7 +16,8 @@
 		"ghcr.io/devcontainers-contrib/features/pipx-package:1": {
 			"package": "ansible-core",
 			"version": "2.15.5",
-			"injections": "ansible==8.5.0"
+			// will update ansible-core
+			// "injections": "ansible==8.5.0"
 		},
 		// bug https://github.com/devcontainers-contrib/features/issues/597
 		// "ghcr.io/devcontainers-contrib/features/ansible:2": {
@@ -73,6 +74,10 @@
 	// "runArgs": [
 	// 	"--network=host"
 	// ],
+
+	"onCreateCommand": {
+		"pipx": "pipx inject --pip-args='--no-deps' ansible-core ansible==8.5.0"
+	},
 
 	"postCreateCommand": {
 		"git": "git config --global core.fileMode false && git config --global --add safe.directory '*'",
