@@ -1,4 +1,5 @@
-# /manage/credentials/
+# jenkins core
+# http://jenkins.home/manage/credentials/
 credentials:
   system:
     domainCredentials:
@@ -26,15 +27,16 @@ credentials:
       #     scope: GLOBAL
       #     secret: ""
 
-# /manage/configure
 jenkins:
-  # /manage/configureSecurity/
-  # 代理 -> 代理协议
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Agents -> Agent protocols
   agentProtocols:
   - "JNLP4-connect"
   - "Ping"
-  # /manage/configureSecurity/
-  # Authentication -> 授权策略
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Authentication -> Authorization
   authorizationStrategy:
     projectMatrix:
       entries:
@@ -93,11 +95,6 @@ jenkins:
           - "View/Create"
           - "View/Delete"
           - "View/Read"
-          - "Lockable Resources/Queue"
-          - "Lockable Resources/Reserve"
-          - "Lockable Resources/Steal"
-          - "Lockable Resources/Unlock"
-          - "Lockable Resources/View"
       - user:
           name: "jenkins"
           permissions:
@@ -118,33 +115,45 @@ jenkins:
           - "SCM/Tag"
           - "View/Create"
           - "View/Read"
-  # /manage/configureSecurity/
-  # 跨站请求伪造保护
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # CSRF Protection -> Crumb Issuer
   crumbIssuer:
     standard:
       excludeClientIPFromCrumb: false
-  # /manage/configureSecurity/
-  # Authentication -> 不要记住我
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Authentication -> Disable “Keep me signed in”
   disableRememberMe: false
-  #
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # Administrative monitors configuration
   disabledAdministrativeMonitors:
   - "hudson.util.DoubleLaunchChecker"
-  # /label/built-in/
+  # jenkins core
+  # http://jenkins.home/label/built-in/
   labelAtoms:
   - name: "built-in"
   - name: "docker"
   - name: "linux"
-  - name: "jenkins01"
-  # /manage/configureSecurity/
-  # 标记格式器
-  # need https://plugins.jenkins.io/markdown-formatter/
-  markupFormatter: "markdownFormatter"
-  # /manage/configure
-  # 用法
+  # - name: "jenkins01"
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Markup Formatter
+  markupFormatter: "plainText"
+  # https://plugins.jenkins.io/antisamy-markup-formatter/
+  # http://jenkins.home/manage/configureSecurity
+  # Markup Formatter
+  # markupFormatter:
+  #   rawHtml:
+  #     disableSyntaxHighlighting: true
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # Usage
   mode: EXCLUSIVE
-  # /me/my-views/view/all/
+  # http://jenkins.home/me/my-views/view/all/
   myViewsTabBar: "standard"
-  # /manage/computer/configure
+  # http://jenkins.home/manage/computer/configure
   nodeMonitors:
   - "architecture"
   - "clock"
@@ -156,14 +165,14 @@ jenkins:
       freeSpaceThreshold: "1GiB"
       freeSpaceWarningThreshold: "2GiB"
   - "responseTime"
-  # /manage/computer/
+  # http://jenkins.home/manage/computer/
   nodes:
   # - permanent:
   #     labelString: "linux docker"
   #     launcher:
   #       ssh:
   #         credentialsId: "ubuntu@passwd.jenkins.server"
-  #         host: "jenkins01.lan"
+  #         host: "jenkins01.home"
   #         javaPath: "/usr/bin/java"
   #         port: 22
   #         sshHostKeyVerificationStrategy: "nonVerifyingKeyVerificationStrategy"
@@ -197,32 +206,38 @@ jenkins:
   #         - home: "/home/ubuntu/.sonar_scanner/sonar-scanner-5.0.1.3006-linux"
   #           key: "hudson.plugins.sonar.SonarRunnerInstallation$DescriptorImpl@5.0.1.3006"
   #     numExecutors: 49
-  #     remoteFS: "/home/jenkins_remote"
+  #     remoteFS: "/home/ubuntu/.jenkins_remote"
   #     retentionStrategy: "always"
-  # /manage/configure
-  # 执行器数量
-  numExecutors: 0
-  # /view/all/
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # # of executors
+  numExecutors: 2
+  # http://jenkins.home/view/all/
   primaryView:
     all:
       name: "all"
-  # /manage/configure
-  # 工程命名限制
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # Restrict project naming -> Naming Strategy
   projectNamingStrategy: "standard"
-  # /manage/configure
-  # 静默期
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # Quiet period
   quietPeriod: 5
   # https://www.jenkins.io/doc/book/security/controller-isolation/jep-235/
   remotingSecurity:
     enabled: true
-  # /manage/configure
-  # SCM签出重试次数
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # SCM checkout retry count
   scmCheckoutRetryCount: 0
-  # /manage/configure
-  # 标签
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # Labels
   labelString: ""
-  # /manage/configureSecurity/
-  # Authentication -> 安全域
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Authentication -> Security Realm
   securityRealm:
     local:
       allowsSignup: true
@@ -232,7 +247,7 @@ jenkins:
         name: "admin"
         properties:
         - "apiToken"
-        - "userCommunityProperty"
+        # - "userCommunityProperty"
         - "consoleUrlProvider"
         - "mailer"
         - "myView"
@@ -245,7 +260,7 @@ jenkins:
         password: jenkins.123
         properties:
         - "apiToken"
-        - "userCommunityProperty"
+        # - "userCommunityProperty"
         - "consoleUrlProvider"
         - "myView"
         - preferredProvider:
@@ -253,27 +268,27 @@ jenkins:
         - "timezone"
         - "experimentalFlags"
         - mailer:
-            emailAddress: "jenkins@mail.lan"
-  # /manage/configureSecurity/
-  # 代理 代理端口
+            emailAddress: "jenkins@mail.home"
+  # jenkins core
+  # http://jenkins.home/manage/configureSecurity
+  # Agents -> TCP port for inbound agents
   slaveAgentPort: 50000
-  # /manage/configure
-  systemMessage: "**Self-registered users**\r\n\
-    \r\n\
-    - user:password \
-    \ `jenkins:jenkins.123`\r\n\
-    \r\n"
-  # /manage/pluginManager/advanced
-  # 升级站点
+  # jenkins core
+  # http://jenkins.home/manage/configure
+  # System Message
+  systemMessage: "Self-registered users, default user: jenkins:jenkins.123"
+  # jenkins core
+  # http://jenkins.home/manage/pluginManager/advanced
+  # Update Site
   updateCenter:
     sites:
     - id: "default"
       url: "https://updates.jenkins.io/update-center.json"
-  # /view/all/
+  # http://jenkins.home/view/all/
   views:
   - all:
       name: "all"
-  # need https://plugins.jenkins.io/dashboard-view/
+  # https://plugins.jenkins.io/dashboard-view/
   - dashboard:
       bottomPortlets:
       - statBuilds:
@@ -303,19 +318,19 @@ jenkins:
           name: "Unstable Jobs"
           recurse: false
           showOnlyFailedJobs: false
-  # /view/all/
+  # http://jenkins.home/view/all/
   viewsTabBar: "standard"
 
 # jenkins core
-# /manage/configureCredentials/
-# 凭据提供者配置
+# http://jenkins.home/manage/configureCredentials/
+# Credential Providers
 globalCredentialsConfiguration:
   configuration:
     providerFilter: "none"
     typeFilter: "none"
 
 # jenkins core
-# /manage/appearance/
+# http://jenkins.home/manage/appearance/
 # Appearance
 appearance:
   prism:
@@ -323,46 +338,48 @@ appearance:
 
 security:
   # jenkins core
-  # /manage/configureSecurity/
+  # http://jenkins.home/manage/configureSecurity
   # API Token
   apiToken:
     creationOfLegacyTokenEnabled: false
     tokenGenerationOnCreationEnabled: false
     usageStatisticsEnabled: true
   # https://plugins.jenkins.io/copyartifact/
-  # /manage/configureSecurity/
+  # http://jenkins.home/manage/configureSecurity
   # Copy Artifact
   copyartifact:
     mode: MIGRATION
   # https://plugins.jenkins.io/git/
-  # /manage/configureSecurity/
+  # http://jenkins.home/manage/configureSecurity
   # Git Hooks
   gitHooks:
     allowedOnAgents: false
     allowedOnController: false
   # https://plugins.jenkins.io/git-client/
-  # /manage/configureSecurity/
+  # http://jenkins.home/manage/configureSecurity
   # Git Host Key Verification Configuration
   gitHostKeyVerificationConfiguration:
     sshHostKeyVerificationStrategy: "knownHostsFileVerificationStrategy"
   # https://plugins.jenkins.io/job-dsl/
+  # http://jenkins.home/manage/configureSecurity
   # Enable script security for Job DSL scripts
-  globalJobDslSecurityConfiguration:
-    useScriptSecurity: false
-  # jenkins core
-  # /manage/configureSecurity/
-  # Access Control for Builds
-  queueItemAuthenticator:
-    authenticators:
-    - global:
-        strategy: "systemAuthorizationStrategy"
+  # globalJobDslSecurityConfiguration:
+  #   useScriptSecurity: false
+  # https://plugins.jenkins.io/authorize-project/ 
+  # http://jenkins.home/manage/configureSecurity
+  # Authorization Access Control for Builds
+  # queueItemAuthenticator:
+  #   authenticators:
+  #   - global:
+  #       strategy: "systemAuthorizationStrategy"
   # https://plugins.jenkins.io/sshd/
-  # /manage/configureSecurity/
+  # http://jenkins.home/manage/configureSecurity
   # SSH Server
   sSHD:
     port: -1
   # https://plugins.jenkins.io/script-security/
-  # /manage/scriptApproval/
+  # http://jenkins.home/manage/scriptApproval/
+  # Signatures already approved:
   scriptApproval:
     approvedSignatures:
     - "method groovy.lang.GroovyObject getProperty java.lang.String"
@@ -381,6 +398,7 @@ security:
     - "method java.io.File isDirectory"
     - "method java.io.File isHidden"
     - "method java.io.File listFiles"
+    - "method org.jenkinsci.plugins.workflow.support.actions.EnvironmentAction getEnvironment"
     - "method org.jenkinsci.plugins.workflow.support.steps.build.RunWrapper getRawBuild"
     - "new groovy.util.AntBuilder"
     - "new java.io.File java.lang.String"
@@ -392,7 +410,7 @@ security:
 
 unclassified:
   # https://plugins.jenkins.io/build-discarder/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Global Build Discarders
   buildDiscarders:
     configuredBuildDiscarders:
@@ -405,12 +423,12 @@ unclassified:
             daysToKeepStr: "30"
             numToKeepStr: "60"
   # https://plugins.jenkins.io/build-timeout/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Build-timeout Plugin > BuildStep Action
   buildStepOperation:
     enabled: false
   # https://plugins.jenkins.io/email-ext/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Extended E-mail Notification
   email-ext:
     adminRequiredForTemplateTesting: false
@@ -430,7 +448,7 @@ unclassified:
     precedenceBulk: false
     watchingEnabled: false
   # https://plugins.jenkins.io/gradle/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Develocity Build Scans
   enrichedSummaryConfig:
     enrichedSummaryEnabled: false
@@ -438,23 +456,23 @@ unclassified:
     httpClientMaxRetries: 3
     httpClientTimeoutInSeconds: 1
   # jenkins core
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Fingerprints
   fingerprints:
     fingerprintCleanupDisabled: false
     storage: "file"
   # https://plugins.jenkins.io/github-branch-source/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # GitHub API usage
   gitHubConfiguration:
     apiRateLimitChecker: ThrottleForNormalize
   # https://plugins.jenkins.io/github/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # GitHub
-  # gitHubPluginConfig:
-  #   hookUrl: "http://jenkins.home/github-webhook/"
+  gitHubPluginConfig:
+    hookUrl: "http://jenkins.home/github-webhook/"
   # https://plugins.jenkins.io/gitlab-plugin/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # GitLab
   gitLabConnectionConfig:
     connections:
@@ -464,17 +482,17 @@ unclassified:
       ignoreCertificateErrors: false
       name: "default"
       readTimeout: 10
-      url: "http://gitlab.lan"
+      url: "http://gitlab.home"
     useAuthenticatedEndpoint: true
   # https://plugins.jenkins.io/build-timeout/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Global Build Time Out
   globalTimeOutConfiguration:
     operations:
     - "abortOperation"
     overwriteable: false
   # https://plugins.jenkins.io/gradle/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Develocity integration
   injectionConfig:
     allowUntrusted: false
@@ -484,37 +502,40 @@ unclassified:
     injectCcudExtension: false
     injectMavenExtension: false
   # https://plugins.jenkins.io/cloudbees-folder/
+  # http://jenkins.home/manage/configure
   # Folder
   defaultFolderConfiguration:
     healthMetrics:
     - worstChildHealthMetric:
         recursive: true
   # https://plugins.jenkins.io/junit/
+  # MISSING
   junitTestResultStorage:
     storage: "file"
   # jenkins core
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Jenkins Location
   location:
     adminAddress: "NONE <nobody@nowhere>"
     url: "http://jenkins.home/"
   # https://plugins.jenkins.io/mailer/
-  # /manage/configure
-  # 邮件通知
+  # http://jenkins.home/manage/configure
+  # E-mail Notification
   mailer:
     charset: "UTF-8"
     useSsl: false
     useTls: false
   # https://plugins.jenkins.io/maven-plugin
-  # /manage/configure
-  # Maven项目配置
-  mavenModuleSet:
-    localRepository: "default"
-  #
+  # http://jenkins.home/manage/configure
+  # Maven Project Configuration
+  # mavenModuleSet:
+  #   localRepository: "default"
+  # MISSING
+  # https://docs.cloudbees.com/docs/cloudbees-ci-kb/latest/client-and-managed-controllers/configuring-max-polling-threads
   pollSCM:
     pollingThreadCount: 10
   # https://plugins.jenkins.io/git/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Git plugin
   scmGit:
     addGitTagAction: false
@@ -525,7 +546,7 @@ unclassified:
     showEntireCommitSummaryInChanges: false
     useExistingAccountWithSameEmail: false
   # https://plugins.jenkins.io/sonar/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # SonarQube servers
   # sonarGlobalConfiguration:
   #   buildWrapperEnabled: true
@@ -537,41 +558,44 @@ unclassified:
   #       skipScmCause: false
   #       skipUpstreamCause: false
   # https://plugins.jenkins.io/publish-over-ssh/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Publish over SSH
-  sshPublisher:
-    commonConfig:
-      disableAllExec: false
-      encryptedPassphrase: ""
+  # sshPublisher:
+  #   commonConfig:
+  #     disableAllExec: false
+  #     encryptedPassphrase: ""
   # https://plugins.jenkins.io/subversion/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Subversion
   subversionSCM:
     workspaceFormat: 8
   # https://plugins.jenkins.io/timestamper/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Timestamper
   timestamper:
     allPipelines: false
     elapsedTimeFormat: "'<b>'HH:mm:ss.S'</b> '"
     systemTimeFormat: "'<b>'HH:mm:ss'</b> '"
   # https://plugins.jenkins.io/copyartifact/
-  # /manage/configure
+  # http://jenkins.home/manage/configure
   # Copyartifact: Upstream build that triggered this job
   upstream:
     globalUpstreamFilterStrategy: UseOldest
 
 # jenkins core
-# /manage/configureTools/
+# http://jenkins.home/manage/configureTools/
 tool:
+  # mavenGlobalConfig:
+  #   globalSettingsProvider: "standard"
+  #   settingsProvider: "standard"
   # dockerTool:
   #   installations:
   #   - home: "docker"
   #     name: "default"
-  git:
-    installations:
-    - home: "git"
-      name: "Default"
+  # git:
+  #   installations:
+  #   - home: "git"
+  #     name: "Default"
   # gradle:
   #   installations:
   #   - home: "/home/jenkins/.sdkman/candidates/gradle/6.5"
@@ -590,21 +614,18 @@ tool:
   #     name: "3.6.3"
   #   - home: "/home/jenkins/.sdkman/candidates/maven/3.8.7"
   #     name: "3.8.7"
-  mavenGlobalConfig:
-    globalSettingsProvider: "standard"
-    settingsProvider: "standard"
   # nodejs:
   #   installations:
   #   - home: "/home/jenkins/.nvm/versions/node/v16.19.0"
   #     name: "16.19.0"
   #   - home: "/home/jenkins/.nvm/versions/node/v18.13.0"
   #     name: "18.13.0"
-  powerShellInstallation:
-    installations:
-    - home: "powershell.exe"
-      name: "DefaultWindows"
-    - home: "pwsh"
-      name: "DefaultLinux"
+  # powerShellInstallation:
+  #   installations:
+  #   - home: "powershell.exe"
+  #     name: "DefaultWindows"
+  #   - home: "pwsh"
+  #     name: "DefaultLinux"
   # pythonInstallation:
   #   installations:
   #   - home: "/home/jenkins/.pyenv/versions/3.8.13"
