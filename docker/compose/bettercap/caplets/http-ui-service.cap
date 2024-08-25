@@ -1,0 +1,15 @@
+# api listening on http://0.0.0.0:8090/ and ui to http://0.0.0.0:9080
+set api.rest.address 0.0.0.0
+set api.rest.port 8090
+set http.server.address 0.0.0.0
+set http.server.port 9080
+# default installation path of the ui
+set http.server.path /usr/local/share/bettercap/ui
+
+# !!! CHANGE THESE !!!
+set api.rest.username user
+set api.rest.password pass
+
+# go!
+api.rest on
+http.server on

@@ -1,0 +1,17 @@
+version: "3.8"
+
+volumes:
+  usr:
+    name: external_vol-bettercap-usr
+    external: true
+
+services:
+  bettercap:
+    image: bettercap/bettercap:latest
+    env_file: external_env-all.env
+    volumes:
+      - usr:/usr/local/share/bettercap
+    command: -no-colors -caplet http-ui-service.cap
+    container_name: bettercap
+    restart: always
+    privileged: true

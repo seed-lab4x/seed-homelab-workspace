@@ -1,0 +1,90 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: bettercap-usr.download|rescue|fail tasks
+    when:
+      - usr | type_debug == 'dict'
+    ansible.builtin.fail:
+      msg: "download fail. exclude task var assert."
+
+  block:
+  - name: bettercap-usr.download|assert var
+    ansible.builtin.assert:
+      that:
+        - usr | type_debug == 'dict'
+      msg: "task var assert fail 'usr'"
+      quiet: true
+
+  - name: bettercap-usr.download|fact param
+    vars:
+      static:
+        # playbook delegate: change it when remote node cant online download
+        # delegate_to: undefined
+
+        # container image：auto set
+        image: bettercap/bettercap:latest
+
+        # container name/hostname: change it if want keep exist
+        container: "anonymous_ctr-{{ lookup('community.general.random_string', upper=false, special=false) }}"
+        # like this
+        # container: bettercap-usr-cli-download
+
+        # container volume for bind bettercap usr-download-directory: change it if want keep exist
+        volume: "anonymous_vol-{{ lookup('community.general.random_string', upper=false, special=false) }}"
+        # like this
+        # volume: external_vol-bettercap-usr
+
+        # bettercap usr-download-directory: auto set
+        directory: "{{ workpath.remote.full }}/external_vol-bettercap-usr"
+      when_local:
+        directory: "{{ inventory_dir }}/../bettercap/usr/{{ inventory_hostname }}/"
+      when_remote:
+        directory: "{{ workpath.remote.full }}/external_vol-bettercap-usr"
+      auto_delegate: "{{ static | combine((usr.delegate_to | default(None,true) == 'localhost') | ternary(when_local,when_remote), recursive=True) }}"
+    ansible.builtin.set_fact:
+      _usr: "{{ auto_delegate | combine(usr, recursive=True) }}"
+
+  - name: bettercap-usr.download|deploy container
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
+    vars:
+      container:
+        vars: "{{ _usr.override.container | default({},true) }}"
+        default:
+          files:
+            - dest: "{{ _usr.directory }}"
+              mode: "0777"
+          volumes:
+            - name: "{{ _usr.volume }}"
+              driver: local
+              driver_options:
+                type: none
+                device: "{{ _usr.directory }}"
+                o: bind
+          envs:
+            - file: external_env-all.env
+              content: ''
+          container:
+            detach: false
+            volumes:
+              - "{{ _usr.volume }}:/usr/local/share/bettercap"
+            command: >
+               -eval "caplets.update; ui.update; q"
+            user: "0:0"
+            env_file: "{{ workpath.remote.full }}/external_env-all.env"
+            hostname: "{{ _usr.container }}"
+            name: "{{ _usr.container }}"
+            image: "{{ _usr.image }}"
+
+  - name: bettercap-usr.download|remove container
+    when: _usr.container is regex('^anonymous_.*')
+    community.docker.docker_container:
+      name: "{{ _usr.container }}"
+      state: absent
+      keep_volumes: false
+
+  - name: bettercap-usr.download|remove volume
+    when: _usr.volume is regex('^anonymous_.*')
+    community.docker.docker_volume:
+      name: "{{ _usr.volume }}"
+      state: absent
