@@ -22,13 +22,15 @@
               - dest: "{{ workpath.remote.full }}/usr/external_vol-bettercap-usr/"
               - dest: "{{ workpath.remote.full }}/usr/external_vol-bettercap-usr/caplets/http-ui-service.cap"
                 src: "{{ playbook_dir }}/caplets/http-ui-service.cap"
+              - dest: "{{ workpath.remote.full }}/usr/external_vol-bettercap-usr/caplets/http-service.cap"
+                src: "{{ playbook_dir }}/caplets/http-service.cap"
             volumes:
               - name: external_vol-bettercap-usr
                 driver: local
                 push:
                   - dest: "./"
                     src: "{{ workpath.remote.full }}/usr/external_vol-bettercap-usr/"
-              - name: external_vol-jenkins-home
+              - name: external_vol-bettercap-home
                 driver: local
             envs:
               - file: external_env-all.env

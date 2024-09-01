@@ -1,0 +1,10 @@
+# api listening on http://0.0.0.0:8090/
+set api.rest.address 0.0.0.0
+set api.rest.port 8090
+
+# !!! CHANGE THESE !!!
+set api.rest.username user
+set api.rest.password pass
+
+# go!
+api.rest on

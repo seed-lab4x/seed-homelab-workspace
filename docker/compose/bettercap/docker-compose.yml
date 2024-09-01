@@ -4,6 +4,9 @@ volumes:
   usr:
     name: external_vol-bettercap-usr
     external: true
+  home:
+    name: external_vol-bettercap-home
+    external: true
 
 services:
   bettercap:
@@ -11,6 +14,7 @@ services:
     env_file: external_env-all.env
     volumes:
       - usr:/usr/local/share/bettercap
+      - home:/root
     command: -no-colors -caplet http-ui-service.cap
     container_name: bettercap
     restart: always
