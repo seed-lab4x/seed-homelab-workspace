@@ -1,0 +1,26 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: script
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir script
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../scoop/{{ inventory_hostname }}"
+
+    - name: template script
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/scoop.install.ps1.j2"
+        dest: "{{ inventory_dir }}/../scoop/{{ inventory_hostname }}/scoop.install.ps1"
+      register: package_install_template
+          

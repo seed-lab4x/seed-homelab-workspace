@@ -1,0 +1,5 @@
+$_script_dir = Split-Path -parent $MyInvocation.MyCommand.Definition
+
+{% for bucket in buckets %}
+scoop bucket add {{ bucket.name }}
+{% endfor %}

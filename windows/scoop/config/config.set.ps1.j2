@@ -1,0 +1,5 @@
+$_script_dir = Split-Path -parent $MyInvocation.MyCommand.Definition
+
+{% for config in configs %}
+scoop config {{ config.name }} {{ config.value }}
+{% endfor %}

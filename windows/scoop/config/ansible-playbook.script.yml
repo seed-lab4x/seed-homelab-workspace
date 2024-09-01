@@ -1,0 +1,40 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: script
+  vars:
+    ansible_connection: local
+  hosts: windows
+  connection: local
+  tasks:
+
+    - name: mkdir script
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../scoop/{{ inventory_hostname }}"
+
+    - name: template install configs script
+      delegate_to: localhost
+      connection: local
+      vars:
+        group_names: "{{ scoop.groups | default([],true) }}"
+        group_vars: "{{ scoop_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.configs','defined')
+          | rejectattr('value.configs','equalto',None) }}"
+        group_vars_all:
+          - group: default
+            configs: "{{ scoop.configs | default([],true) }}"
+          - "{{ group_vars
+              | community.general.json_query('[].{group:key,configs:value.configs}') }}"
+        group_vars_flatten: "{{ group_vars_all | flatten }}"
+        configs: "{{ item.configs }}"
+      loop: "{{ group_vars_flatten }}"
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/config.set.ps1.j2"
+        dest: "{{ inventory_dir }}/../scoop/{{ inventory_hostname }}/{{ item.group }}.config.set.ps1"
+      register: config_set_template

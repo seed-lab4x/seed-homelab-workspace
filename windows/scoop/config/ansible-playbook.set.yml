@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: set
+  hosts: windows
+  tasks:
+
+    - name: set config
+      loop: "{{ scoop.configs | default([],true) }}"
+      vars:
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      ansible.windows.win_powershell:
+        script: scoop config {{ args.name }} {{ args.value }}
+      register: config_set
+      until: config_set is succeeded
+
+    - name: set group config
+      vars:
+        group_names: "{{ scoop.groups | default([],true) }}"
+        group_vars: "{{ scoop_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.configs','defined')
+          | map(attribute='value.configs')
+          | flatten }}"
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_powershell:
+        script: scoop config {{ args.name }} {{ args.value }}
+      register: config_set
+      until: config_set is succeeded
