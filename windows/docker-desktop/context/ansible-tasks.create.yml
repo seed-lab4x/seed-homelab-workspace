@@ -1,0 +1,68 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: docker-context.create|rescue|fail tasks
+    when:
+      - context | type_debug == 'dict'
+    ansible.builtin.fail:
+      msg: "download fail. exclude task var assert."
+
+  block:
+  - name: docker-context.create|assert var
+    ansible.builtin.assert:
+      that:
+        - context | type_debug == 'dict'
+      msg: "task var assert fail 'context'"
+      quiet: true
+
+  - name: docker-context.create|fact param
+    vars:
+      static:
+        name: "{{ inventory_hostname }}"
+        description: "seed for {{ inventory_hostname }}"
+        docker:
+          host: "{{ ansible_host }}"
+          # ca: ""
+          # cert: ""
+          # key: ""
+          skip-tls-verify: false
+    ansible.builtin.set_fact:
+      _context: "{{ static | combine(context, recursive=True) }}"
+
+  - name: docker-context.create|create context
+    vars:
+      docker_opts: >-
+        {% set opts = [] %}
+        {% for key, value in _context.docker.items() %}
+        {% if value is not none %}
+        {% set _ = opts.append(key ~ '=' ~ value) %}
+        {% endif %}
+        {% endfor %}
+        {{ opts | join(',') }}
+    ansible.windows.win_command:
+      cmd: docker context create {{ _context.name }} --description "{{ _context.description }}" --docker "{{ docker_opts | trim }}"
+    register: context_sh
+    ignore_errors: true
+
+  - name: docker-context.create|inspect context
+    ansible.windows.win_command:
+      cmd: "docker context inspect {{ _context.name }}"
+    register: inspect_sh
+    ignore_errors: true
+
+  - name: docker-context.create|info print
+    vars:
+      linux_hostvars: "{{ hostvars | dict2items
+        | selectattr('key','in',ansible_play_hosts)
+        | selectattr('value.inspect_sh','defined') }}"
+    ansible.builtin.pause:
+      seconds: 1
+      prompt: |
+        {% for host in linux_hostvars %}
+
+        [{{ host.key }}] =>
+        --------------------------------------------------
+        {{ host.value.inspect_sh.stdout | default('',true) }}
+        {{ host.value.inspect_sh.stderr | default('',true) }}
+        {% endfor %}

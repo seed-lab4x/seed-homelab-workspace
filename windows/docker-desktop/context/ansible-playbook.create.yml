@@ -1,0 +1,26 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: create
+  hosts: windows
+  tasks:
+
+    - name: create context
+      loop: "{{ docker_desktop.contexts | default([],true) }}"
+      vars:
+        context: "{{ item }}"
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.create.yml"
+
+    - name: create group context
+      vars:
+        group_names: "{{ docker_desktop.groups | default([],true) }}"
+        group_vars: "{{ docker_desktop_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.contexts','defined')
+          | map(attribute='value.contexts')
+          | flatten }}"
+        context: "{{ item }}"
+      loop: "{{ group_vars }}"
+      include_tasks: "{{ playbook_dir }}/ansible-tasks.create.yml"
