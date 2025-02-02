@@ -5,6 +5,20 @@ set -e
 if [[ -z "$( command -v wslvar )" ]];
 then
     echo "Install wslu"
+    if [[ -z "$( command -v curl )" ]];
+    then
+        echo "Install curl"
+        if [[ -n "$( command -v apt )" ]];
+        then
+            sudo apt install curl
+        elif [[ -n "$( command -v yum )" ]];
+        then
+            sudo yum install curl
+        else
+            echo "You need install curl"
+            return 1
+        fi
+    fi
     curl -sL https://raw.githubusercontent.com/wslutilities/wslu/master/extras/scripts/wslu-install | bash
 fi
 
@@ -26,7 +40,7 @@ then
     sudo mount -t drvfs -o 'metadata' "$win_profile" "$wsl_profile"
 fi
 
-if [[ -L "$usr_ssh_path" && -d "$usr_ssh_path" ]];
+if [[ -L "$usr_ssh_path" ]];
 then
     real_ssh_path="$( cd -P "$usr_ssh_path" && pwd )"
 
@@ -34,20 +48,21 @@ then
     then
         wsl_ssh_path=''
     else
-        echo "Unlink '$wsl_ssh_path' another '$real_ssh_path'"
-        rm -r "$usr_ssh_path"
+        echo "Remove symbolic link '$usr_ssh_path' pointing to '$real_ssh_path'"
+        rm "$usr_ssh_path"
     fi
-else
+elif [[ -e "$usr_ssh_path" ]]; then
     backup_ssh_path="$usr_ssh_path.bak.$( date +%s )"
     echo "Backup '$usr_ssh_path' to '$backup_ssh_path'"
     mv "$usr_ssh_path" "$backup_ssh_path"
-    rm -rdf "$usr_ssh_path"
 fi
 
 if [[ -n "$wsl_ssh_path" ]];
 then
     echo "Link '$wsl_ssh_path' to '$usr_ssh_path'"
     sudo ln -s "$wsl_ssh_path" "$usr_ssh_path"
+
+    # TODO fix persistence loss, maybe use fstab
 
     echo "Fix owner '$wsl_username:$wsl_username' mode '700'"
     sudo chown -R $wsl_username:$wsl_username "$usr_ssh_path"
