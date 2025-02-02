@@ -1,0 +1,59 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: add
+  hosts: linux
+  environment: 
+    PATH: "{{ ansible_env.PATH}}:/usr/local/anaconda/bin"
+  tasks:
+
+    - name: fact config cmd
+      loop: "{{ conda.configs }}"
+      loop_control:
+        loop_var: conda_config
+      vars:
+        item_append: "{{ conda_config.value 
+          | product([conda_config.key], ['append'])
+          | map('zip', ['value','key','status'])
+          | map('map', 'reverse')
+          | map('community.general.dict')
+           }}"
+        item_set:
+          - status: set
+            key: "{{ conda_config.key }}"
+            value: "{{ conda_config.value }}"
+        item: "{{ ( conda_config.value | type_debug == 'list') | ternary(item_append, item_set) }}"
+      ansible.builtin.set_fact:
+        _config_args: "{{ _config_args | default([],true) + item }}"
+
+    - name: add config
+      loop: "{{ _config_args }}"
+      loop_control:
+        loop_var: conda_config
+      when: conda_config.value | type_debug != 'list'
+      ansible.builtin.shell:
+        cmd: "conda config --{{ conda_config.status }} {{ conda_config.key }} {{ conda_config.value }}"
+      register: add_sh
+      ignore_errors: true
+
+    - name: show config
+      ansible.builtin.shell: "conda config --show"
+      register: show_sh
+      ignore_errors: true
+
+    - name: show print
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.show_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.show_sh.stdout | default('',true) }}
+          {{ host.value.show_sh.stderr | default('',true) }}
+          {% endfor %}
