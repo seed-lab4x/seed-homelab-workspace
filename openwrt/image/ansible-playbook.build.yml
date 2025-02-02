@@ -29,6 +29,8 @@
           - python3
           # for image-builder
           - file
+          # for *.zst file when > 24.0.x 
+          - zstd
         state: present
       register: package_install
       until: package_install is succeeded

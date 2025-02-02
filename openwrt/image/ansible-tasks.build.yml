@@ -161,6 +161,31 @@
         insertafter: EOF
         line: "{{ item.key }}={{ item.value }}"
 
+  - name: image.build|stat original repositories.conf
+    ansible.builtin.stat:
+      path: "{{ _builder.dir }}/repositories.conf.original"
+    register: builder_repositories_original_stat
+
+  - name: image.build|backup original repositories.conf
+    when: not builder_repositories_original_stat.stat.exists
+    ansible.builtin.copy:
+      src: "{{ _builder.dir }}/repositories.conf"
+      dest: "{{ _builder.dir }}/repositories.conf.original"
+
+  - when: _builder.repositories is defined
+    block:
+    - name: image.build|restore original repositories.conf
+      when: builder_repositories_original_stat.stat.exists
+      ansible.builtin.copy:
+        src: "{{ _builder.dir }}/repositories.conf.original"
+        dest: "{{ _builder.dir }}/repositories.conf"
+
+    - name: image.build|replace builder repositories.conf
+      ansible.builtin.replace:
+        path: "{{ _builder.dir }}/repositories.conf"
+        regexp: 'https://downloads.openwrt.org'
+        replace: "{{ _builder.repositories }}"
+
   - name: image.build|fact builder command
     vars:
       option: "{{ item.key }}='{{ item.value | replace('\n',' ') }}'"
