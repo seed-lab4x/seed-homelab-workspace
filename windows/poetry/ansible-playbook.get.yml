@@ -1,0 +1,27 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - name: run from url
+      ansible.windows.win_command:
+        cmd: (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
+      register: poetry_get
+
+    - name: print poetry
+      vars:
+        windows_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts) }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in windows_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.poetry_get.stdout | default('',true) }}
+          {{ host.value.poetry_get.stderr | default('',true) }}
+          {% endfor %}
