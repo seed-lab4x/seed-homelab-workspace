@@ -27,6 +27,7 @@
           pyenv_root: "{{ pyenv.path | default(ansible_env.HOME,true) }}/.pyenv"
           pyenv_python_versions: "{{ pyenv.python | default(['3.8.1'],true) }}"
           pyenv_global: "{{ pyenv.global | default('3.8.1') }} system"
+          pyenv_init_shell: "{{ pyenv.profile | default(true,true) }}"
         block:
         - name: include vars
           when: pyenv.vars_file is defined
