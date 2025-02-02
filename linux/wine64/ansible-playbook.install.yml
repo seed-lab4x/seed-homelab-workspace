@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: linux
+  tasks:
+
+    - vars:
+        mode: "{{ wine.mode | default('role',true) }}"
+      when: wine is defined
+      block:
+      - name: andrewrothstein role wine
+        vars:
+          use_distro_packages: "{{ wine.distro | default(false,true) }}"
+          wine_release: "{{ wine.branch | default('stable',true) }}"
+          # fix Unsupported parameters for (ansible.legacy.command) module: warn.
+          wine_shorcut_associations: []
+        when: mode == 'role'
+        ansible.builtin.include_role:
+          name: ekultails.ansible_role_wine
+          apply:
+            become: true
+            environment:
+              PATH: "{{ ansible_env.PATH }}:/opt/wine-{{ wine_release }}/bin"
+
+
+
+      # TODO 支持镜像 https://mirrors.tuna.tsinghua.edu.cn/help/wine-builds/
+
+      # TODO 支持HOME
+# tee -a ~/.profile <<EOF
+# # WINE start
+# export WINE_HOME=/opt/wine-staging
+# export PATH=\$WINE_HOME/bin:\$PATH
+# # WINE end
+# EOF
+# . ~/.profile
