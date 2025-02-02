@@ -23,7 +23,7 @@
                 src: "{{ playbook_dir }}/config/"
               - dest: "{{ workpath.remote.full }}/plugin/external_vol-jenkins-plugin/"
             volumes:
-              - name: external_vol-jenkins-data
+              - name: external_vol-jenkins-var
                 driver: local
                 push:
                   - dest: "./"
