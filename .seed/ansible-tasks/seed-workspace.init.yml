@@ -55,7 +55,9 @@
     bin_path_all: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.main_package.app_paths | map(attribute='__Path__') }}"
     bin_path_ansible: "{{ which_ansible.stdout_lines[0] }}"
     bin_path_dir: "{{ bin_path_ansible | dirname }}"
-    py_path: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.source_interpreter['__Path__'] }}"
+    bin_path_pip: "{{ [bin_path_dir,'pip'] | path_join }}"
+    bin_path_python: "{{ [bin_path_dir,'python'] | path_join }}"
+    py_path: "{{ pipx_ansible.raw_output.venvs['ansible-core'].metadata.source_interpreter['__Path__'] | default(bin_path_python,true) }}"
   when:
     - pipx_ansible is success
     - which_ansible is success
@@ -65,13 +67,11 @@
   block:
 
   - name: seed-workspace.init|create pip wrapper in pipx ansible-core
-    vars:
-      bin_path_pip: "{{ [bin_path_dir,'pip'] | path_join }}"
-      bin_path_python: "{{ [bin_path_dir,'python'] | path_join }}"
     become: true
     ansible.builtin.copy:
       dest: "{{ bin_path_pip }}"
       owner: root
+      # TODO chgrp failed: failed to look up group pipx
       group: pipx
       mode: u+rwx,g+rwx,o+rx
       content: |
