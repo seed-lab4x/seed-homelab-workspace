@@ -19,7 +19,7 @@
           vars: "{{ jenkins | default({},true) }}"
           default:
             volumes:
-              - name: external_vol-jenkins-data
+              - name: external_vol-jenkins-var
                 driver: local
               - name: external_vol-jenkins-plugin
                 driver: local
@@ -29,7 +29,7 @@
               detach: true
               restart_policy: always
               volumes:
-                - external_vol-jenkins-data:/var/jenkins_home
+                - external_vol-jenkins-var:/var/jenkins_home
                 - external_vol-jenkins-plugin:/var/jenkins_home/plugins
                 - external_vol-jenkins-home:/home/jenkins
               ports:
