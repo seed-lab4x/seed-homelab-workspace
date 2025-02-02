@@ -4,9 +4,10 @@
 - name: caddy-config.reload|push files
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
   vars:
-    files:
-      - src: "{{ workpath.local.name }}/config/Caddyfile"
-        dest: "{{ workpath.remote.name }}/config/Caddyfile"
+    files: "{{
+      config.override.files | default(None) or
+      config.files | default(None) or
+      [] }}"
 
 # https://medium.com/@jonsbun/why-need-to-be-careful-when-mounting-single-files-into-a-docker-container-4f929340834
 - name: caddy-config.reload|overwrite bind
@@ -16,7 +17,7 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
   vars:
     container:
-      name: caddy
+      name: "{{ config.name | default('caddy') }}"
       until:
         - container_info.exists
       retries: 60
@@ -26,7 +27,7 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.exec.yml"
   vars:
     container:
-      container: caddy
+      container: "{{ config.name | default('caddy') }}"
       command: "caddy reload --config /etc/caddy/Caddyfile"
       register: container_exec
 
