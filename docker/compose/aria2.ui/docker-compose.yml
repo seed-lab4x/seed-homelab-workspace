@@ -1,0 +1,17 @@
+version: "3.8"
+
+networks:
+  aria2:
+
+services:
+  ariang:
+    image: p3terx/ariang:latest
+    env_file: external_env-all.env
+    command: --port 6880 --ipv6
+    networks:
+      - aria2
+    ports:
+      - 6880:6880
+    # network_mode: bridge
+    container_name: ariang
+    restart: always

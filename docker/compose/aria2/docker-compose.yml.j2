@@ -11,6 +11,9 @@ volumes:
     name: external_vol-aria2-completed
     external: true
 
+networks:
+  aria2:
+
 services:
   aria2-pro:
     image: p3terx/aria2-pro:latest
@@ -23,6 +26,8 @@ services:
       - {{ VARS.BIND_DOWNLOAD }}:/downloads
 {% endif %}
       - completed:/downloads/completed
+    networks:
+      - aria2
     ports:
       - 6800:6800
       - 6888:6888
@@ -36,13 +41,3 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10m
-
-  ariang:
-    image: p3terx/ariang:latest
-    env_file: external_env-all.env
-    command: --port 6880 --ipv6
-    ports:
-      - 6880:6880
-    # network_mode: bridge
-    container_name: ariang
-    restart: always
