@@ -1,0 +1,35 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: windows
+  tasks:
+
+    - name: add registry
+      loop: "{{ registry.registries | default([],true) }}"
+      vars:
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      ansible.windows.win_regedit: "{{ args }}"
+      register: registry_add
+      until: registry_add is succeeded
+
+    - name: add group registry
+      vars:
+        group_names: "{{ registry.groups | default([],true) }}"
+        group_vars: "{{ registry_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.registrys','defined')
+          | rejectattr('value.registrys','equalto',None)
+          | map(attribute='value.registrys')
+          | flatten }}"
+        combine:
+          state: present
+        args: "{{ item | combine(combine, recursive=True) }}"
+      loop: "{{ group_vars }}"
+      ansible.windows.win_regedit: "{{ args }}"
+      register: registry_add
+      until: registry_add is succeeded
