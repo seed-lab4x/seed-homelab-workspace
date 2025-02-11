@@ -1,0 +1,84 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: linux
+  become: true
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].rsync | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].rsync | default(None,true) != None
+          msg: "host var assert fail 'rsync'"
+          quiet: true
+
+      - vars:
+          rsync_config_file: "/etc/rsyncd.conf"
+          rsync_config_port: 873
+          rsync_server_timeout: 300
+          rsync_server_max_connections: 2
+          rsync_packages:
+            - rsync
+          rsync_config_manage: "{{ rsync.configs | default([],true) }}"
+          # https://github.com/bulch/ansible-role-rsync-server/blob/b2f877e7fec6cceb466d52249f0a34e325739826/templates/etc-rsyncd.conf.j
+        block:
+        - name: include vars
+          when: rsync.vars_file is defined
+          ansible.builtin.include_vars:
+            file: "{{ rsync.vars_file }}"
+
+        - name: configure rsync
+          ansible.builtin.include_role:
+            name: bulch.rsync_server
+            apply:
+              become: true
+
+      - block:
+        - name: list rsync file
+          ansible.builtin.find:
+            paths:
+              - /etc/default
+              - /etc
+            file_type: file
+            patterns:
+              - rsync
+              - rsyncd.secrets
+              - rsyncd.conf
+          register: rsync_file_list
+
+        - name: cat rsync file
+          vars:
+            list: "{{ rsync_file_list.files | default([],true) | map(attribute='path') }}"
+          loop: "{{ ['cat'] | product(list) | map('join',' ') | list }}"
+          ansible.builtin.shell:
+            cmd: "{{ item }}"
+          register: rsync_file_cat
+
+        - name: print cat output
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',ansible_play_hosts)
+              | selectattr('value.rsync_file_cat','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              {%   for item in host.value.rsync_file_cat.results %}
+              --------------------------------------------------
+              $ {{ item.item }}
+              {{ item.stdout | default('',true) }}
+              {{ item.stderr | default('',true) }}
+              {%   endfor %}
+              {% endfor %}
