@@ -40,6 +40,13 @@ then
     sudo mount -t drvfs -o 'metadata' "$win_profile" "$wsl_profile"
 fi
 
+# fix persistence loss, use fstab
+fstab_entry="$win_profile $wsl_profile drvfs metadata 0 0"
+if ! grep -qF "$fstab_entry" /etc/fstab; then
+    echo "$fstab_entry" | sudo tee -a /etc/fstab
+    sudo mount -a
+fi
+
 if [[ -L "$usr_ssh_path" ]];
 then
     real_ssh_path="$( cd -P "$usr_ssh_path" && pwd )"
@@ -61,8 +68,6 @@ if [[ -n "$wsl_ssh_path" ]];
 then
     echo "Link '$wsl_ssh_path' to '$usr_ssh_path'"
     sudo ln -s "$wsl_ssh_path" "$usr_ssh_path"
-
-    # TODO fix persistence loss, maybe use fstab
 
     echo "Fix owner '$wsl_username:$wsl_username' mode '700'"
     sudo chown -R $wsl_username:$wsl_username "$usr_ssh_path"
