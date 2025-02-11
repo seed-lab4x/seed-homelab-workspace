@@ -70,9 +70,9 @@
     become: true
     ansible.builtin.copy:
       dest: "{{ bin_path_pip }}"
-      owner: root
-      # TODO chgrp failed: failed to look up group pipx
-      group: pipx
+      # fix chgrp failed: failed to look up group pipx
+      owner: "{{ ansible_user_uid }}"
+      group: "{{ ansible_user_gid }}"
       mode: u+rwx,g+rwx,o+rx
       content: |
         #!/bin/bash
