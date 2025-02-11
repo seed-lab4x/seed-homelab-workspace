@@ -16,6 +16,7 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
       vars:
         compose:
+          name: portainer
           vars: "{{ portainer.ce | default({},true) }}"
           default:
             envs:
