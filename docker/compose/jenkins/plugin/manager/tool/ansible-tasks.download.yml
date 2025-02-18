@@ -15,22 +15,15 @@
     _manager:
       version: "{{ version }}"
       url: "{{ asset.browser_download_url }}"
-      dest: "~/.jenkins/{{ asset.name }}"
+      file: "~/.jenkins/{{ asset.name }}"
       name: "{{ asset.name }}"
 
-- name: jenkins-plugin-manager-tool.download|stat manager dest
-  ansible.builtin.stat:
-    path: "{{ _manager.dest }}"
-  register: manager_asset_dest_stat
-
-- name: jenkins-plugin-manager-tool.download|mkdir manager dest
-  when: not manager_asset_dest_stat.stat.exists
+- name: jenkins-plugin-manager-tool.download|mkdir manager file
   ansible.builtin.file:
     state: directory
-    path: "~/.jenkins"
+    path: "{{ _manager.file | dirname }}"
 
-- name: jenkins-plugin-manager-tool.download|download manager dest
-  when: not manager_asset_dest_stat.stat.exists
+- name: jenkins-plugin-manager-tool.download|download manager file
   ansible.builtin.get_url:
+    dest: "{{ _manager.file }}"
     url: "{{ _manager.url }}"
-    dest: "{{ _manager.dest }}"
