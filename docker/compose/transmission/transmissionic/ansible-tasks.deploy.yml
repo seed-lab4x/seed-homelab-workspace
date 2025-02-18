@@ -27,59 +27,52 @@
     vars:
       version: "{{ transmissionic_latest_get.json.name | default('v1.8.0',true) }}"
       default:
+        # url(cloud) -> cache(local) -> file(remote) -> path(remote)
         url: "https://github.com/6c65726f79/Transmissionic/releases/download/{{ version }}/Transmissionic-webui-{{ version }}.zip"
-        src: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
-        dest: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
-        dir: "~/.transmission/Transmissionic-webui-{{ version }}"
+        cache: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
+        file: "~/.transmission/Transmissionic-webui-{{ version }}.zip"
+        path: "~/.transmission/Transmissionic-webui-{{ version }}"
     ansible.builtin.set_fact:
       _transmissionic: "{{ default | combine(transmissionic, recursive=True) }}"
 
-  - name: transmission-transmissionic.deploy|stat dest
+  - name: transmission-transmissionic.deploy|stat file
     ansible.builtin.stat:
-      path: "{{ _transmissionic.dest }}"
-    register: transmissionic_dest_stat
+      path: "{{ _transmissionic.file }}"
+    register: transmissionic_file_stat
 
-  - when: not transmissionic_dest_stat.stat.exists
+  - when: not transmissionic_file_stat.stat.exists
     block:
-    - name: transmission-transmissionic.deploy|stat archive
+    - name: transmission-transmissionic.deploy|mkdir cache
       delegate_to: localhost
-      ansible.builtin.stat:
-        path: "{{ _transmissionic.src }}"
-      register: transmissionic_src_stat
-
-    - name: transmission-transmissionic.deploy|mkdir src
-      delegate_to: localhost
-      when: not transmissionic_src_stat.stat.exists
       ansible.builtin.file:
         state: directory
-        path: "{{ _transmissionic.src | dirname }}"
+        path: "{{ _transmissionic.cache | dirname }}"
 
-    - name: transmission-transmissionic.deploy|download archive
+    - name: transmission-transmissionic.deploy|curl cache
       delegate_to: localhost
-      when: not transmissionic_src_stat.stat.exists
       ansible.builtin.get_url:
+        dest: "{{ _transmissionic.cache }}"
         url: "{{ _transmissionic.url }}"
-        dest: "{{ _transmissionic.src }}"
 
-    - name: transmission-transmissionic.deploy|mkdir dest
+    - name: transmission-transmissionic.deploy|mkdir file
       ansible.builtin.file:
         state: directory
-        path: "{{ _transmissionic.dest | dirname }}"
+        path: "{{ _transmissionic.file | dirname }}"
 
-    - name: transmission-transmissionic.deploy|copy dest
+    - name: transmission-transmissionic.deploy|copy file
       ansible.builtin.copy:
-        src: "{{ _transmissionic.src }}"
-        dest: "{{ _transmissionic.dest }}"
+        dest: "{{ _transmissionic.file }}"
+        src: "{{ _transmissionic.cache }}"
 
-  - name: transmission-transmissionic.deploy|mkdir dir
+  - name: transmission-transmissionic.deploy|mkdir path
     ansible.builtin.file:
       state: directory
-      path: "{{ _transmissionic.dir }}"
+      path: "{{ _transmissionic.path }}"
 
-  - name: transmission-transmissionic.deploy|unzip archive
+  - name: transmission-transmissionic.deploy|unzip file
     ansible.builtin.unarchive:
-      src: "{{ _transmissionic.dest }}"
-      dest: "{{ _transmissionic.dir }}"
+      dest: "{{ _transmissionic.path }}"
+      src: "{{ _transmissionic.file }}"
 
   - name: transmission-transmissionic.deploy|push volume
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.push.yml"
@@ -87,12 +80,12 @@
       volumes:
         - name: external_vol-transmission-config
           remote_src: true
-          src: "{{ _transmissionic.dir }}/web/"
+          src: "{{ _transmissionic.path }}/web/"
           dest: "./webui/transmissionic/"
           bind: true
           directory_mode: '0744'
 
-  - name: transmission-transmissionic.deploy|remove dir
+  - name: transmission-transmissionic.deploy|remove path
     ansible.builtin.file:
       state: absent
-      path: "{{ _transmissionic.dir }}"
+      path: "{{ _transmissionic.path }}"
