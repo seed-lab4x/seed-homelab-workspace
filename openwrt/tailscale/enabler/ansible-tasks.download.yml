@@ -12,37 +12,31 @@
     version: "{{ latest_get.json.name }}"
   ansible.builtin.set_fact:
     _enabler:
+      # url -> file -> path
       version: "{{ version }}"
       url: "{{ latest_get.json.assets[0].browser_download_url }}"
-      dest: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}.tgz"
-      dir: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}"
+      file: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}.tgz"
+      path: "~/.openwrt/openwrt-tailscale-enabler-{{ version }}"
 
-- name: enabler.download|stat enabler dest
-  ansible.builtin.stat:
-    path: "{{ _enabler.dest }}"
-  register: enabler_dest_stat
-
-- name: enabler.download|mkdir enabler dest
-  when: not enabler_dest_stat.stat.exists
+- name: enabler.download|mkdir enabler file
   ansible.builtin.file:
     state: directory
-    path: "~/.openwrt"
+    path: "{{ _enabler.file | dirname }}"
 
-- name: enabler.download|download enabler dest
-  when: not enabler_dest_stat.stat.exists
+- name: enabler.download|download enabler file
   ansible.builtin.get_url:
+    dest: "{{ _enabler.file }}"
     url: "{{ _enabler.url }}"
-    dest: "{{ _enabler.dest }}"
 
-- name: enabler.download|mkdir enabler dir
+- name: enabler.download|mkdir enabler path
   ansible.builtin.file:
     state: directory
-    path: "{{ _enabler.dir }}"
+    path: "{{ _enabler.path }}"
 
-- name: enabler.download|extract enabler dir
+- name: enabler.download|unzip enabler file
   ansible.builtin.unarchive:
-    src: "{{ _enabler.dest }}"
-    dest: "{{ _enabler.dir }}"
+    dest: "{{ _enabler.path }}"
+    src: "{{ _enabler.file }}"
 
 - when: tailscale.enabler.pkg | default(false)
   block:
@@ -74,43 +68,33 @@
       _pkg:
         version: "{{ version }}"
         url: "https://pkgs.tailscale.com/stable/tailscale_{{ version }}.tgz"
-        dest: "~/.openwrt/tailscale_{{ version }}.tgz"
-        dir: "~/.openwrt/tailscale_{{ version }}"
+        file: "~/.openwrt/tailscale_{{ version }}.tgz"
+        path: "~/.openwrt/tailscale_{{ version }}"
 
-  - name: enabler.download|stat pkg dest
-    ansible.builtin.stat:
-      path: "{{ _pkg.dest }}"
-    register: enabler_dest_stat
-
-  - name: enabler.download|download pkg dest
+  - name: enabler.download|download pkg file
     ansible.builtin.get_url:
+      dest: "{{ _pkg.file }}"
       url: "{{ _pkg.url }}"
-      dest: "{{ _pkg.dest }}"
 
-  - name: enabler.download|mkdir pkg dir
+  - name: enabler.download|mkdir pkg path
     ansible.builtin.file:
       state: directory
-      path: "{{ _pkg.dir }}"
+      path: "{{ _pkg.path }}"
 
-  - name: enabler.download|extract pkg dir
+  - name: enabler.download|unzip pkg file
     ansible.builtin.unarchive:
-      src: "{{ _pkg.dest }}"
-      dest: "{{ _pkg.dir }}"
-
-  - name: enabler.download|copy pkg enabler
-    ansible.builtin.unarchive:
-      src: "{{ _pkg.dest }}"
-      dest: "{{ _pkg.dir }}"
+      dest: "{{ _pkg.path }}"
+      src: "{{ _pkg.file }}"
 
   - name: enabler.download|mkdir pkg enabler
     ansible.builtin.file:
       state: directory
-      path: "{{ _enabler.dir }}/tmp"
+      path: "{{ _enabler.path }}/tmp"
 
   - name: enabler.download|copy pkg enabler
     loop:
       - "tailscale"
       - "tailscaled"
     ansible.builtin.copy:
-      src: "{{ _pkg.dir }}/tailscale_{{ _pkg.version }}/{{ item }}"
-      dest: "{{ _enabler.dir }}/tmp/{{ item }}"
+      src: "{{ _pkg.path }}/tailscale_{{ _pkg.version }}/{{ item }}"
+      dest: "{{ _enabler.path }}/tmp/{{ item }}"
