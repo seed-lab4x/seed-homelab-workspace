@@ -20,21 +20,14 @@
     _ipk:
       version: "{{ version }}"
       url: "{{ asset.browser_download_url }}"
-      dest: "~/.openwrt/{{ asset.name }}"
+      file: "~/.openwrt/{{ asset.name }}"
 
-- name: ipk.download|stat ipk dest
-  ansible.builtin.stat:
-    path: "{{ _ipk.dest }}"
-  register: ipk_dest_stat
-
-- name: ipk.download|mkdir ipk dest
-  when: not ipk_dest_stat.stat.exists
+- name: ipk.download|mkdir ipk file
   ansible.builtin.file:
     state: directory
-    path: "~/.openwrt"
+    path: "{{ _ipk.file | dirname }}"
 
-- name: ipk.download|download ipk dest
-  when: not ipk_dest_stat.stat.exists
+- name: ipk.download|download ipk file
   ansible.builtin.get_url:
+    dest: "{{ _ipk.file }}"
     url: "{{ _ipk.url }}"
-    dest: "{{ _ipk.dest }}"
