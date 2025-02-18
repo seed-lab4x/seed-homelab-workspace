@@ -20,7 +20,7 @@
       upsmon_package_download:
         mode: "{{ download.mode | default('esxcli',true) }}"
         url: "{{ asset.browser_download_url }}"
-        dest: "~/.esxi/{{ asset.name }}"
+        file: "~/.esxi/{{ asset.name }}"
         version: "{{ upsmon_latest_get.json.name }}"
     ignore_errors: true
 
@@ -34,23 +34,16 @@
       upsmon_package_download:
         mode: "{{ download.mode }}"
         url: "{{ download.url }}"
-        dest: "~/.esxi/{{ filename }}"
+        file: "~/.esxi/{{ filename }}"
         version: "{{ filename | splitext | first }}"
     ignore_errors: true
 
-- name: upsmon.download|stat upsmon dest
-  ansible.builtin.stat:
-    path: "{{ upsmon_package_download.dest }}"
-  register: asset_dest_stat
-
 - name: upsmon.download|mkdir upsmon dest
-  when: not asset_dest_stat.stat.exists
   ansible.builtin.file:
     state: directory
-    path: "~/.esxi"
+    path: "{{ upsmon_package_download.file | dirname }}"
 
-- name: upsmon.download|download upsmon dest
-  when: not asset_dest_stat.stat.exists
+- name: upsmon.download|download upsmon file
   ansible.builtin.get_url:
+    dest: "{{ upsmon_package_download.file }}"
     url: "{{ upsmon_package_download.url }}"
-    dest: "{{ upsmon_package_download.dest }}"
