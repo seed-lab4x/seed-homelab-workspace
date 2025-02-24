@@ -14,7 +14,7 @@
       vars:
         # You must use " to quote names and there should be no leading or trailing newlines.
         cmd: >-
-          winget install --accept-package-agreements
+          winget install --accept-package-agreements --accept-source-agreements
           {%  if package.id is defined %}
             --id="{{ package.id }}"
           {%  elif package.name is defined %}

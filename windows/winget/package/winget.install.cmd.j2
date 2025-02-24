@@ -1,5 +1,5 @@
 {% for package in packages %}
-winget install --accept-package-agreements ^
+winget install --accept-package-agreements --accept-source-agreements ^
 {%  if package.id is defined %}
     --id "{{ package.id }}" ^
 {%   endif %}
