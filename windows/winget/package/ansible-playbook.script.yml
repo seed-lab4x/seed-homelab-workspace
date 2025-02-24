@@ -2,14 +2,14 @@
 # code: language=ansible
 ---
 
-- name: build
+- name: script
   vars:
     ansible_connection: local
   hosts: windows
   connection: local
   tasks:
 
-    - name: mkdir build
+    - name: mkdir script
       delegate_to: localhost
       connection: local
       ansible.builtin.file:
