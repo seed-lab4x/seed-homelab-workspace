@@ -1,0 +1,59 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+    
+    # - ansible.windows.win_command: winget install --id="TheBrowserCompany.Arc"
+    - name: install package
+      loop: "{{ winget.packages | default([],true) }}"
+      loop_control:
+        loop_var: package
+      vars:
+        # You must use " to quote names and there should be no leading or trailing newlines.
+        cmd: >-
+          winget install --accept-package-agreements
+          {%  if package.id is defined %}
+            --id="{{ package.id }}"
+          {%  elif package.name is defined %}
+            '{{ package.name }}'
+          {%  else %}
+            '{{ package }}'
+          {%  endif %}
+      ansible.windows.win_command:
+        cmd: '{{ cmd | trim }}'
+        chdir: '{{ (winget.home is defined) | ternary(winget.home,omit) }}'
+      register: package_install
+      until: package_install is succeeded
+      ignore_errors: true
+
+    - name: install group package
+      vars:
+        group_names: "{{ winget.groups | default([],true) }}"
+        group_vars: "{{ winget_groups | default({},true)
+          | dict2items
+          | selectattr('key','in',group_names)
+          | selectattr('value.packages','defined')
+          | map(attribute='value.packages')
+          | flatten }}"
+        # You must use " to quote names and there should be no leading or trailing newlines.
+        cmd: >-
+          winget install --accept-package-agreements
+          {%  if package.id is defined %}
+            --id='{{ package.id }}'
+          {%  elif package.name is defined %}
+            '{{ package.name }}'
+          {%  else %}
+            '{{ package }}'
+          {%  endif %}
+      loop: '{{ group_vars }}'
+      loop_control:
+        loop_var: package
+      ansible.windows.win_command:
+        cmd: '{{ cmd | trim }}'
+        chdir: '{{ (winget.home is defined) | ternary(winget.home,omit) }}'
+      register: package_install
+      until: package_install is succeeded
+      ignore_errors: true
