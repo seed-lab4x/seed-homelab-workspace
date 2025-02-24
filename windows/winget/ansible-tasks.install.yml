@@ -1,0 +1,557 @@
+# code: language=ansible
+---
+
+# COPY from https://github.com/microsoft/winget-cli/issues/256
+
+- rescue:
+  - name: winget.install|rescue|fail tasks
+    when:
+      - installer | default(None) != None
+    ansible.builtin.fail:
+      msg: "install winget fail. exclude attr undefined."
+
+  block:
+  - name: winget.install|assert defined vars
+    ansible.builtin.assert:
+      that:
+        - installer | default(None) != None
+      msg: "var eval fail {{ installer }}"
+      quiet: true
+
+  - name: winget.install|fact installer by vars
+    vars:
+      architectures_mapping:
+        x86: x86
+        x86_64: x64
+        aarch: arm
+        aarch64: arm64
+      attr_default:
+        dependencies:
+          # Windows `ansible_architecture` is localized language
+          arch: "{{ architectures_mapping[ansible_architecture2] }}"
+    ansible.builtin.set_fact:
+      winget_installer: "{{ attr_default | combine(installer | default({},true), recursive=True) }}"
+
+  - name: winget.install|cmd winget version
+    ansible.windows.win_command:
+      cmd: winget -v
+      chdir: "{{ installer.home | default(omit,true) }}"
+    register: winget_version_cmd
+    ignore_errors: true
+
+  - name: winget.install|uri installer by latest
+    vars:
+      SKIPPING_MATCH_VERSION: "{{ (winget_version_cmd.stdout_lines[0] | default('none', true))
+        != (winget_installer.version | default('latest', true)) }}"
+      skipping_custom_attr: "{{ winget_installer.home | default(None, true) == None
+          or winget_installer.path | default(None, true) == None
+          or winget_installer.file | default(None, true) == None
+          or winget_installer.url | default(None, true) == None }}"
+    when:
+      # Version not match
+      - SKIPPING_MATCH_VERSION
+      # Missing any of the following attributes
+      - skipping_custom_attr
+    # delegate_to: localhost
+    # run_once: true
+    ansible.windows.win_uri:
+      url: "https://api.github.com/repos/microsoft/winget-cli/releases/latest"
+      return_content: true
+    register: winget_latest_uri
+  
+  # Use `ansible.utils.update_fact` and `ansible.builtin.set_fact` to replace the following.
+  # - name: winget.install|fact installer by latest
+  #   vars:
+  #     dl_version: "{{ winget_latest_uri.json.tag_name }}"
+  #     dl_name: "{{ winget_latest_uri.json.name }}"
+  #     dl_url: "{{ winget_latest_uri.json.assets | selectattr('browser_download_url', 'search', 'msixbundle$') | map(attribute='browser_download_url') | list | first }}"
+  #     dl_file: "{{ winget_latest_uri.json.assets | selectattr('browser_download_url', 'search', 'msixbundle$') | map(attribute='name') | list | first }}"
+  #     dl_checksum_url: "{{ winget_latest_uri.json.assets
+  #         | selectattr('name', 'search', 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.txt$')
+  #         | map(attribute='browser_download_url')
+  #         | list | default([]) | first | default(None) }}"
+  #     attr_default:
+  #       url: "{{ dl_url }}"
+  #       file: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file }}"
+  #       path: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file | splitext | first }}"
+  #       home: "{{ ansible_env['USERPROFILE'] }}\\.winget\\Microsoft.DesktopAppInstaller.{{ dl_version }}"
+  #       checksum:
+  #         url: "{{ dl_checksum_url }}"
+  #   # URI latest available default value
+  #   when: not winget_latest_uri is skipped
+  #   ansible.builtin.set_fact:
+  #     winget_installer: "{{ attr_default | combine(winget_installer | default({},true), recursive=True) }}"
+
+  - name: winget.install|upfact installer by latest
+    vars:
+      dl_version: "{{ winget_latest_uri.json.tag_name }}"
+      dl_name: "{{ winget_latest_uri.json.name }}"
+      dl_url: "{{ winget_latest_uri.json.assets
+        | selectattr('browser_download_url', 'search', 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle$')
+        | map(attribute='browser_download_url')
+        | list | first }}"
+      dl_file: "{{ winget_latest_uri.json.assets
+        | selectattr('browser_download_url', 'search', 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle$')
+        | map(attribute='name')
+        | list | first }}"
+      dl_checksum_url: "{{ winget_latest_uri.json.assets
+          | selectattr('name', 'search', 'Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.txt$')
+          | map(attribute='browser_download_url')
+          | list | default([]) | first | default(None) }}"
+      dl_license_url: "{{ winget_latest_uri.json.assets
+          | selectattr('name', 'search', 'License1.xml$')
+          | map(attribute='browser_download_url')
+          | list | default([]) | first | default(None) }}"
+    # Condition via `loop` with `when`
+    loop:
+      - path: winget_installer.url
+        value: "{{ dl_url }}"
+        # condition: "{{ winget_installer.url | default(None,true) == None }}"
+      - path: winget_installer.file
+        value: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file }}"
+        # condition: "{{ winget_installer.file | default(None,true) == None }}"
+      - path: winget_installer.path
+        value: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file | splitext | first }}"
+        # condition: "{{ winget_installer.path | default(None,true) == None }}"
+      - path: winget_installer.home
+        value: "{{ ansible_env['USERPROFILE'] }}\\.winget\\Microsoft.DesktopAppInstaller.{{ dl_version }}"
+        # condition: "{{ winget_installer.home | default(None,true) == None }}"
+      # EROR when nested object `winget_installer.checksum.url` error the key 'checksum' was not found in {}
+      # so make sure `winget_installer.checksum` = {}
+      - path: winget_installer.checksum
+        value: {}
+        # condition: "{{ winget_installer.checksum | default(None,true) == None }}"
+      - path: winget_installer.checksum.url
+        value: "{{ dl_checksum_url }}"
+        # condition: "{{ winget_installer.checksum.url | default(None,true) == None }}"
+      - path: winget_installer.license
+        value: {}
+        # condition: "{{ winget_installer.license | default(None,true) == None }}"
+      - path: winget_installer.license.url
+        value: "{{ dl_license_url }}"
+        # condition: "{{ winget_installer.license.url | default(None,true) == None }}"
+      - path: winget_installer.license.file
+        value: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__License1.xml"
+        # condition: "{{ winget_installer.file | default(None,true) == None }}"
+    # URI latest available default value
+    # Missing any of the above attributes
+    when:
+      # NO-why this skip whole loop 
+      - not winget_latest_uri is skipped
+      # BUG '*' has no attribute '*'
+      # - q('ansible.utils.get_path', hostvars[inventory_hostname], 'winget_installer.url')
+      # USE this
+      - hostvars[inventory_hostname] | community.general.json_query(item.path) == None
+      # OR use default(None) check condition for each item 
+      # item.condition `winget_installer.checksum.url | default(None,true) == None`
+      # - item.condition
+    ansible.utils.update_fact:
+      updates:
+        - path: "{{ item.path }}"
+          value: "{{ item.value }}"
+    register: winget_latest_upfact
+
+  - name: winget.install|fact installer by latest
+    when: not winget_latest_upfact.skipped
+    ansible.builtin.set_fact:
+      winget_installer: "{{ winget_latest_upfact.results[-1].winget_installer }}"
+
+  - name: winget.install|fact .dependencies by latest
+    vars:
+      dl_version: "{{ winget_latest_uri.json.tag_name }}"
+      dl_name: "{{ winget_latest_uri.json.name }}"
+      dl_checksum_url: "{{ winget_latest_uri.json.assets | default([])
+        | selectattr('name', 'search', 'DesktopAppInstaller_Dependencies.txt$')
+        | map(attribute='browser_download_url')
+        | list | default([]) | first | default(None) }}"
+      dl_meta_url: "{{ winget_latest_uri.json.assets | default([])
+        | selectattr('name', 'search', 'DesktopAppInstaller_Dependencies.json$')
+        | map(attribute='browser_download_url')
+        | list | default([]) | first | default(None) }}"
+      dl_url: "{{ winget_latest_uri.json.assets | default([])
+        | selectattr('name', 'search', 'DesktopAppInstaller_Dependencies.zip$')
+        | map(attribute='browser_download_url')
+        | list | default([]) | first | default(None) }}"
+      dl_file: "{{ winget_latest_uri.json.assets | default([])
+        | selectattr('name', 'search', 'DesktopAppInstaller_Dependencies.zip$')
+        | map(attribute='name')
+        | list | default([]) | first | default(None) }}"
+      attr_default:
+        dependencies:
+          checksum:
+            # url or sha256
+            url: "{{ dl_checksum_url }}"
+            # sha256: eeba62f08531c8669b3e5fb895ce8800ae66d798739cda2b4aef2a1d80a5f3c5
+          meta:
+            # URL or json
+            url: "{{ dl_meta_url }}"
+            # json:
+            #   "Dependencies":
+            #     - "Version": "14.0.33728.0"
+            #       "Name": "Microsoft.VCLibs.140.00.UWPDesktop"
+            #     - "Version": "8.2310.30001.0"
+            #       "Name": "Microsoft.UI.Xaml.2.8"
+          url: "{{ dl_url }}"
+          file: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file }}"
+          path: "{{ ansible_env['USERPROFILE'] }}\\.winget\\assets__{{ dl_name }}__{{ dl_file | splitext | first }}"
+    # URI latest available default value
+    when: not winget_latest_uri is skipped
+    ansible.builtin.set_fact:
+      winget_installer: "{{ attr_default | combine(winget_installer | default({},true), recursive=True) }}"
+    register: winget_latest_fact
+
+  # curl dependencies and install
+  - vars:
+      SKIPPING_MATCH_VERSION: "{{ (winget_version_cmd.stdout_lines[0] | default('none', true))
+        != (winget_installer.version | default('latest', true)) }}"
+    when:
+      - SKIPPING_MATCH_VERSION
+      - winget_installer.dependencies.path | default(None,true) != None
+    block:
+    - name: winget.install|mkdir .dependencies path
+      ansible.windows.win_file:
+        state: directory
+        path: "{{ winget_installer.dependencies.path }}"
+      register: dependencies_path_mkdir
+
+    - name: winget.install|find .dependencies path
+      when:
+        - not dependencies_path_mkdir is skipped
+        - not dependencies_path_mkdir is changed
+      ansible.windows.win_find:
+        # BUG cant use `%USERPROFILE%` in paths
+        paths: "{{ winget_installer.dependencies.path }}"
+        file_type: directory
+        # recurse: true
+        get_checksum: false
+      register: dependencies_path_find
+
+    - when:
+        - not dependencies_path_mkdir is skipped
+        # new dir or empty dir
+        - dependencies_path_mkdir is changed
+          or dependencies_path_find.matched | default(0,true) == 0
+        - winget_installer.dependencies.file | default(None,true) != None
+      block:
+      - name: winget.install|mkdir .dependencies file
+        ansible.windows.win_file:
+          state: directory
+          path: "{{ winget_installer.dependencies.file | win_dirname }}"
+
+      - name: winget.install|curl .dependencies file
+        vars:
+          lookup_url: "{{ lookup('url', winget_installer.dependencies.checksum.url) }}"
+        # maybe cant download but file exits
+        when: winget_installer.dependencies.url | default(None,true) != None
+        ansible.windows.win_get_url:
+          dest: "{{ winget_installer.dependencies.file }}"
+          url: "{{ winget_installer.dependencies.url }}"
+          checksum: "{{ winget_installer.dependencies.checksum.sha256 | default(omit, true)
+            if winget_installer.dependencies.checksum.sha256 is defined
+            else lookup_url | default(omit, true) }}"
+          checksum_algorithm: sha256
+          force: false
+
+      # .dependencies.checksum.url -> .dependencies.checksum.sha256
+      # checksum_url format like this `01f095e72b2df940dd76d7720d789dc9d7916efd790eecd29b48d0004f148589  npp.7.8.bin.7z`
+      # see https://github.com/ansible/ansible/issues/62106#issuecomment-550129481
+      # - name: winget.install|uri .dependencies checksum
+      #   when: not winget_installer.dependencies.checksum.sha256 is defined
+      #   ansible.windows.win_uri:
+      #     url: "{{ winget_installer.dependencies.checksum.url }}"
+      #     return_content: true
+      #   register: dependencies_checksum_uri
+
+      # - name: winget.install|upfact .dependencies checksum
+      #   when: not dependencies_checksum_uri is skipped
+      #   ansible.utils.update_fact:
+      #     updates:
+      #       - path: winget_installer.dependencies.checksum.sha256
+      #         value: "{{ dependencies_checksum_uri.content }}"
+      #   register: dependencies_checksum_upfact
+
+      # - name: winget.install|fact .dependencies checksum
+      #   when: not dependencies_checksum_upfact is skipped
+      #   ansible.builtin.set_fact:
+      #     winget_installer: "{{ dependencies_checksum_upfact.winget_installer }}"
+
+      # - name: winget.install|curl .dependencies file
+      #   # maybe cant download but file exits
+      #   when: winget_installer.dependencies.url | default(None,true) != None
+      #   ansible.windows.win_get_url:
+      #     dest: "{{ winget_installer.dependencies.file }}"
+      #     url: "{{ winget_installer.dependencies.url }}"
+      #     checksum: "{{ winget_installer.dependencies.checksum.sha256 | default(omit, true) }}"
+      #     # checksum_url: "{{ winget_installer.dependencies.checksum.url | default(omit, true)
+      #     #   if not winget_installer.dependencies.checksum.sha256 is defined
+      #     #   else omit }}"
+      #     checksum_algorithm: sha256
+      #     force: false
+
+      - name: winget.install|unarchive .dependencies file to path
+        community.windows.win_unzip:
+          src: "{{ winget_installer.dependencies.file }}"
+          dest: "{{ winget_installer.dependencies.path }}"
+        notify:
+          - "clean .dependencies"
+
+    # .dependencies.meta.url -> .dependencies.meta.json
+    # json like this
+    # {
+    #   "Dependencies": [
+    #     {
+    #       "Version": "14.0.33728.0",
+    #       "Name": "Microsoft.VCLibs.140.00.UWPDesktop"
+    #     },
+    #     {
+    #       "Version": "8.2501.31001.0",
+    #       "Name": "Microsoft.UI.Xaml.2.8"
+    #     }
+    #   ]
+    # }
+    # - name: winget.install|uri .dependencies meta
+    #   when: winget_installer.dependencies.meta.json | default(None,true) == None 
+    #   ansible.windows.win_uri:
+    #     url: "{{ winget_installer.dependencies.meta.url }}"
+    #     return_content: true
+    #   register: dependencies_meta_uri
+
+    # - name: winget.install|upfact .dependencies meta
+    #   when: not dependencies_meta_uri is skipped
+    #   ansible.utils.update_fact:
+    #     updates:
+    #       - path: winget_installer.dependencies.meta.json
+    #         value: "{{ dependencies_meta_uri.content | from_json }}"
+    #   register: dependencies_meta_upfact
+
+    # - name: winget.install|fact .dependencies meta
+    #   when: not dependencies_meta_upfact is skipped
+    #   ansible.builtin.set_fact:
+    #     winget_installer: "{{ dependencies_meta_upfact.winget_installer }}"
+
+    # - name: winget.install|install .dependencies meta
+    #   loop: "{{ winget_installer.dependencies.meta.json['Dependencies'] }}"
+    #   ansible.builtin.win_shell: |
+    #     Add-AppxPackage -Path .\{{ item['Name'] }}_{{ item['Version'] }}_{{ winget_installer.dependencies.arch }}.appx -Verbose
+    #   args:
+    #     chdir: "{{ winget_installer.dependencies.path }}\\{{ winget_installer.dependencies.arch }}"
+    #   ignore_errors: true
+
+    - name: winget.install|install .dependencies meta for system
+      vars:
+        empty_deps:
+          'Dependencies': []
+        lookup_url: "{{ lookup('url', winget_installer.dependencies.meta.url, split_lines=False) }}"
+        meta_json: "{{ winget_installer.dependencies.meta.json | default(empty_deps, true)
+            if winget_installer.dependencies.meta.json is defined
+            else lookup_url | default(empty_deps, true) }}"
+      loop: "{{ meta_json['Dependencies'] }}"
+      ansible.builtin.win_shell: |
+        Add-AppxProvisionedPackage -Online -PackagePath '.\{{ item['Name'] }}_{{ item['Version'] }}_{{ winget_installer.dependencies.arch }}.appx' -SkipLicense
+      args:
+        chdir: "{{ winget_installer.dependencies.path }}\\{{ winget_installer.dependencies.arch }}"
+      # maybe already installed
+      ignore_errors: true
+
+    - name: winget.install|install .dependencies meta for user
+      vars:
+        empty_deps:
+          'Dependencies': []
+        lookup_url: "{{ lookup('url', winget_installer.dependencies.meta.url, split_lines=False) }}"
+        meta_json: "{{ winget_installer.dependencies.meta.json | default(empty_deps, true)
+            if winget_installer.dependencies.meta.json is defined
+            else lookup_url | default(empty_deps, true) }}"
+      loop: "{{ meta_json['Dependencies'] }}"
+      ansible.builtin.win_shell: |
+        Add-AppxPackage -Path '.\{{ item['Name'] }}_{{ item['Version'] }}_{{ winget_installer.dependencies.arch }}.appx' -Verbose
+      args:
+        chdir: "{{ winget_installer.dependencies.path }}\\{{ winget_installer.dependencies.arch }}"
+      # maybe already installed
+      ignore_errors: true
+
+  # curl license
+  - vars:
+      SKIPPING_MATCH_VERSION: "{{ (winget_version_cmd.stdout_lines[0] | default('none', true))
+        != (winget_installer.version | default('latest', true)) }}"
+    when:
+      - SKIPPING_MATCH_VERSION
+      - winget_installer.license.file | default(None,true) != None
+    block:
+      - name: winget.install|mkdir license file
+        ansible.windows.win_file:
+          state: directory
+          path: "{{ winget_installer.license.file | win_dirname }}"
+
+      - name: winget.install|curl license file
+        vars:
+          lookup_url: "{{ lookup('url', winget_installer.license.url) }}"
+        when: winget_installer.license.url | default(None,true) != None
+        ansible.windows.win_get_url:
+          dest: "{{ winget_installer.license.file }}"
+          url: "{{ winget_installer.license.url }}"
+
+  # curl appx and install
+  - vars:
+      SKIPPING_MATCH_VERSION: "{{ (winget_version_cmd.stdout_lines[0] | default('none', true))
+        != (winget_installer.version | default('latest', true)) }}"
+    when:
+      - SKIPPING_MATCH_VERSION
+      - winget_installer.file | default(None,true) != None
+    block:
+    - name: winget.install|mkdir installer file
+      ansible.windows.win_file:
+        state: directory
+        path: "{{ winget_installer.file | win_dirname }}"
+
+    - name: winget.install|curl installer file
+      vars:
+        lookup_url: "{{ lookup('url', winget_installer.checksum.url) }}"
+      # maybe cant download but file exits
+      when: winget_installer.url | default(None,true) != None
+      ansible.windows.win_get_url:
+        dest: "{{ winget_installer.file }}"
+        url: "{{ winget_installer.url }}"
+        checksum: "{{ winget_installer.checksum.sha256 | default(omit, true)
+          if winget_installer.checksum.sha256 is defined
+          else lookup_url | default(omit, true) }}"
+        checksum_algorithm: sha256
+        force: false
+
+    # .checksum.url -> .checksum.sha256
+    # checksum_url format like this `01f095e72b2df940dd76d7720d789dc9d7916efd790eecd29b48d0004f148589  npp.7.8.bin.7z`
+    # see https://github.com/ansible/ansible/issues/62106#issuecomment-550129481
+    # - name: winget.install|uri winget_installer checksum
+    #   when: not winget_installer.checksum.sha256 is defined
+    #   ansible.windows.win_uri:
+    #     url: "{{ winget_installer.checksum.url }}"
+    #     return_content: true
+    #   register: installer_checksum_uri
+
+    # - name: winget.install|upfact winget_installer checksum
+    #   when: not installer_checksum_uri is skipped
+    #   ansible.utils.update_fact:
+    #     updates:
+    #       - path: winget_installer.checksum.sha256
+    #         value: "{{ installer_checksum_uri.content }}"
+    #   register: installer_checksum_upfact
+
+    # - name: winget.install|fact winget_installer checksum
+    #   when: not installer_checksum_upfact is skipped
+    #   ansible.builtin.set_fact:
+    #     winget_installer: "{{ installer_checksum_upfact.winget_installer }}"
+
+    # - name: winget.install|curl winget_installer file
+    #   # maybe cant download but file exits
+    #   when: winget_installer.url | default(None,true) != None
+    #   ansible.windows.win_get_url:
+    #     dest: "{{ winget_installer.file }}"
+    #     url: "{{ winget_installer.url }}"
+    #     checksum: "{{ winget_installer.checksum.sha256 | default(omit, true) }}"
+    #     # checksum_url: "{{ winget_installer.checksum.url | default(omit, true)
+    #     #   if not winget_installer.checksum.sha256 is defined
+    #     #   else omit }}"
+    #     checksum_algorithm: sha256
+    #     force: false
+
+    - name: winget.install|install installer file
+      loop:
+        - Add-AppxProvisionedPackage -Online -PackagePath '{{ winget_installer.file }}' -LicensePath '{{ winget_installer.license.file }}' -Verbose
+        - Add-AppxPackage -Path '{{ winget_installer.file }}' -Verbose
+      ansible.builtin.win_shell: "{{ item }}"
+      register: installer_file_install
+      notify:
+        - clean winget file
+        - clean winget license
+      # maybe already installed
+      ignore_errors: true
+
+  # revert to unzip to home path
+  # unarchive MSIXBundle's msix to home path
+  - vars:
+      SKIPPING_MATCH_VERSION: "{{ (winget_version_cmd.stdout_lines[0] | default('none', true))
+        != (winget_installer.version | default('latest', true)) }}"
+    when:
+      - SKIPPING_MATCH_VERSION
+      # failed installing MSIXBundle
+      - installer_file_install is failed
+      - winget_installer.home | default(None,true) != None
+    block:
+    - name: winget.install|mkdir installer home
+      ansible.windows.win_file:
+        state: directory
+        path: "{{ winget_installer.home }}"
+      register: installer_home_mkdir
+
+    - name: winget.install|find installer home
+      when:
+        - not installer_home_mkdir is skipped
+        - not installer_home_mkdir is changed
+      ansible.windows.win_find:
+        paths: "{{ winget_installer.home }}"
+        patterns: winget.exe
+        # recurse: true
+        get_checksum: false
+      register: installer_home_find
+
+    - when:
+        - not installer_home_mkdir is skipped
+        # new dir or empty dir
+        - installer_home_mkdir is changed
+          or installer_home_find.matched | default(0,true) == 0
+        - winget_installer.path | default(None,true) != None
+      block:
+      - name: winget.install|mkdir installer path
+        ansible.windows.win_file:
+          state: directory
+          path: "{{ winget_installer.path }}"
+        register: installer_path_mkdir
+
+      - name: winget.install|find installer path
+        when:
+          - not installer_path_mkdir is skipped
+          - not installer_path_mkdir is changed
+        ansible.windows.win_find:
+          paths: "{{ winget_installer.path }}"
+          file_type: directory
+          patterns: AppInstaller_x64.msix
+          # recurse: true
+          get_checksum: false
+        register: installer_path_find
+
+      - when:
+          - not installer_path_mkdir is skipped
+          # new dir or empty dir
+          - installer_path_mkdir is changed
+            or installer_path_find.matched | default(0,true) == 0
+          - winget_installer.file | default(None,true) != None
+        block:
+        - name: winget.install|unarchive installer file to path
+          community.windows.win_unzip:
+            src: "{{ winget_installer.file }}"
+            dest: "{{ winget_installer.path }}"
+          register: installer_file_unarchive
+          notify:
+            - clean winget file
+            - clean winget license
+
+      - name: winget.install|unarchive installer path.msix to home
+        when:
+          - not installer_file_unarchive is skipped
+            or installer_path_find.matched | default(0,true) != 0
+        community.windows.win_unzip:
+          src: "{{ winget_installer.path }}\\AppInstaller_x64.msix"
+          dest: "{{ winget_installer.home }}"
+        notify:
+          - clean winget path
+
+  - name: winget.install|shell winget version
+    vars:
+      chdir: "{{ winget_installer.home
+        if not installer_file_unarchive is skipped
+        else None }}"
+    when: 
+    ansible.windows.win_shell: winget -v
+    args:
+      executable: cmd
+      chdir: "{{ chdir | default(omit,true) }}"
+    register: winget_version_shell

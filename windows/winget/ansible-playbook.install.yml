@@ -1,0 +1,124 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: windows
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].winget | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "install fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].winget | default(None,true) != None
+          msg: "host var assert fail 'winget'"
+          quiet: true
+
+      - vars:
+          mode: "{{ winget.install.mode | default('role',true) }}"
+        block:
+        - when: mode == 'role'
+          vars:
+            winget_microsoft_ui_xaml_version: "{{ winget.install.ui_xaml_version | default('2.7.3',true) }}"
+            winget_microsoft_ui_xaml_major_version: "{{ winget_microsoft_ui_xaml_version.split('.')[:2] | join('.') }}"
+            winget_microsoft_ui_xaml_download_url: "{{ winget.install.ui_xaml_url | default(
+                'https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/'
+                + winget_microsoft_ui_xaml_version,
+                true) }}"
+            winget_microsoft_vclibs_version: "{{ winget.install.vclibs_version | default('14.00',true) }}"
+            winget_microsoft_vclibs_download_url: "{{ winget.install.vclibs_url | default(
+                'https://aka.ms/Microsoft.VCLibs.x64.'
+                + winget_microsoft_vclibs_version
+                + '.Desktop.appx',
+                true) }}"
+            winget_microsoft_vclibs_ignore_install_error: true
+            winget_cli_version: "{{ winget.install.cli_version | default('1.4.10173',true) }}"
+            winget_cli_msixbundle_filename: "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+            winget_cli_license_filename: "{{ winget.install.license_file | default('3463fe9ad25e44f28630526aa9ad5648_License1.xml',true) }}"
+            winget_cli_download_url: "{{ winget.install.cli_url | default(
+                'https://github.com/microsoft/winget-cli/releases/download/v'
+                + winget_cli_version
+                + '/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle',
+                true) }}"
+            winget_cli_license_url: "{{ winget.install.license_url | default(
+                'https://github.com/microsoft/winget-cli/releases/download/v'
+                + winget_cli_version
+                + '/'
+                + winget_cli_license_filename,
+                true) }}"
+          block:
+          - name: include vars
+            when: winget.vars_file is defined
+            ansible.builtin.include_vars:
+              file: "{{ winget.vars_file }}"
+
+          - name: include role
+            ansible.builtin.include_role:
+              name: andif888.ansible-role-win-winget
+
+        - when: mode == 'normal'
+          block:
+          # https://github.com/ansible/ansible/issues/33197
+          # - name: install PSCX module
+          #   community.windows.win_psmodule:
+          #     name: PSCX
+          #     accept_license: true
+          #     allow_clobber: true
+          #     state: present
+
+          - name: install winget
+            vars:
+              installer: "{{ winget.install | default({},true) }}"
+            when: winget.install is defined
+            include_tasks: ansible-tasks.install.yml
+
+      - name: print winget
+        vars:
+          windows_hostvars: "{{ hostvars | dict2items
+            | selectattr('key','in',ansible_play_hosts) }}"
+        ansible.builtin.pause:
+          seconds: 1
+          prompt: |
+            {% for host in windows_hostvars %}
+
+            [{{ host.key }}] =>
+            --------------------------------------------------
+            {{ host.value.winget_version_shell.stdout | default('',true) }}
+            {{ host.value.winget_version_shell.stderr | default('',true) }}
+            {% endfor %}
+
+  handlers:
+
+  - name: clean winget path
+    ansible.windows.win_file:
+      path: "{{ winget_installer.path }}"
+      state: absent
+
+  - name: clean winget file
+    ansible.windows.win_file:
+      path: "{{ winget_installer.file }}"
+      state: absent
+
+  - name: clean winget license
+    ansible.windows.win_file:
+      path: "{{ winget_installer.license.file }}"
+      state: absent
+
+  - name: clean .dependencies path
+    ansible.windows.win_file:
+      path: "{{ winget_installer.dependencies.path }}"
+      state: absent
+    listen: "clean .dependencies"
+
+  - name: clean .dependencies file
+    ansible.windows.win_file:
+      path: "{{ winget_installer.dependencies.file }}"
+      state: absent
+    listen: "clean .dependencies"
