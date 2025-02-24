@@ -1,0 +1,62 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: state.export|rescue|fail tasks
+    when:
+      - exporter | default(None) != None
+    ansible.builtin.fail:
+      msg: "export msstore fail. exclude attr undefined."
+
+  block:
+  - name: state.export|assert defined vars
+    ansible.builtin.assert:
+      that:
+        - exporter | default(None) != None
+      msg: "var eval fail {{ exporter }}"
+      quiet: true
+
+  - name: state.export|fact exporter by vars
+    vars:
+      attr_default:
+        state: []
+    ansible.builtin.set_fact:
+      msstore_state_exporter: "{{ attr_default | combine(exporter | default({},true), recursive=True) }}"
+
+  - name: state.export|obtain information
+    ansible.windows.win_reg_stat:
+      path: HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\InstallService\State\CategoryCache
+    register: current_state_obtain
+
+  - name: state.export|upfact exporter by obtain
+    vars:
+      fulfillmentdata: "{{ kv.value.raw_value | from_json }}"
+      item: "{{ fulfillmentdata['FulfillmentData'] | from_json }}"
+      list: "{{ msstore_state_exporter.state }}"
+    loop: "{{ current_state_obtain.properties | dict2items }}"
+    loop_control:
+      loop_var: kv
+    ansible.utils.update_fact:
+      updates:
+        - path: msstore_state_exporter.state
+          value: "{{ list + [item] }}"
+    register: msstore_state_upfact
+
+  - name: state.export|fact exporter by obtain
+    when: not msstore_state_upfact.skipped
+    ansible.builtin.set_fact:
+      msstore_state_exporter: "{{ msstore_state_upfact.results[-1].msstore_state_exporter }}"
+
+  - when: msstore_state_exporter.state | default(None,true) != None
+    block:
+    - name: state.export|mkdir state path
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../msstore/{{ inventory_hostname }}/"
+      delegate_to: localhost
+
+    - name: state.export|save state file
+      ansible.builtin.copy:
+        content: "{{ msstore_state_exporter.state | to_nice_json }}"
+        dest: "{{ inventory_dir }}/../msstore/{{ inventory_hostname }}/InstallService.state.json"
+      delegate_to: localhost

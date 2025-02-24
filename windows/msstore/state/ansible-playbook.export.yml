@@ -1,0 +1,33 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+# https://superuser.com/questions/1811660/how-to-get-the-microsoft-store-url-from-get-appxpackage-output-or-appxmanifest-x
+
+- name: export
+  hosts: windows
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].msstore.state | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "export fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].msstore.state | default(None,true) != None
+          msg: "host var assert fail 'msstore'"
+          quiet: true
+
+      - vars:
+          mode: "{{ msstore.state.export.mode | default('normal',true) }}"
+        block:
+        - name: export msstore
+          vars:
+            exporter: "{{ msstore.state.export | default({},true) }}"
+          when: msstore.export is defined
+          include_tasks: ansible-tasks.export.yml
