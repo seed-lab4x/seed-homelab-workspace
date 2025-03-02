@@ -10,7 +10,7 @@ volumes:
 
 services:
   frigate:
-    image: ghcr.io/blakeblackshear/frigate:0.13.0-beta6
+    image: ghcr.io/blakeblackshear/frigate:0.15.0
     env_file: external_env-frigate.env
     volumes:
       - ./bind_file-frigate.yml:/config/config.yml
@@ -19,6 +19,7 @@ services:
       - storage:/media/frigate
     ports:
       - 5000:5000
+      - 8971:8971
       - 8554:8554
       - 8555:8555/tcp
       - 8555:8555/udp
