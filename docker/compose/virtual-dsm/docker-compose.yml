@@ -1,0 +1,34 @@
+version: "3.8"
+
+volumes:
+  storage:
+    name: external_vol-dsm-storage
+    external: true
+
+services:
+  dsm:
+    image: vdsm/virtual-dsm:latest
+    env_file: external_env-all.env
+    # environment:
+      # RAM_SIZE: "4G"
+      # CPU_CORES: "4"
+      # DISK_SIZE: "256G"
+      # DISK_FMT: "qcow2"
+      # DHCP: "Y"
+      # GPU: "Y"
+      # URL: "https://global.synologydownload.com/download/DSM/release/7.0.1/42218/DSM_VirtualDSM_42218.pat"
+      # URL: "DSM_VirtualDSM_42218.pat"
+    volumes:
+      - storage:/storage
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+      # - /dev/vhost-net
+    # device_cgroup_rules:
+    #   - 'c *:* rwm'
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 5000
+    restart: always
+    stop_grace_period: 2m
