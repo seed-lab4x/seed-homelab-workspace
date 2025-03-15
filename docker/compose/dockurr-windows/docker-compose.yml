@@ -1,0 +1,40 @@
+version: "3.8"
+
+volumes:
+  storage:
+    name: external_vol-windows-storage
+    external: true
+  oem:
+    name: external_vol-windows-oem
+    external: true
+
+services:
+  windows:
+    image: dockurr/windows:latest
+    env_file: external_env-all.env
+    environment:
+      VERSION: "11"
+      # RAM_SIZE: "8G"
+      # CPU_CORES: "4"
+      # DISK_SIZE: "256G"
+      # MANUAL: "Y"
+      # USERNAME: "bill"
+      # PASSWORD: "gates"
+      # LANGUAGE: "French"
+      # REGION: "en-US"
+      # KEYBOARD: "en-US"
+      # DHCP: "Y"
+    volumes:
+      - storage:/storage
+      - oem:/oem
+    devices:
+      - /dev/kvm
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8006
+      - 3389/tcp
+      - 3389/udp
+    restart: always
+    stop_grace_period: 2m
