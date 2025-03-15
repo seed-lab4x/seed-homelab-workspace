@@ -251,6 +251,8 @@
             else lookup_url | default(omit, true) }}"
           checksum_algorithm: sha256
           force: false
+        register: dependencies_file_curl
+        until: dependencies_file_curl is succeeded
 
       # .dependencies.checksum.url -> .dependencies.checksum.sha256
       # checksum_url format like this `01f095e72b2df940dd76d7720d789dc9d7916efd790eecd29b48d0004f148589  npp.7.8.bin.7z`
@@ -287,6 +289,8 @@
       #     #   else omit }}"
       #     checksum_algorithm: sha256
       #     force: false
+      #   register: dependencies_file_curl
+      #   until: dependencies_file_curl is succeeded
 
       - name: winget.install|unarchive .dependencies file to path
         community.windows.win_unzip:
@@ -362,12 +366,19 @@
             if winget_installer.dependencies.meta.json is defined
             else lookup_url | default(empty_deps, true) }}"
       loop: "{{ meta_json['Dependencies'] }}"
+      # fix `Add-AppxPackage : Deployment failed with HRESULT: 0x80073D02, The package could not be installed because resources it modifies are currently in use.`
       ansible.builtin.win_shell: |
-        Add-AppxPackage -Path '.\{{ item['Name'] }}_{{ item['Version'] }}_{{ winget_installer.dependencies.arch }}.appx' -Verbose
+        Add-AppxPackage -Path '.\{{ item['Name'] }}_{{ item['Version'] }}_{{ winget_installer.dependencies.arch }}.appx' -Verbose -ForceApplicationShutdown
       args:
         chdir: "{{ winget_installer.dependencies.path }}\\{{ winget_installer.dependencies.arch }}"
       # maybe already installed
       ignore_errors: true
+      # fix `Add-AppxPackage : Deployment failed with HRESULT: 0x80070005, Access is denied`
+      # user already in Adminstrator group but limitations by WinRM but become to self will ok
+      # see https://docs.ansible.com/ansible/latest/os_guide/windows_winrm.html#winrm-limitations
+      become: true
+      become_method: runas
+      become_user: "{{ ansible_user }}"
 
   # curl license
   - vars:
@@ -389,6 +400,8 @@
         ansible.windows.win_get_url:
           dest: "{{ winget_installer.license.file }}"
           url: "{{ winget_installer.license.url }}"
+        register: license_file_curl
+        until: license_file_curl is succeeded
 
   # curl appx and install
   - vars:
@@ -416,6 +429,8 @@
           else lookup_url | default(omit, true) }}"
         checksum_algorithm: sha256
         force: false
+      register: installer_file_curl
+      until: installer_file_curl is succeeded
 
     # .checksum.url -> .checksum.sha256
     # checksum_url format like this `01f095e72b2df940dd76d7720d789dc9d7916efd790eecd29b48d0004f148589  npp.7.8.bin.7z`
@@ -452,6 +467,8 @@
     #     #   else omit }}"
     #     checksum_algorithm: sha256
     #     force: false
+    #   register: installer_file_curl
+    #   until: installer_file_curl is succeeded
 
     - name: winget.install|install installer file
       loop:
@@ -464,6 +481,12 @@
         - clean winget license
       # maybe already installed
       ignore_errors: true
+      # fix `Add-AppxPackage : Deployment failed with HRESULT: 0x80070005, Access is denied`
+      # user already in Adminstrator group but limitations by WinRM but become to self will ok
+      # see https://docs.ansible.com/ansible/latest/os_guide/windows_winrm.html#winrm-limitations
+      become: true
+      become_method: runas
+      become_user: "{{ ansible_user }}"
 
   # revert to unzip to home path
   # unarchive MSIXBundle's msix to home path

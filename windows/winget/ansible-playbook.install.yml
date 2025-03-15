@@ -65,13 +65,21 @@
 
         - when: mode == 'normal'
           block:
+          # fix `PowerShellGet requires NuGet provider version '2.8.5.201' or newer to interact with NuGet-based repositories.`
+          # see https://github.com/ansible-collections/community.windows/issues/147
+          # or Find-PackageProvider -Name Nuget -ForceBootstrap -IncludeDependencies -Force
+          - name: install Nuget provider
+            ansible.windows.win_shell: |
+              Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force
+              Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
           # https://github.com/ansible/ansible/issues/33197
-          # - name: install PSCX module
-          #   community.windows.win_psmodule:
-          #     name: PSCX
-          #     accept_license: true
-          #     allow_clobber: true
-          #     state: present
+          - name: install PSCX module
+            community.windows.win_psmodule:
+              name: PSCX
+              accept_license: true
+              allow_clobber: true
+              state: present
 
           - name: install winget
             vars:
