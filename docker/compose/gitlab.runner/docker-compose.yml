@@ -1,0 +1,27 @@
+version: "3.8"
+
+networks:
+  gitlab:
+    name: gitlab_gitlab
+    attachable: true
+
+volumes:
+  config:
+    name: external_vol-gitlab-runner-config
+    external: true
+
+services:
+  gitlab-runner:
+    image: gitlab/gitlab-runner:v15.9.1
+    env_file: external_env-all.env
+    volumes:
+      - config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - gitlab
+    ports:
+      - 8093
+    # network_mode: bridge
+    container_name: gitlab-runner
+    restart: always
+
