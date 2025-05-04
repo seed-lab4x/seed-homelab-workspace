@@ -70,10 +70,10 @@
 	"remoteUser": "root",
 	// "containerUser": "root",
 
-	// Fix no access to the Internet
-	// "runArgs": [
-	// 	"--network=host"
-	// ],
+	"runArgs": [
+		// Fix no access to the Internet On OpenWrt
+		"--network=host"
+	],
 
 	"onCreateCommand": {
 		"pipx": "pipx inject --pip-args='--no-deps' ansible-core ansible==8.5.0"
