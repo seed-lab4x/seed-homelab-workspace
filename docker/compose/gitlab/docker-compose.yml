@@ -1,8 +1,5 @@
 version: "3.8"
 
-networks:
-  gitlab:
-
 volumes:
   config:
     name: external_vol-gitlab-config
@@ -26,8 +23,6 @@ services:
       - log:/var/log/gitlab
       - data:/var/opt/gitlab
       - ./bind_file-omnibus.rb:/omnibus.rb
-    networks:
-      - gitlab
     ports:
       - 8880:80
       # https://github.com/docker/compose/issues/3109#issuecomment-195435884
