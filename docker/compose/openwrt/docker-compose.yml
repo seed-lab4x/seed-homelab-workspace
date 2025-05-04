@@ -1,0 +1,46 @@
+version: "3.8"
+
+volumes:
+  storage:
+    name: external_vol-openwrt-storage
+    external: true
+
+services:
+  openwrt:
+    image: albrechtloh/openwrt-docker:openwrt-24.10.0-4ca83c0
+    env_file: external_env-all.env
+    # environment:
+      # WAN_IF: "host"
+      # LAN_IF: "host"
+      # FORWARD_LUCI: "true"
+      # LUCI_WEB_BUTTON_JSON: '{"name":"Custom OpenWrt LuCI web interface", "url":"https://192.168.2.1", "tooltip":"My custom LuCI tooltip"}'
+      # USB_1: "0bda:8153"
+      # USB_2: "0e8d:7961"
+      # PCI_1: "00:1f.6"
+      # PCI_1: "0000:00:1f.6"
+      # CPU_COUNT: 2
+      # RAM_COUNT: 1024
+      # OPENWRT_AFTER_BOOT_CMD: "/usr/bin/fw_wan_open_http" # Example to open HTTP port 80 at WAN side
+      # OPENWRT_AFTER_BOOT_CMD: "/usr/bin/fw_wan_open_http; /usr/bin/fw_wan_open_ssh" # Example to execute two commands
+      # OPENWRT_AFTER_BOOT_CMD: "cat /etc/banner" # Custom commands example
+      # OPENWRT_AFTER_BOOT_CMD: "a=$$((1+1)); echo The result of 1+1 is $${a}" # Shell script example
+      # OPENWRT_AFTER_BOOT_CMD: '[ -f /etc/first_boot_over ] || { touch /etc/first_boot_over; echo "Crazy first boot"; }' # Example to run a command only once
+      # DISABLE_OPENWRT_AUTO_UPGRADE: "true"
+      # DEBUG: "true"
+    volumes:
+      - storage:/storage
+      - /dev:/dev/
+    ports:
+      - 8006
+      - 8000
+      - 8022
+    devices:
+      - /dev/kvm
+    device_cgroup_rules:
+      - 'c *:* rwm'
+    cap_add:
+      - NET_ADMIN
+    pid: "host"
+    privileged: true
+    restart: always
+    stop_grace_period: 2m
