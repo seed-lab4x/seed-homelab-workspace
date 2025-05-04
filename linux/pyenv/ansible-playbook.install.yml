@@ -23,6 +23,7 @@
           quiet: true
 
       - vars:
+          pyenv_version: "{{ pyenv.version | default('v2.5.4') }}"
           pyenv_home: "{{ pyenv.path | default(ansible_env.HOME,true) }}"
           pyenv_root: "{{ pyenv.path | default(ansible_env.HOME,true) }}/.pyenv"
           pyenv_python_versions: "{{ pyenv.python | default(['3.8.1'],true) }}"
