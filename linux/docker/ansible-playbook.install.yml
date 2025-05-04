@@ -1,0 +1,60 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config
+  hosts: linux
+  become: true
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].docker | default(None) != None
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].docker | default(None) != None
+          msg: "host var assert fail 'docker'"
+          quiet: true
+
+      - vars:       
+          docker_os_specific_vars_path: "{{ docker.vars_path | default('NONE', true) }}"
+          docker_config_users: "{{ docker.users is defined }}"
+          docker_users: "{{ docker.users | default([], true) }}" 
+          docker_pull_images: "{{ docker.images is defined }}"
+          docker_images: "{{ docker.images | default([], true) }}" 
+          docker_config_service: true
+          docker_opts: "{{ docker.opts | default({}, true) }}"
+          # docker_alpine_apk_repo_url: "{{ docker.alpine.apk.repo.url | default({}, true) }}"
+        block:
+        - debug: msg="{{ docker_config_users }}"
+        - debug: msg="{{ docker_users }}"
+        - name: include docker
+          ansible.builtin.include_role:
+            name: xiaoyao9184.ansible-role-docker
+
+      - block:
+        - name: verion docker
+          ansible.builtin.command: "docker --version"
+          register: docker_version_cli
+
+        - name: print verion
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',ansible_play_hosts)
+              | selectattr('value.docker_version_cli','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.docker_version_cli.stdout | default('',true) }}
+              {{ host.value.docker_version_cli.stderr | default('',true) }}
+              {% endfor %}
