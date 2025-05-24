@@ -1,0 +1,22 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: configure
+  hosts: openwrt
+  tasks:
+
+    - name: configure wireless
+      vars:
+        lines: "{{ wireless.lines | default([],true) }}"
+      include_tasks: ansible-tasks.configure.yml
+
+    - name: configure group wireless
+      vars:
+        group_names: "{{ wireless.groups | default([],true) }}"
+        group_var: "{{ wireless_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.configure.yml

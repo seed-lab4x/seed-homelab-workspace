@@ -1,0 +1,32 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: build
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: mkdir build
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.file:
+        state: directory
+        path: "{{ inventory_dir }}/../wireless/{{ inventory_hostname }}"
+
+    - name: build wireless
+      vars:
+        lines: "{{ wireless.lines | default([],true) }}"
+        dest: "{{ inventory_dir }}/../wireless/{{ inventory_hostname }}/wireless.configure.sh"
+      include_tasks: ansible-tasks.build.yml
+
+    - name: build group wireless
+      vars:
+        group_names: "{{ wireless.groups | default([],true) }}"
+        group_var: "{{ wireless_groups[group_name] | default({},true) }}"
+        lines: "{{ group_var.lines }}"
+        dest: "{{ inventory_dir }}/../wireless/{{ inventory_hostname }}/wireless.{{ group_name }}.configure.sh"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.build.yml
