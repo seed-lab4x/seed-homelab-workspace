@@ -1,0 +1,42 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: download get pixi
+      ansible.builtin.get_url:
+        url: "https://pixi.sh/install.sh"
+        dest: "~/get-pixi.sh"
+      register: pixi_get
+
+    - name: shell get pixi
+      become: true
+      ansible.builtin.shell: "bash {{ pixi_get.dest }}"
+      environment:
+        PIXI_REPOURL: "{{ pixi.repo_url | default('https://github.com/prefix-dev/pixi', true) }}"
+        PIXI_VERSION: "{{ pixi.version | default('latest', true) }}"
+        PIXI_HOME: "{{ pixi.version | default('$HOME/.pixi', true) }}"
+        PIXI_ARCH: "{{ pixi.arch | default('amd64', true) }}"
+        PIXI_NO_PATH_UPDATE: "{{ pixi.no_path_update | default('', true) }}"
+        TMP_DIR: "{{ pixi.tmp_dir | default('/tmp', true) }}"
+      register: pixi_sh
+      ignore_errors: true
+
+    - name: print get pixi
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.pixi_sh','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.pixi_sh.stdout | default('',true) }}
+          {{ host.value.pixi_sh.stderr | default('',true) }}
+          {% endfor %}
