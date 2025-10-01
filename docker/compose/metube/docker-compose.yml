@@ -1,0 +1,17 @@
+version: "3.8"
+
+volumes:
+  downloads:
+    name: external_vol-metube-downloads
+    external: true
+
+services:
+  metube:
+    image: ghcr.io/alexta69/metube
+    env_file: external_env-all.env
+    ports:
+      - 8081
+    volumes:
+      - downloads:/downloads
+    container_name: metube
+    restart: always
