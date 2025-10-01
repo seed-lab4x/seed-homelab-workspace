@@ -34,6 +34,7 @@
   register: pip_index_set
   until: pip_index_set is succeeded
 
+# TODO pip config --break-system-packages
 - name: seed-python.init|linux|install pip package
   loop: "{{ _python.pip }}"
   ansible.builtin.pip:
