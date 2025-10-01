@@ -1,0 +1,44 @@
+version: "3.8"
+
+volumes:
+  nvr:
+    name: external_vol-scrypted-nvr
+    external: true
+  volume:
+    name: external_vol-scrypted-volume
+    external: true
+
+services:
+  scrypted:
+    image: koush/scrypted:latest
+    env_file: external_env-scrypted.env
+    volumes:
+      - nvr:/nvr
+      - volume:/server/volume
+    ports:
+      - 10443:10443
+    container_name: scrypted
+    restart: unless-stopped
+    healthcheck:
+      test: curl -kf https://localhost:10443 || exit 1
+      interval: 60s
+      timeout: 10s
+      retries: 10
+      start_period: 10m
+
+  # scrypted-tensorflow:
+  #   image: registry.gitlab.com/scrypted-systems/docker-plugin-tensorflow.js:master
+  #   env_file: external_env-tf.env
+  #   environment:
+  #     PLUGIN_HOST: scrypted
+  #     PLUGIN_PORT: 8080
+  #   volumes:
+  #     - tensorflow:/config
+  #   container_name: scrypted-tensorflow
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: netstat -ltn | grep -c 8082 || exit 1
+  #     interval: 60s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 10m
