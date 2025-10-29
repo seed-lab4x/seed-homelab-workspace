@@ -11,7 +11,7 @@
 
 # https://medium.com/@jonsbun/why-need-to-be-careful-when-mounting-single-files-into-a-docker-container-4f929340834
 - name: caddy-config.reload|overwrite bind
-  ansible.builtin.shell: "cat {{ workpath.remote.name }}/config/Caddyfile > {{ workpath.remote.name }}/bind_file-caddyfile"
+  ansible.builtin.shell: "cat {{ workpath.remote.name }}/config/Caddyfile > {{ workpath.remote.name }}/bind_file-Caddyfile"
 
 - name: caddy-config.reload|wait container
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.wait.yml"
