@@ -1,0 +1,28 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: proxmox
+  tasks:
+
+    - name: deploy instance
+      vars:
+        pubkey: "{{ ct.pubkey | default(None,true) }}"
+        template: "{{ ct.template | default(None,true) }}"
+        instance: "{{ ct.instance | default(None,true) }}"
+        config: "{{ ct.config | default(None,true) }}"
+      include_tasks: ansible-tasks.deploy.yml
+
+    - name: deploy group instance
+      vars:
+        group_names: "{{ ct.groups | default([],true) }}"
+        group_var: "{{ ct_groups[group_name] | default({},true) }}"
+        pubkey: "{{ group_var.pubkey | default(None,true) }}"
+        template: "{{ group_var.template | default(None,true) }}"
+        instance: "{{ group_var.instance | default(None,true) }}"
+        config: "{{ group_var.config | default(None,true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.deploy.yml

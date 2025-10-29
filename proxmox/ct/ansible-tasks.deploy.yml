@@ -1,0 +1,109 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: ct.deploy|pubkey|rescue|fail tasks
+    when:
+      - pubkey | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy ct fail. exclude var undefined."
+
+  block:
+  - name: ct.deploy|pubkey|assert var
+    ansible.builtin.assert:
+      that:
+        - pubkey | default(None,true) != None
+      msg: "var eval fail {{ pubkey }}"
+      quiet: true
+
+  - name: ct.deploy|pubkey|fact param
+    ansible.builtin.set_fact:
+      _ct:
+        pubkey: "{{ pubkey }}"
+
+  - name: ct.deploy|pubkey|add pubkey
+    vars:
+      pubkey: "{{ _ct.pubkey }}"
+    include_tasks: ../seed/pve-pubkey.add.yml
+
+- rescue:
+  - name: ct.deploy|template|rescue|fail tasks
+    when:
+      - template | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy ct fail. exclude var undefined."
+
+  block:
+  - name: ct.deploy|template|assert var
+    ansible.builtin.assert:
+      that:
+        - template | default(None,true) != None
+      msg: "var eval fail {{ template }}"
+      quiet: true
+
+  - name: ct.deploy|template|fact param
+    ansible.builtin.set_fact:
+      _ct:
+        template: "{{ template }}"
+
+  - name: ct.deploy|template|pveam update
+    ansible.builtin.shell:
+      cmd: pveam update
+
+  - name: ct.deploy|template|add templates
+    vars:
+      templates: "{{ _ct.template }}"
+    when: templates | length > 0
+    include_tasks: ../seed/pve-templates.add.yml
+
+
+- rescue:
+  - name: ct.deploy|instance|rescue|fail tasks
+    when:
+      - instance | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy instance fail. exclude var undefined."
+
+  block:
+  - name: ct.deploy|instance|assert var
+    ansible.builtin.assert:
+      that:
+        - instance | default(None,true) != None
+      msg: "var eval fail {{ instance }}"
+      quiet: true
+
+  - name: ct.deploy|instance|fact param
+    ansible.builtin.set_fact:
+      _ct:
+        instance: "{{ instance }}"
+
+  - name: ct.deploy|instance|add ct
+    vars:
+      instance: "{{ _ct.instance }}"
+    include_tasks: ../seed/pve-instance.add.yml
+
+
+- rescue:
+  - name: ct.deploy|config|rescue|fail tasks
+    when:
+      - config | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy config fail. exclude var undefined."
+
+  block:
+  - name: ct.deploy|config|assert var
+    ansible.builtin.assert:
+      that:
+        - config | default(None,true) != None
+      msg: "var eval fail {{ config }}"
+      quiet: true
+
+  - name: ct.deploy|config|fact param
+    ansible.builtin.set_fact:
+      _ct:
+        config: "{{ config }}"
+
+  - name: ct.deploy|config|add config
+    vars:
+      config: "{{ _ct.config }}"
+    include_tasks: ../seed/pve-config.add.yml
