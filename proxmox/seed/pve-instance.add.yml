@@ -1,0 +1,34 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-instance.add|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - instance is defined
+    ansible.builtin.fail:
+      msg: "add instance fail. exclude var undefined."
+
+  block:
+  - name: pve-instance.add|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - instance is defined
+      msg: "var eval fail {{ instance }}"
+      quiet: true
+
+  - name: pve-instance.add|fact param
+    ansible.builtin.set_fact:
+      _instance: "{{ instance }}"
+
+  - name: pve-instance.add|add instance
+    delegate_to: localhost
+    vars:
+      combine:
+        api_host: "{{ proxmox.api_host }}"
+        api_user: "{{ proxmox.api_user }}"
+        api_password: "{{ proxmox.api_password }}"
+      args: "{{ _instance | combine(combine, recursive=True) }}"
+    community.proxmox.proxmox: "{{ args }}"
+    register: instance_add

@@ -1,0 +1,31 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-config.add|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - config is defined
+    ansible.builtin.fail:
+      msg: "add config fail. exclude var undefined."
+
+  block:
+  - name: pve-config.add|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - config is defined
+      msg: "var eval fail {{ config }}"
+      quiet: true
+
+  - name: pve-config.add|fact param
+    ansible.builtin.set_fact:
+      _config: "{{ config }}"
+
+  - name: pve-config.add|add config
+    loop: "{{ _config.configs | dict2items }}"
+    ansible.builtin.lineinfile:
+      path: "/etc/pve/lxc/{{ _config.vmid }}.conf"
+      line: "{{ item.key }}: {{ item.value }}"
+      create: yes
+    register: config_add

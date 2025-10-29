@@ -1,0 +1,33 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-pubkey.add|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - pubkey is defined
+    ansible.builtin.fail:
+      msg: "add pubkey fail. exclude var undefined."
+
+  block:
+  - name: pve-pubkey.add|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - pubkey is defined
+      msg: "var eval fail {{ pubkey }}"
+      quiet: true
+
+  - name: pve-pubkey.add|fact param
+    ansible.builtin.set_fact:
+      _pubkey: "{{ pubkey }}"
+
+  - name: pve-pubkey.add|init ssh
+    include_tasks: ../../.seed/ansible-tasks/seed-ssh.init.yml
+    vars:
+      ssh:
+        name: "{{ _pubkey.name }}"
+        # group: "{{ _pubkey.group }}"
+        group: none
+        known_scan: []
+        approve_task: "{{ playbook_dir }}/../seed/pve-pubkey.fact.yml"

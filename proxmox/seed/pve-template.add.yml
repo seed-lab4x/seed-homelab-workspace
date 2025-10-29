@@ -1,0 +1,46 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-template.add|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - template is defined
+      - not _template.skip
+    ansible.builtin.fail:
+      msg: "add template fail. exclude var undefined."
+
+  block:
+  - name: pve-template.add|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - template is defined
+      msg: "var eval fail {{ template }}"
+      quiet: true
+
+  - name: pve-template.add|fact param
+    vars:
+      default:
+        skip: false
+    ansible.builtin.set_fact:
+      _template: "{{ default | combine(template, recursive=True) }}"
+
+  - name: pve-template.add|download proxmox appliance container template
+    delegate_to: localhost
+    community.proxmox.proxmox_template:
+      api_host: "{{ proxmox.api_host }}"
+      api_user: "{{ proxmox.api_user }}"
+      api_password: "{{ proxmox.api_password }}"
+      checksum: "{{ _template.checksum | default(omit,true) }}"
+      checksum_algorithm: "{{ _template.checksum_algorithm | default(omit,true) }}"
+      content_type: "{{ _template.content_type | default(omit,true) }}"
+      force: "{{ _template.force | default(omit,true) }}"
+      node: "{{ _template.node | default(omit,true) }}"
+      src: "{{ _template.src | default(omit,true) }}"
+      state: "{{ _template.state | default(omit,true) }}"
+      storage: "{{ _template.storage | default(omit,true) }}"
+      template: "{{ _template.template | default(omit,true) }}"
+      timeout: "{{ _template.timeout | default(omit,true) }}"
+      url: "{{ _template.url | default(omit,true) }}"
+      validate_certs: "{{ _template.validate_certs | default(omit,true) }}"
