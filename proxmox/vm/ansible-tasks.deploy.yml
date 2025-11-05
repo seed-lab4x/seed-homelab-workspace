@@ -1,0 +1,27 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: vm.deploy|kvm|rescue|fail tasks
+    when:
+      - kvm | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy kvm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|kvm|assert var
+    ansible.builtin.assert:
+      that:
+        - kvm | default(None,true) != None
+      msg: "var eval fail {{ kvm }}"
+      quiet: true
+
+  - name: vm.deploy|kvm|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        kvm: "{{ kvm }}"
+
+  - name: vm.deploy|kvm|add ct
+    vars:
+      kvm: "{{ _vm.kvm }}"
+    include_tasks: ../seed/pve-kvm.add.yml

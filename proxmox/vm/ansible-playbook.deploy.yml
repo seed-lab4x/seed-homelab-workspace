@@ -1,0 +1,22 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: proxmox
+  tasks:
+
+    - name: deploy vm
+      vars:
+        kvm: "{{ vm.kvm | default(None,true) }}"
+      include_tasks: ansible-tasks.deploy.yml
+
+    - name: deploy group vm
+      vars:
+        group_names: "{{ vm.groups | default([],true) }}"
+        group_var: "{{ vm_groups[group_name] | default({},true) }}"
+        kvm: "{{ group_var.kvm | default(None,true) }}"
+      loop: "{{ group_names }}"
+      loop_control:
+        loop_var: group_name
+      include_tasks: ansible-tasks.deploy.yml
