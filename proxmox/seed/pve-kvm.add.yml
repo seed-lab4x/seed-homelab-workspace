@@ -1,0 +1,34 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-kvm.add|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - kvm is defined
+    ansible.builtin.fail:
+      msg: "add kvm fail. exclude var undefined."
+
+  block:
+  - name: pve-kvm.add|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - kvm is defined
+      msg: "var eval fail {{ kvm }}"
+      quiet: true
+
+  - name: pve-kvm.add|fact param
+    ansible.builtin.set_fact:
+      _instance: "{{ kvm }}"
+
+  - name: pve-kvm.add|add kvm
+    delegate_to: localhost
+    vars:
+      combine:
+        api_host: "{{ proxmox.api_host }}"
+        api_user: "{{ proxmox.api_user }}"
+        api_password: "{{ proxmox.api_password }}"
+      args: "{{ _instance | combine(combine, recursive=True) }}"
+    community.proxmox.proxmox_kvm: "{{ args }}"
+    register: instance_add
