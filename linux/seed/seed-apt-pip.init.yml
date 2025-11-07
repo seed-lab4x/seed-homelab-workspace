@@ -1,0 +1,106 @@
+# code: language=ansible
+---
+
+# apt configed
+- vars:
+    apt_general_periodic: "{{ apt.general_periodic | default(false,true) }}"
+    apt_policy: "{{ apt.policy | default(-1,true) }}"
+    # CANT use `update` because <built-in method update of dict object at 0x71aee1815100>
+    apt_update: "{{ apt.update_cache | default(false,true) }}"
+    # disable update_cache also need set cache_valid_time to false
+    # see https://github.com/ansible/ansible/blob/a0ea1d40e2802018336a2a6b6aacf410a173e71f/lib/ansible/modules/apt.py#L1348C14-L1348C59
+    apt_cache_valid_time: "{{ apt.cache_valid_time | default(0,true) }}"
+    apt_dependencies: "{{ apt.ependencies | default([],true) }}"
+    apt_unattended_upgrades: "{{ apt.unattended_upgrades | default(false,true) }}"
+    apt_repositories: "{{ apt.repositories | default([],true) }}"
+    apt_deb822_repositories: "{{ apt.deb822_repositories | default([],true) }}"
+    apt_autoremove: "{{ apt.autoremove | default(false,true) }}"
+    apt_autoclean: "{{ apt.autoclean | default(false,true) }}"
+  block:
+
+  - name: pve-python.init|apt|include vars
+    when: apt.vars_file is defined
+    ansible.builtin.include_vars:
+      file: "{{ apt.vars_file }}"
+
+  - name: pve-python.init|apt|include role
+    ansible.builtin.include_role:
+      name: xiaoyao9184.ansible-role-apt
+      apply:
+        become: true
+
+# apt package installed
+
+- block:
+  - name: pve-python.init|apt|install packages
+    become: true
+    loop: "{{ apt.packages | default([],true) }}"
+    ansible.builtin.apt:
+      allow_change_held_packages: "{{ item.allow_change_held_packages | default(omit,true) }}"
+      allow_downgrade: "{{ item.allow_downgrade | default(omit,true) }}"
+      allow_unauthenticated: "{{ item.allow_unauthenticated | default(omit,true) }}"
+      auto_install_module_deps: "{{ item.auto_install_module_deps | default(omit,true) }}"
+      autoclean: "{{ item.autoclean | default(omit,true) }}"
+      autoremove: "{{ item.autoremove | default(omit,true) }}"
+      cache_valid_time: "{{ item.cache_valid_time | default(omit,true) }}"
+      clean: "{{ item.clean | default(omit,true) }}"
+      deb: "{{ item.deb | default(omit,true) }}"
+      default_release: "{{ item.default_release | default(omit,true) }}"
+      dpkg_options: "{{ item.dpkg_options | default(omit,true) }}"
+      fail_on_autoremove: "{{ item.fail_on_autoremove | default(omit,true) }}"
+      force: "{{ item.force | default(omit,true) }}"
+      force_apt_get: "{{ item.force_apt_get | default(omit,true) }}"
+      install_recommends: "{{ item.install_recommends | default(omit,true) }}"
+      lock_timeout: "{{ item.lock_timeout | default(omit,true) }}"
+      name: "{{ item.name | default(omit,true) }}"
+      only_upgrade: "{{ item.only_upgrade | default(omit,true) }}"
+      policy_rc_d: "{{ item.policy_rc_d | default(omit,true) }}"
+      purge: "{{ item.purge | default(omit,true) }}"
+      state: "{{ item.state | default(omit,true) }}"
+      update_cache: "{{ item.update_cache | default(omit,true) }}"
+      update_cache_retries: "{{ item.update_cache_retries | default(omit,true) }}"
+      update_cache_retry_max_delay: "{{ item.update_cache_retry_max_delay | default(omit,true) }}"
+      upgrade: "{{ item.upgrade | default(omit,true) }}"
+    retries: 3
+
+# pip configed
+
+- vars:
+    python_pip_proxy: "{{ python.pip.proxy | default(None,true) }}"
+    # TODO not work when use python_pip_trusted_host is defined
+    # python_pip_trusted_host: "{{ python.pip.trusted_host | default(None,true) }}"
+    # not install any pip pacakges
+    python_pip_packages:
+      - python3-venv
+  block:
+  - name: pve-python.init|pip|include vars
+    when: python.pip.vars_file is defined
+    ansible.builtin.include_vars:
+      file: "{{ python.pip.vars_file }}"
+
+  - name: pve-python.init|pip|include role
+    ansible.builtin.include_role:
+      name: robertdebock.python_pip
+      apply:
+        become: true
+
+# pip package installed
+
+- block:
+  - name: pve-python.init|pip|install packages
+    loop: "{{ python.pip.packages | default([],true) }}"
+    ansible.builtin.pip:
+      break_system_packages: "{{ item.break_system_packages | default(omit,true) }}"
+      chdir: "{{ item.chdir | default(omit,true) }}"
+      executable: "{{ item.executable | default(omit,true) }}"
+      extra_args: "{{ item.extra_args | default(omit,true) }}"
+      name: "{{ item.name | default(omit,true) }}"
+      requirements: "{{ item.requirements | default(omit,true) }}"
+      state: "{{ item.state | default(omit,true) }}"
+      umask: "{{ item.umask | default(omit,true) }}"
+      version: "{{ item.version | default(omit,true) }}"
+      virtualenv: "{{ item.virtualenv | default(omit,true) }}"
+      virtualenv_command: "{{ item.virtualenv_command | default(omit,true) }}"
+      virtualenv_python: "{{ item.virtualenv_python | default(omit,true) }}"
+      virtualenv_site_packages: "{{ item.virtualenv_site_packages | default(omit,true) }}"
+    retries: 3
