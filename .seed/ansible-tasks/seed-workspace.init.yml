@@ -89,10 +89,23 @@
     ansible.builtin.set_fact:
       _ws: "{{ _ws | combine(ws_env, recursive=True) }}"
 
-- name: seed-workspace.init|install python pip
+- name: seed-workspace.init|custom interpreter|install python pip packages
   vars:
     ansible_python_interpreter: "{{ _ws.python_interpreter }}"
   loop: "{{ _ws.pip }}"
+  when: "{{ _ws.python_interpreter | default(None,true) != None }}"
+  ansible.builtin.pip:
+    name: "{{ item }}"
+    state: latest
+    # executable: "{{ _ws.pip_executable }}"
+    virtualenv: "{{ _ws.venv_path | default(omit,true) }}"
+    virtualenv_command: "{{ _ws.venv_command | default(omit,true) }}"
+  register: pip_install
+  until: pip_install is succeeded
+
+- name: seed-workspace.init|default interpreter|install python pip packages
+  loop: "{{ _ws.pip }}"
+  when: "{{ _ws.python_interpreter | default(None,true) == None }}"
   ansible.builtin.pip:
     name: "{{ item }}"
     state: latest
