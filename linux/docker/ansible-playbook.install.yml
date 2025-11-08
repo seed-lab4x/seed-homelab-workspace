@@ -22,7 +22,7 @@
           msg: "host var assert fail 'docker'"
           quiet: true
 
-      - vars:       
+      - vars:
           docker_os_specific_vars_path: "{{ docker.vars_path | default('NONE', true) }}"
           docker_config_users: "{{ docker.users is defined }}"
           docker_users: "{{ docker.users | default([], true) }}" 
@@ -30,10 +30,12 @@
           docker_images: "{{ docker.images | default([], true) }}" 
           docker_config_service: true
           docker_opts: "{{ docker.opts | default({}, true) }}"
-          # docker_alpine_apk_repo_url: "{{ docker.alpine.apk.repo.url | default({}, true) }}"
         block:
-        - debug: msg="{{ docker_config_users }}"
-        - debug: msg="{{ docker_users }}"
+        - name: include vars
+          when: docker.vars_file is defined
+          ansible.builtin.include_vars:
+            file: "{{ docker.vars_file }}"
+
         - name: include docker
           ansible.builtin.include_role:
             name: xiaoyao9184.ansible-role-docker
