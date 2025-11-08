@@ -1,0 +1,24 @@
+version: "3.8"
+
+volumes:
+  mirrors:
+    name: external_vol-olah-mirrors
+    external: true
+  repos:
+    name: external_vol-olah-repos
+    external: true
+
+services:
+  olah:
+    image: xiaoyao9184/olah:0.3.3
+    command: -c /app/configs.toml
+    env_file: external_env-all.env
+    volumes:
+      - ./bind_file-configs.toml:/app/configs.toml
+      - mirrors:/data/mirrors
+      - repos:/data/repos
+    ports:
+      - 8090:8090
+    # network_mode: bridge
+    container_name: olah
+    restart: unless-stopped
