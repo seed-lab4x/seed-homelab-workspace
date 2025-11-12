@@ -13,7 +13,7 @@ networks:
 
 services:
   influxdb:
-    image: influxdb:1.8
+    image: influxdb:latest
     env_file: external_env-all.env
     volumes:
       - data:/var/lib/influxdb
