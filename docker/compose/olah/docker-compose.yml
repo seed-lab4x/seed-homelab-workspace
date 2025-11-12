@@ -18,7 +18,7 @@ services:
       - mirrors:/data/mirrors
       - repos:/data/repos
     ports:
-      - 8090:8090
+      - 8090
     # network_mode: bridge
     container_name: olah
     restart: unless-stopped
