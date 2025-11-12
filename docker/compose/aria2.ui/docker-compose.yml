@@ -11,7 +11,7 @@ services:
     networks:
       - aria2
     ports:
-      - 6880:6880
+      - 6880
     # network_mode: bridge
     container_name: ariang
     restart: always
