@@ -17,7 +17,7 @@ services:
     networks:
       - uptime-kuma
     ports:
-      - 3001:3001
+      - 3001
     # network_mode: bridge
     container_name: uptime-kuma
     restart: always
