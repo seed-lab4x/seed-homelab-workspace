@@ -27,7 +27,7 @@ services:
       - 8555:8555/udp
     container_name: frigate
     restart: unless-stopped
-    shm_size: 64mb
+    shm_size: 96mb
     privileged: true
     cap_add:
       - CAP_PERFMON
