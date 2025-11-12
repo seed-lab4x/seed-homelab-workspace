@@ -12,7 +12,7 @@ volumes:
 
 services:
   gitlab-runner:
-    image: gitlab/gitlab-runner:v15.9.1
+    image: gitlab/gitlab-runner:latest
     env_file: external_env-all.env
     volumes:
       - config:/etc/gitlab-runner
