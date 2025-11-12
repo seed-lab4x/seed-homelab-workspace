@@ -23,7 +23,7 @@ services:
       - dashboards:/var/lib/grafana/dashboards
       - provisioning:/etc/grafana/provisioning
     ports:
-      - 3000:3000
+      - 3000
     networks:
       - grafana
     container_name: grafana
