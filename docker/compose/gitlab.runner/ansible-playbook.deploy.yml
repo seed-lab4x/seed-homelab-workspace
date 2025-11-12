@@ -18,9 +18,6 @@
         compose:
           vars: "{{ gitlab.runner | default({},true) }}"
           default:
-            files:
-              - src: "{{ playbook_dir }}/config/omnibus.rb"
-                dest: "{{ workpath.remote.full }}/bind_file-omnibus.rb"
             volumes:
               - name: external_vol-gitlab-runner-config
                 driver: local
