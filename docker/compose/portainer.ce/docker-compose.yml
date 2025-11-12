@@ -11,8 +11,8 @@ services:
       - data:/data
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
-      - 9000:9000
-      - 9443:9443
+      - 9000
+      - 9443
       # https://github.com/portainer/portainer-docs/issues/91
       - 8000:8000
     # network_mode: bridge
