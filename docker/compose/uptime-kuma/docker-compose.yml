@@ -5,17 +5,12 @@ volumes:
     name: external_vol-uptime-kuma
     external: true
 
-networks:
-  uptime-kuma:
-
 services:
   uptime-kuma:
     image: louislam/uptime-kuma:latest
     env_file: external_env-all.env
     volumes:
       - data:/app/data
-    networks:
-      - uptime-kuma
     ports:
       - 3001
     # network_mode: bridge
