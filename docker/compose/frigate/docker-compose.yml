@@ -18,9 +18,11 @@ services:
       - config:/config
       - storage:/media/frigate
     ports:
-      - 5000:5000
-      - 8971:8971
+      - 5000
+      - 8971
+      # Restream
       - 8554:8554
+      # Live View
       - 8555:8555/tcp
       - 8555:8555/udp
     container_name: frigate
