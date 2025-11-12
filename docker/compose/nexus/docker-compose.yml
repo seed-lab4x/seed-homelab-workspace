@@ -7,7 +7,7 @@ volumes:
 
 services:
   nexus3:
-    image: sonatype/nexus3:3.74.0
+    image: sonatype/nexus3:latest
     env_file: external_env-all.env
     # environment:
     #   PUID: 200
