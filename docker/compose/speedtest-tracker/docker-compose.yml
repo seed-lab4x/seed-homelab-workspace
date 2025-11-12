@@ -10,7 +10,7 @@ volumes:
 
 services:
   speedtest-tracker:
-    image: lscr.io/linuxserver/speedtest-tracker:latest
+    image: linuxserver/speedtest-tracker:latest
     env_file: external_env-speedtest.env
     # environment:
     #   - PUID=1000
