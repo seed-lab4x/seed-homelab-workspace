@@ -83,7 +83,7 @@
           src: "{{ _transmissionic.path }}/web/"
           dest: "./webui/transmissionic/"
           bind: true
-          directory_mode: '0744'
+          directory_mode: '0777'
 
   - name: transmission-transmissionic.deploy|remove path
     ansible.builtin.file:

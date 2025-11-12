@@ -82,7 +82,7 @@
           src: "{{ _combustion.dir }}/combustion-release/"
           dest: "./webui/combustion/"
           bind: true
-          directory_mode: '0744'
+          directory_mode: '0777'
 
   - name: transmission-combustion.deploy|remove dir
     ansible.builtin.file:
