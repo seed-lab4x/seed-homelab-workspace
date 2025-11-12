@@ -29,3 +29,9 @@ services:
       - 443
     container_name: speedtest-tracker
     restart: unless-stopped
+    healthcheck:
+      test: curl -fSs localhost/api/healthcheck | jq -r .message || exit 1
+      interval: 10s
+      retries: 3
+      start_period: 30s
+      timeout: 10s
