@@ -10,7 +10,7 @@ networks:
 
 services:
   mariadb:
-    image: mariadb:11.1.2
+    image: mariadb:latest
     env_file: external_env-all.env
     volumes:
       - data:/var/lib/mysql
