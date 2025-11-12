@@ -10,7 +10,7 @@ volumes:
 
 services:
   mosquitto:
-    image: eclipse-mosquitto:2.0
+    image: eclipse-mosquitto:latest
     env_file: external_env-all.env
     volumes:
       - ./bind_file-mosquitto.conf:/mosquitto/config/mosquitto.conf
