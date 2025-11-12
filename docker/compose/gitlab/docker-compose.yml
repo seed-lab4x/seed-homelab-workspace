@@ -24,10 +24,9 @@ services:
       - data:/var/opt/gitlab
       - ./bind_file-omnibus.rb:/omnibus.rb
     ports:
-      - 8880:80
-      # https://github.com/docker/compose/issues/3109#issuecomment-195435884
-      - '2222:22'
-      - 8443:443
+      - 80
+      - 443
+      - 22
     # network_mode: bridge
     container_name: gitlab-ce
     restart: always
