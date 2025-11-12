@@ -10,7 +10,7 @@ networks:
 
 services:
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    image: louislam/uptime-kuma:latest
     env_file: external_env-all.env
     volumes:
       - data:/app/data
