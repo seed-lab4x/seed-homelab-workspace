@@ -20,7 +20,7 @@
           vars: "{{ uptime_kuma | default({},true) }}"
           default:
             volumes:
-              - name: external_vol-uptime-kuma
+              - name: external_vol-uptime-data
                 driver: local
             envs:
               - file: external_env-all.env

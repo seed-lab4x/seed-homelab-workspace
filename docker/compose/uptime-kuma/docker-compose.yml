@@ -2,7 +2,7 @@ version: "3.8"
 
 volumes:
   data:
-    name: external_vol-uptime-kuma
+    name: external_vol-uptime-data
     external: true
 
 services:
