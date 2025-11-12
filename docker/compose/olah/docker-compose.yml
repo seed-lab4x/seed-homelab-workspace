@@ -10,7 +10,7 @@ volumes:
 
 services:
   olah:
-    image: xiaoyao9184/olah:0.3.3
+    image: xiaoyao9184/olah:latest
     command: -c /app/configs.toml
     env_file: external_env-all.env
     volumes:
