@@ -19,7 +19,7 @@ services:
     networks:
       - domoticz
     ports:
-      - 8680:8080
+      - 8080
     # network_mode: bridge
     container_name: domoticz
     restart: always
