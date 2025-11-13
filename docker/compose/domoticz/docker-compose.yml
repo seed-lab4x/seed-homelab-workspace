@@ -5,9 +5,6 @@ volumes:
     name: external_vol-domoticz-userdata
     external: true
 
-networks:
-  domoticz:
-
 services:
   domoticz:
     image: domoticz/domoticz:stable
@@ -16,8 +13,6 @@ services:
     #   - LOG_PATH=/opt/domoticz/userdata/domoticz.log
     volumes:
       - userdata:/opt/domoticz/userdata
-    networks:
-      - domoticz
     ports:
       - 8080
     # network_mode: bridge
