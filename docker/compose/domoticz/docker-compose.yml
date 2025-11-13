@@ -10,7 +10,7 @@ networks:
 
 services:
   domoticz:
-    image: domoticz/domoticz:2021-beta.13738
+    image: domoticz/domoticz:stable
     env_file: external_env-all.env
     # environment:
     #   - LOG_PATH=/opt/domoticz/userdata/domoticz.log
