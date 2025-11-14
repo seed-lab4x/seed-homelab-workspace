@@ -1,10 +1,5 @@
 version: "3.8"
 
-networks:
-  telegraf:
-  influxdb:
-    name: influxdb_influxdb
-
 services:
   telegraf:
     image: telegraf:latest
@@ -16,12 +11,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /usr/share/snmp/mibs/:/usr/share/snmp/mibs/
       - /var/lib/mibs:/var/lib/mibs
-    networks:
-      - telegraf
-      - influxdb
-{% if VARS.NETWORKS | length > 0 %}
-      {{ VARS.NETWORKS | to_nice_yaml(indent=2) | trim | indent(6) }}
-{% endif %}
     container_name: telegraf
     restart: always
     healthcheck:
