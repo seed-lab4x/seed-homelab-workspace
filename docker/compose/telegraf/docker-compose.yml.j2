@@ -7,7 +7,7 @@ networks:
 
 services:
   telegraf:
-    image: telegraf:1.24.1
+    image: telegraf:latest
     hostname: "{{ VARS.HOMENAME }}"
     user: telegraf:{{ VARS.USR_GROUP }}
     env_file: external_env-all.env
