@@ -1,0 +1,46 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-karakeep-data
+    external: true
+  meilisearch:
+    name: external_vol-karakeep-meilisearch
+    external: true
+
+services:
+  web:
+    image: ghcr.io/karakeep-app/karakeep:release
+    env_file: external_env-karakeep.env
+    environment:
+      MEILI_ADDR: http://meilisearch:7700
+      BROWSER_WEB_URL: http://chrome:9222
+      # OPENAI_API_KEY: ...
+
+      # You almost never want to change the value of the DATA_DIR variable.
+      # If you want to mount a custom directory, change the volume mapping above instead.
+      DATA_DIR: /data # DON'T CHANGE THIS
+    volumes:
+      - data:/data
+    ports:
+      - 3000
+    restart: unless-stopped
+  chrome:
+    image: gcr.io/zenika-hub/alpine-chrome:124
+    env_file: external_env-chrome.env
+    command:
+      - --no-sandbox
+      - --disable-gpu
+      - --disable-dev-shm-usage
+      - --remote-debugging-address=0.0.0.0
+      - --remote-debugging-port=9222
+      - --hide-scrollbars
+    restart: unless-stopped
+  meilisearch:
+    image: getmeili/meilisearch:v1.13.3
+    env_file: external_env-meilisearch.env
+    environment:
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - meilisearch:/meili_data
+    restart: unless-stopped
