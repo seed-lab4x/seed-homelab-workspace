@@ -17,7 +17,7 @@
       vars:
         compose:
           name: wechat
-          vars: "{{ wechat | default({},true) }}"
+          vars: "{{ wechat_selkies | default({},true) }}"
           default:
             volumes:
               - name: external_vol-wechat-config

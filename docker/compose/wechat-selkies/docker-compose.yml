@@ -5,12 +5,9 @@ volumes:
     name: external_vol-wechat-config
     external: true
 
-networks:
-  wechat:
-
 services:
   wechat-selkies:
-    image: nickrunning/wechat-selkies:0.0.5    # or ghcr.io/nickrunning/wechat-selkies:latest
+    image: nickrunning/wechat-selkies:latest   # or ghcr.io/nickrunning/wechat-selkies:latest
     env_file: external_env-all.env
     environment:
       - PUID=1000                    # user ID
@@ -23,10 +20,8 @@ services:
       # - PASSWORD=<Your Password>     # recommended to set a password for selkies web ui
     container_name: wechat-selkies
     ports:
-      - "3000"       # http port
-      - "3001"       # https port
-    networks:
-      - wechat
+      - 3000       # http port
+      - 3001       # https port
     restart: unless-stopped
     volumes:
       - config:/config
