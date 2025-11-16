@@ -25,5 +25,5 @@ services:
     restart: unless-stopped
     volumes:
       - config:/config
-    devices:
-      - /dev/dri:/dev/dri # optional, for hardware acceleration
+    # devices:
+    #   - /dev/dri:/dev/dri # optional, for hardware acceleration
