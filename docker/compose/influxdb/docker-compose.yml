@@ -8,9 +8,6 @@ volumes:
     name: external_vol-influxdb-collectd
     external: true
 
-networks:
-  influxdb:
-
 services:
   influxdb:
     image: influxdb:latest
@@ -19,8 +16,6 @@ services:
       - data:/var/lib/influxdb
       - collectd:/usr/share/collectd
       - ./bind_file-influxdb.conf:/etc/influxdb/influxdb.conf
-    networks:
-      - influxdb
     ports:
       - 8088:8088
       - 8086:8086
