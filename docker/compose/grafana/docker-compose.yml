@@ -11,9 +11,6 @@ volumes:
     name: external_vol-grafana-provisioning
     external: true
 
-networks:
-  grafana:
-
 services:
   grafana:
     image: grafana/grafana:latest
@@ -24,8 +21,6 @@ services:
       - provisioning:/etc/grafana/provisioning
     ports:
       - 3000
-    networks:
-      - grafana
     container_name: grafana
     restart: always
     healthcheck:
