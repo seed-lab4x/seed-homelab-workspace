@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  karakeep-sync:
+    image: ghcr.io/sidoshi/karakeep-sync:latest
+    env_file: external_env-sync.env
+    # environment:
+    #   - KS_KARAKEEP_AUTH=<your_karakeep_auth_cookie> # required
+    #   - KS_KARAKEEP_URL=<your_karakeep_instance_url> # required
+
+    #   - KS_HN_AUTH=<your_hn_auth_cookie> # optional
+    #   - KS_HN_SCHEDULE=@daily # optional Cron format, e.g., "@hourly", "@daily", "0 0 * * *" default is "@daily"
+
+    #   - KS_REDDIT_CLIENTID=<your_reddit_client_id> # optional
+    #   - KS_REDDIT_CLIENTSECRET=<your_reddit_client_secret> # optional
+    #   - KS_REDDIT_REFRESHTOKEN=<your_reddit_refresh_token> # optional
+    #   - KS_REDDIT_SCHEDULE=@daily # optional Cron format, e.g., "@hourly", "@daily", "0 0 * * *" default is "@daily"
+
+    #   - KS_GITHUB_TOKEN=<your_github_personal_access_token> # optional
+    #   - KS_GITHUB_SCHEDULE=@daily # optional Cron format, e.g., "@hourly", "@daily", "0 0 * * *" default is "@daily"
+
+    #   - KS_PINBOARD_TOKEN=<your_pinboard_api_token> # optional
+    #   - KS_PINBOARD_SCHEDULE=@daily # optional Cron format, e.g., "@hourly", "@daily", "0 0 * * *" default is "@daily"
+    container_name: karakeep-sync
+    restart: unless-stopped
