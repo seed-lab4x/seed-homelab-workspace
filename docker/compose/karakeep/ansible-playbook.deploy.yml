@@ -26,7 +26,10 @@
                 driver: local
             envs:
               - file: external_env-karakeep.env
-                content: ''
+                content: |
+                  NEXTAUTH_SECRET=super_random_string
+                  MEILI_MASTER_KEY=another_random_string
+                  NEXTAUTH_URL=http://localhost:3000
               - file: external_env-chrome.env
                 content: ''
               - file: external_env-meilisearch.env
