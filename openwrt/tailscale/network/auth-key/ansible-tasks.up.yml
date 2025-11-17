@@ -5,6 +5,11 @@
   ansible.builtin.shell: "ip route | grep src | grep br-lan | awk '{print $1}'"
   register: lan_get
 
+- name: authkey.up|down network
+  ansible.builtin.shell: "tailscale down"
+  register: tailscale_down
+  ignore_errors: true
+
 - name: authkey.up|up network
   vars:
     flags: "{{ tailscale.network.flags | default('',true) }}"
