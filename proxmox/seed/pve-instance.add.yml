@@ -32,3 +32,4 @@
       args: "{{ _instance | combine(combine, recursive=True) }}"
     community.proxmox.proxmox: "{{ args }}"
     register: instance_add
+    retries: 3
