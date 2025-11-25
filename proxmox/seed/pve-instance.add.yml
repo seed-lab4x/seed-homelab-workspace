@@ -32,4 +32,7 @@
       args: "{{ _instance | combine(combine, recursive=True) }}"
     community.proxmox.proxmox: "{{ args }}"
     register: instance_add
-    retries: 3
+    # There is a chance that when state=started, the error "An error occurred: 'name'" will occur.
+    retries: 10
+    delay: 5
+    until: instance_add is succeeded
