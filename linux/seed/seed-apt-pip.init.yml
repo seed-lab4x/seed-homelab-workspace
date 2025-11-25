@@ -18,12 +18,12 @@
     apt_autoclean: "{{ apt.autoclean | default(false,true) }}"
   block:
 
-  - name: pve-python.init|apt|include vars
+  - name: seed-apt-pip.init|apt|include vars
     when: apt.vars_file is defined
     ansible.builtin.include_vars:
       file: "{{ apt.vars_file }}"
 
-  - name: pve-python.init|apt|include role
+  - name: seed-apt-pip.init|apt|include role
     ansible.builtin.include_role:
       name: xiaoyao9184.ansible-role-apt
       apply:
@@ -32,7 +32,7 @@
 # apt package installed
 
 - block:
-  - name: pve-python.init|apt|install packages
+  - name: seed-apt-pip.init|apt|install packages
     become: true
     loop: "{{ apt.packages | default([],true) }}"
     ansible.builtin.apt:
@@ -73,12 +73,12 @@
     python_pip_packages:
       - python3-venv
   block:
-  - name: pve-python.init|pip|include vars
+  - name: seed-apt-pip.init|pip|include vars
     when: python.pip.vars_file is defined
     ansible.builtin.include_vars:
       file: "{{ python.pip.vars_file }}"
 
-  - name: pve-python.init|pip|include role
+  - name: seed-apt-pip.init|pip|include role
     ansible.builtin.include_role:
       name: robertdebock.python_pip
       apply:
@@ -87,7 +87,7 @@
 # pip package installed
 
 - block:
-  - name: pve-python.init|pip|install packages
+  - name: seed-apt-pip.init|pip|install packages
     loop: "{{ python.pip.packages | default([],true) }}"
     ansible.builtin.pip:
       break_system_packages: "{{ item.break_system_packages | default(omit,true) }}"
