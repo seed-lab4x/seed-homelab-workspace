@@ -100,10 +100,19 @@
 
 # pve configed
 
-- name: Replace proxmox download URL in PVE APLInfo.pm
-  ansible.builtin.replace:
-    path: /usr/share/perl5/PVE/APLInfo.pm
-    regexp: 'http:\/\/download\.proxmox\.com'
-    replace: "{{ proxmox.apl_mirror }}"
-    backup: yes
-  when: proxmox.apl_mirror is defined
+- when:
+    - proxmox.apl_mirror is defined
+  block:
+  - name: Replace proxmox download URL in PVE APLInfo.pm
+    ansible.builtin.replace:
+      path: /usr/share/perl5/PVE/APLInfo.pm
+      regexp: 'http:\/\/download\.proxmox\.com'
+      replace: "{{ proxmox.apl_mirror }}"
+      backup: yes
+    when: 
+
+  - name: Restart pvedaemon service
+    ansible.builtin.systemd_service:
+      state: restarted
+      daemon_reload: true
+      name: pvedaemon
