@@ -77,6 +77,7 @@
     ansible.builtin.file:
       state: directory
       path: "/home/git/.ssh"
+      owner: git
 
   - name: ssh-proxy.deploy|generate ssh key
     become: true
@@ -85,6 +86,7 @@
       size: 2048
       type: rsa
       comment: gitlab-ssh-proxy
+      owner: git
     # https://github.com/microsoft/WSL/issues/670
     register: ssh_keypair_gen
     until: ssh_keypair_gen is succeeded
@@ -112,6 +114,12 @@
         container: gitlab-ce
         command: "/bin/bash -c 'echo \"{{ ssh_pub_slurp['content'] | b64decode }}\" >> /var/opt/gitlab/.ssh/authorized_keys && cat /var/opt/gitlab/.ssh/authorized_keys'"
         register: container_exec
+
+  - name: ssh-proxy.deploy|restart sshd
+    ansible.builtin.systemd_service:
+      state: restarted
+      daemon_reload: true
+      name: sshd
 
   - name: ssh-proxy.deploy|print exec
     vars:
