@@ -27,7 +27,7 @@ services:
     container_name: karakeep
     restart: unless-stopped
   chrome:
-    image: gcr.io/zenika-hub/alpine-chrome:124
+    image: zenika/alpine-chrome:124
     env_file: external_env-chrome.env
     command:
       - --no-sandbox
