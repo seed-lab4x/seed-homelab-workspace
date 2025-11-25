@@ -5,6 +5,7 @@
   - name: ssh-proxy.deploy|rescue|fail tasks
     when:
       - ssh_proxy | default(None) != None
+      - ssh_proxy.dest | default(None) != None
     ansible.builtin.fail:
       msg: "deploy ssh_proxy fail. exclude attr undefined."
 
@@ -13,6 +14,7 @@
     ansible.builtin.assert:
       that:
         - ssh_proxy | default(None) != None
+        - ssh_proxy.dest | default(None) != None
       msg: "var eval fail {{ ssh_proxy }}"
       quiet: true
 
@@ -22,6 +24,7 @@
         url: "https://github.com/rendyanthony/gitlab-ssh-proxy.git"
         src: "~/.gitlab/gitlab-ssh-proxy"
         dir: "~/.seed/gitlab-ssh-proxy"
+        version: "master"
     ansible.builtin.set_fact:
       _ssh_proxy: "{{ default | combine(ssh_proxy, recursive=True) }}"
 
@@ -50,6 +53,12 @@
       src: "{{ _ssh_proxy.src }}/"
       dest: "{{ _ssh_proxy.dest }}"
 
+  # fix gitlab-ssh-proxy miss '.build' path
+  - name: ssh-proxy.deploy|mkdir build path
+    ansible.builtin.file:
+      state: directory
+      path: "{{ _ssh_proxy.dest }}/build"
+
   - name: ssh-proxy.deploy|install setup 
     become: true
     environment:
@@ -64,12 +73,18 @@
     ansible.builtin.user:
       name: git
 
+  - name: ssh-proxy.deploy|mkdir ssh key
+    ansible.builtin.file:
+      state: directory
+      path: "/home/git/.ssh"
+
   - name: ssh-proxy.deploy|generate ssh key
     become: true
     community.crypto.openssh_keypair:
       path: "/home/git/.ssh/id_rsa"
       size: 2048
       type: rsa
+      comment: gitlab-ssh-proxy
     # https://github.com/microsoft/WSL/issues/670
     register: ssh_keypair_gen
     until: ssh_keypair_gen is succeeded
