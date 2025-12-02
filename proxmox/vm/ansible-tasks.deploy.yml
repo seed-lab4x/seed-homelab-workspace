@@ -2,6 +2,31 @@
 ---
 
 - rescue:
+  - name: vm.deploy|pubkey|rescue|fail tasks
+    when:
+      - pubkey | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy vm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|pubkey|assert var
+    ansible.builtin.assert:
+      that:
+        - pubkey | default(None,true) != None
+      msg: "var eval fail {{ pubkey }}"
+      quiet: true
+
+  - name: vm.deploy|pubkey|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        pubkey: "{{ pubkey }}"
+
+  - name: vm.deploy|pubkey|add pubkey
+    vars:
+      pubkey: "{{ _ct.pubkey }}"
+    include_tasks: ../seed/pve-pubkey.add.yml
+
+- rescue:
   - name: vm.deploy|template|rescue|fail tasks
     when:
       - template | default(None,true) != None
