@@ -2,6 +2,36 @@
 ---
 
 - rescue:
+  - name: vm.deploy|template|rescue|fail tasks
+    when:
+      - template | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy vm fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|template|assert var
+    ansible.builtin.assert:
+      that:
+        - template | default(None,true) != None
+      msg: "var eval fail {{ template }}"
+      quiet: true
+
+  - name: vm.deploy|template|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        template: "{{ template }}"
+
+  - name: vm.deploy|template|pveam update
+    ansible.builtin.shell:
+      cmd: pveam update
+
+  - name: vm.deploy|template|add templates
+    vars:
+      templates: "{{ _vm.template }}"
+    when: templates | length > 0
+    include_tasks: ../seed/pve-templates.add.yml
+
+- rescue:
   - name: vm.deploy|kvm|rescue|fail tasks
     when:
       - kvm | default(None,true) != None
@@ -21,7 +51,7 @@
       _vm:
         kvm: "{{ kvm }}"
 
-  - name: vm.deploy|kvm|add ct
+  - name: vm.deploy|kvm|add kvm
     vars:
       kvm: "{{ _vm.kvm }}"
     include_tasks: ../seed/pve-kvm.add.yml

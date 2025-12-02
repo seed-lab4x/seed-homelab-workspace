@@ -26,7 +26,7 @@
     ansible.builtin.set_fact:
       _template: "{{ default | combine(template, recursive=True) }}"
 
-  - name: pve-template.add|download proxmox appliance container template
+  - name: pve-template.add|download proxmox OS templates
     delegate_to: localhost
     community.proxmox.proxmox_template:
       api_host: "{{ proxmox.api_host }}"
