@@ -25,7 +25,7 @@
   - name: pve-config.add|add config
     loop: "{{ _config.configs | dict2items }}"
     ansible.builtin.lineinfile:
-      path: "/etc/pve/lxc/{{ _config.vmid }}.conf"
+      path: "/etc/pve/{{ _config.type | default('lxc',true) }}/{{ _config.vmid }}.conf"
       line: "{{ item.key }}: {{ item.value }}"
       create: yes
     register: config_add

@@ -105,5 +105,7 @@
 
   - name: ct.deploy|config|add config
     vars:
-      config: "{{ _ct.config }}"
+      config_type:
+        type: lxc
+      config: "{{ _ct.config | combine(config_type, recursive=True) }}"
     include_tasks: ../seed/pve-config.add.yml

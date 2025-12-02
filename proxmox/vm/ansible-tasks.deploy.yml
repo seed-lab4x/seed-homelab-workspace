@@ -23,7 +23,7 @@
 
   - name: vm.deploy|pubkey|add pubkey
     vars:
-      pubkey: "{{ _ct.pubkey }}"
+      pubkey: "{{ _vm.pubkey }}"
     include_tasks: ../seed/pve-pubkey.add.yml
 
 - rescue:
@@ -80,3 +80,30 @@
     vars:
       kvm: "{{ _vm.kvm }}"
     include_tasks: ../seed/pve-kvm.add.yml
+
+- rescue:
+  - name: vm.deploy|config|rescue|fail tasks
+    when:
+      - config | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy config fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|config|assert var
+    ansible.builtin.assert:
+      that:
+        - config | default(None,true) != None
+      msg: "var eval fail {{ config }}"
+      quiet: true
+
+  - name: vm.deploy|config|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        config: "{{ config }}"
+
+  - name: vm.deploy|config|add config
+    vars:
+      config_type:
+        type: qemu-server
+      config: "{{ _vm.config | combine(config_type, recursive=True) }}"
+    include_tasks: ../seed/pve-config.add.yml

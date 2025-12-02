@@ -11,6 +11,7 @@
         pubkey: "{{ vm.pubkey | default(None,true) }}"
         template: "{{ vm.template | default(None,true) }}"
         kvm: "{{ vm.kvm | default(None,true) }}"
+        config: "{{ vm.config | default(None,true) }}"
       include_tasks: ansible-tasks.deploy.yml
 
     - name: deploy group vm
@@ -20,6 +21,7 @@
         pubkey: "{{ group_var.pubkey | default(None,true) }}"
         template: "{{ group_var.template | default(None,true) }}"
         kvm: "{{ group_var.kvm | default(None,true) }}"
+        config: "{{ group_var.config | default(None,true) }}"
       loop: "{{ group_names }}"
       loop_control:
         loop_var: group_name
