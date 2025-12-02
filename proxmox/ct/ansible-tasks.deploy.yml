@@ -109,3 +109,28 @@
         type: lxc
       config: "{{ _ct.config | combine(config_type, recursive=True) }}"
     include_tasks: ../seed/pve-config.add.yml
+
+- rescue:
+  - name: ct.deploy|command|rescue|fail tasks
+    when:
+      - command | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy command fail. exclude var undefined."
+
+  block:
+  - name: ct.deploy|command|assert var
+    ansible.builtin.assert:
+      that:
+        - command | default(None,true) != None
+      msg: "var eval fail {{ command }}"
+      quiet: true
+
+  - name: ct.deploy|command|fact param
+    ansible.builtin.set_fact:
+      _ct:
+        command: "{{ command }}"
+
+  - name: ct.deploy|command|add command
+    vars:
+      command: "{{ _ct.command }}"
+    include_tasks: ../seed/pve-command.run.yml

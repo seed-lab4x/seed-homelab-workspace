@@ -107,3 +107,28 @@
         type: qemu-server
       config: "{{ _vm.config | combine(config_type, recursive=True) }}"
     include_tasks: ../seed/pve-config.add.yml
+
+- rescue:
+  - name: vm.deploy|command|rescue|fail tasks
+    when:
+      - command | default(None,true) != None
+    ansible.builtin.fail:
+      msg: "deploy command fail. exclude var undefined."
+
+  block:
+  - name: vm.deploy|command|assert var
+    ansible.builtin.assert:
+      that:
+        - command | default(None,true) != None
+      msg: "var eval fail {{ command }}"
+      quiet: true
+
+  - name: vm.deploy|command|fact param
+    ansible.builtin.set_fact:
+      _vm:
+        command: "{{ command }}"
+
+  - name: vm.deploy|command|add command
+    vars:
+      command: "{{ _vm.command }}"
+    include_tasks: ../seed/pve-command.run.yml

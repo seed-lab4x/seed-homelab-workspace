@@ -1,0 +1,38 @@
+# code: language=ansible
+---
+
+- rescue:
+  - name: pve-command.run|rescue|fail tasks
+    when:
+      - proxmox is defined
+      - command is defined
+    ansible.builtin.fail:
+      msg: "run command fail. exclude var undefined."
+
+  block:
+  - name: pve-command.run|assert var
+    ansible.builtin.assert:
+      that:
+        - proxmox is defined
+        - command is defined
+      msg: "var eval fail {{ command }}"
+      quiet: true
+
+  - name: pve-command.run|fact param
+    ansible.builtin.set_fact:
+      _command: "{{ command }}"
+
+  - name: pve-command.run|run command
+    loop: "{{ _command.commands }}"
+    ansible.builtin.command:
+      argv: "{{ item.argv | default(omit,true) }}"
+      cmd: "{{ item.cmd | default(omit,true) }}"
+      chdir: "{{ item.chdir | default(omit,true) }}"
+      creates: "{{ item.creates | default(omit,true) }}"
+      expand_argument_vars: "{{ item.expand_argument_vars | default(omit,true) }}"
+      free_form: "{{ item.free_form | default(omit,true) }}"
+      removes: "{{ item.removes | default(omit,true) }}"
+      stdin: "{{ item.stdin | default(omit,true) }}"
+      stdin_add_newline: "{{ item.stdin_add_newline | default(omit,true) }}"
+      strip_empty_ends: "{{ item.strip_empty_ends | default(omit,true) }}"
+    register: command_run
