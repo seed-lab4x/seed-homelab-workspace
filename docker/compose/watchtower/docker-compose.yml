@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  watchtower:
+    image: nickfedor/watchtower:latest
+    # image: containrrr/watchtower:latest
+    # command: --interval 30
+    env_file: external_env-all.env
+    # environment:
+    #   - REPO_USER=${REPO_USER}
+    #   - REPO_PASS=${REPO_PASS}
+    #   - WATCHTOWER_NOTIFICATION_URL
+    #   - WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PASSWORD
+    #   - WATCHTOWER_NOTIFICATION_SLACK_HOOK_URL
+    #   - WATCHTOWER_NOTIFICATION_MSTEAMS_HOOK
+    #   - WATCHTOWER_NOTIFICATION_GOTIFY_TOKEN
+    #   - WATCHTOWER_HTTP_API_TOKEN
+        # https://github.com/containrrr/watchtower/issues/2122
+    #   - DOCKER_API_VERSION=1.44
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    container_name: watchtower
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/watchtower", "--health-check"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
