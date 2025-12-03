@@ -1,0 +1,9 @@
+{
+    "recommendations": [
+        "redhat.ansible",
+        "redhat.vscode-yaml",
+        "piotrpalarz.vscode-gitignore-generator",
+        "adam-bender.commit-message-editor",
+        "mhutchie.git-graph",
+    ]
+}
