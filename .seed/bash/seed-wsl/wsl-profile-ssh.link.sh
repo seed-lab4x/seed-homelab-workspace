@@ -10,9 +10,11 @@ then
         echo "Install curl"
         if [[ -n "$( command -v apt )" ]];
         then
+            sudo apt update
             sudo apt install curl
         elif [[ -n "$( command -v yum )" ]];
         then
+            sudo yum update
             sudo yum install curl
         else
             echo "You need install curl"
