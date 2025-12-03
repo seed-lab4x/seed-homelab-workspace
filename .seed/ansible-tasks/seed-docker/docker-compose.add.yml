@@ -9,7 +9,7 @@
 - vars:
     group: "{{ compose_share.group | default('docker',true) }}"
   rescue:
-  - name: docker-compose.add|fail tasks
+  - name: docker-compose.add|rescue wrong group|fail
     when: inventory_hostname in groups[group] | default([],true)
     ansible.builtin.fail:
       msg: "add compose fail. exclude wrong group."
@@ -27,7 +27,9 @@
     ansible.builtin.set_fact:
       _compose: "{{ compose }}"
 
-  - rescue:
+  - vars:
+      any: "{{ _compose.type | default('compose',true) == 'stack' }}"
+    rescue:
     - name: docker-compose.add|rescue any other|fail
       when:
         - _compose | default(None) != None
@@ -47,12 +49,13 @@
     - name: docker-compose.add|stack|add by fact
       when:
         - _compose.type | default('compose',true) == 'stack'
+      run_once: "{{ compose_share.once | default(any) }}"
       community.docker.docker_stack:
         state: present
         name: "{{ _compose.name }}"
         compose: "{{ [_compose.path] | product(_compose.files) | map('join', '/') }}"
 
     - name: docker-compose.add|unfact param
-      run_once: "{{ compose_share.any | default(false) }}"
+      run_once: "{{ compose_share.any | default(any) }}"
       ansible.builtin.set_fact:
         _compose: !!null

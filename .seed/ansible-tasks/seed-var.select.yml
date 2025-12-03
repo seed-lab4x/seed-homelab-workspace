@@ -1,0 +1,60 @@
+# code: language=ansible
+---
+
+- name: seed-var.select|assert param
+  ansible.builtin.assert:
+    that:
+      - var is defined
+    msg: "param undefined 'var'"
+    quiet: true
+
+# lookup best match
+- name: seed-var.select|fact param
+  vars:
+    matcher: "{{ item.matcher | default([],true) }}"
+    matched: "{{ matcher | length == matcher | select('equalto',true) | length }}"
+    better: "{{ matcher | length >= _var_select.priority | default(-1) | int }}"
+  loop: "{{ var }}"
+  when:
+    - matched
+    - better
+  ansible.builtin.set_fact:
+    _var_select:
+      priority: "{{ matcher | length }}"
+      template: "{{ item.template | default(None,true) }}"
+      file: "{{ item.file }}"
+      name: "{{ item.name | default('',true) }}"
+
+- name: seed-var.select|mkdir var file
+  # include_vars is locally on the controller, create on local
+  delegate_to: localhost
+  when: _var_select.template | default(None,true) != None
+  ansible.builtin.file:
+    state: directory
+    path: "{{ _var_select.file | dirname }}"
+
+- name: seed-var.select|template var file
+  # include_vars is locally on the controller, create on local
+  delegate_to: localhost
+  when: _var_select.template | default(None,true) != None
+  ansible.builtin.template:
+    src: "{{ _var_select.template }}"
+    dest: "{{ _var_select.file }}"
+    variable_start_string: '<<'
+    variable_end_string: '>>'
+    block_start_string: '<%'
+    block_end_string: '%>'
+
+- name: seed-var.select|include var file
+  # same file maybe eval different value cat use once
+  # run_once: true
+  # include_vars is locally on the controller, same as follows
+  # delegate_to: localhost
+  ansible.builtin.include_vars:
+    file: "{{ _var_select.file }}"
+    name: "{{ _var_select.name | default(omit) }}"
+
+- name: seed-var.select|unfact param
+  run_once: true
+  ansible.builtin.set_fact:
+    _var_select: !!null

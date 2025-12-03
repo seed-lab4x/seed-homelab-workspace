@@ -37,10 +37,11 @@
       keys_to_remove: ['group','once','any','name','bind','type','id']
       keys_to_keep: "{{ _volume.keys() | difference(keys_to_remove) }}"
       values_to_keep: "{{ keys_to_keep | map('extract', _volume) | list }}"
-      volume_args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
-      dest_prefix:
+      args_param: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
+      args_override:
         dest: "{{ dest_path }}"
-      args: "{{ volume_args | combine(dest_prefix, recursive=True) }}"
+        remote_src: "{{ args_param.remote_src | default(true) }}"
+      args: "{{ args_param | combine(args_override, recursive=True) }}"
     when:
       - _volume.src | default(None,true) != None
     ansible.builtin.copy: "{{ args }}"

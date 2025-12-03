@@ -24,44 +24,150 @@
       quiet: true
 
   - name: seed-file.push|fact param
+    vars:
+      override:
+        content: "{{ file.content | b64encode }}"
+      file_with_content: "{{ file | combine(override, recursive=True) }}"
     ansible.builtin.set_fact:
-      _file: "{{ file }}"
+      _file: "{{ file.content is defined | ternary(file_with_content,file) }}"
+
+  - name: seed-file.push|fact attr local
+    vars:
+      override:
+        local: "{{ _file.local | default(true) }}"
+    ansible.builtin.set_fact:
+      _file: "{{ _file | combine(override, recursive=True) }}"
 
   - rescue:
     - name: seed-file.push|rescue any other|fail
       when:
         - _file | default(None) != None
       ansible.builtin.fail:
-        msg: "push file '{{ _file.dest }}' fail, exclude enable any: '{{ file_share.any | default(false) }}'."
+        msg: "push file '{{ _file.path }}' fail, exclude enable any: '{{ file_share.any | default(false) }}'."
 
     block:
-    - name: seed-file.push|mkdir|by dest
-      when:
-        - _file.src | default(None,true) == None
-        - _file.dest | default(None,true) != None
+    - name: seed-file.push|mkdir parent
       ansible.builtin.file:
         state: directory
-        path: "{{ _file.dest }}"
-        mode: "{{ _file.mode | default(omit) }}"
+        path: "{{ _file.path | dirname }}"
 
-    - name: seed-file.push|copy|mkdir parent
+    - when:
+        - _file.redirect | default(None,true) != None
+      block:
+      - name: seed-file.push|redirect|tmpfile by copy
+        when:
+          - _file.local
+        ansible.builtin.copy:
+          src: "{{ _file.redirect }}"
+          dest: "{{ _file.path }}.tmp"
+        register: file_push_redirect_copy
+        until: file_push_redirect_copy is succeeded
+
+      - name: seed-file.push|redirect|file by cat
+        vars:
+          file_src: "{{ _file.local | ternary(file_push_redirect_copy.dest, _file.redirect) }}"
+        ansible.builtin.shell:
+          cmd: "cat '{{ file_src }}' > {{ _file.path }}"
+        register: file_push_redirect
+        until: file_push_redirect is succeeded
+
+    - when:
+        - _file.template | default(None,true) != None
+      block:
+      - name: seed-file.push|template|tmpfile by fetch
+        when:
+          - not _file.local
+        ansible.builtin.fetch:
+          src: "{{ _file.template }}"
+          dest: "{{ inventory_dir }}/../fetch"
+        register: file_push_template_fetch
+        until: file_push_template_fetch is succeeded
+
+      - name: seed-file.push|template|file by template
+        vars:
+          file_src: "{{ _file.local | ternary(_file.template, file_push_template_fetch.dest)}}"
+        ansible.builtin.template:
+          src: "{{ _file.template }}"
+          dest: "{{ _file.path }}"
+        register: file_push_template
+
+    - name: seed-file.push|file by content
       when:
-        - _file.src | default(None,true) != None
-        - _file.dest | default(None,true) != None
-      ansible.builtin.file:
-        state: directory
-        path: "{{ _file.dest | dirname }}"
+        - _file.content | default(None,true) != None
+      ansible.builtin.copy:
+        content: "{{ _file.content | b64decode }}"
+        dest: "{{ _file.path }}"
+      register: file_push_content
+      until: file_push_content is succeeded
 
-    - name: seed-file.push|copy|by fact
+    - name: seed-file.push|file/dir by copy
+      when:
+        - _file['copy'] | type_debug != 'builtin_function_or_method'
+        - _file['copy'] | default(None,true) != None
+      ansible.builtin.copy:
+        remote_src: "{{ not _file.local }}"
+        src: "{{ _file['copy'] }}"
+        dest: "{{ _file.path }}"
+      register: file_push_copy
+      until: file_push_copy is succeeded
+
+    - name: seed-file.push|file/dir by synchronize
+      delegate_to: "{{ _file.local | ternary(omit,inventory_hostname) }}"
+      when:
+        - _file.sync | default(None,true) != None
+      ansible.posix.synchronize:
+        src: "{{ _file.sync }}"
+        dest: "{{ _file.path }}"
+      register: file_push_synchronize
+      until: file_push_synchronize is succeeded
+
+    - name: seed-file.push|fact attr state
       vars:
-        keys_to_remove: ['group','once','any']
+        override:
+          state: "{{ _file.state | default('directory',true) }}"
+      when:
+        - file_push_template is skipped
+        - file_push_content is skipped
+        - file_push_copy is skipped
+        - file_push_synchronize is skipped
+        - file_push_redirect is skipped
+      ansible.builtin.set_fact:
+        _file: "{{ _file | combine(override, recursive=True) }}"
+
+    - name: seed-file.push|config file
+      vars:
+        keys_to_remove:
+          - group
+          - once
+          - any
+          - local
+          - template
+          - content
+          - copy
+          - sync
+          - redirect
         keys_to_keep: "{{ _file.keys() | difference(keys_to_remove) }}"
         values_to_keep: "{{ keys_to_keep | map('extract', _file) | list }}"
         args: "{{ dict(keys_to_keep | zip(values_to_keep)) }}"
-      when:
-        - _file.src | default(None,true) != None
-        - _file.dest | default(None,true) != None
-      ansible.builtin.copy: "{{ args }}"
+      ansible.builtin.file: "{{ args }}"
+        # access_time: "{{ _file.access_time | default(omit) }}"
+        # access_time_format: "{{ _file.access_time_format | default(omit) }}"
+        # attributes: "{{ _file.attributes | default(omit) }}"
+        # follow: "{{ _file.follow | default(omit) }}"
+        # force: "{{ _file.force | default(omit) }}"
+        # group: "{{ _file.group | default(omit) }}"
+        # mode: "{{ _file.mode | default(omit) }}"
+        # modification_time: "{{ _file.modification_time | default(omit) }}"
+        # modification_time_format: "{{ _file.modification_time_format | default(omit) }}"
+        # owner: "{{ _file.owner | default(omit) }}"
+        # path: "{{ _file.path }}"
+        # recurse: "{{ _file.recurse | default(omit) }}"
+        # selevel: "{{ _file.selevel | default(omit) }}"
+        # setype: "{{ _file.setype | default(omit) }}"
+        # seuser: "{{ _file.seuser | default(omit) }}"
+        # src: "{{ _file.src | default(omit) }}"
+        # state: "{{ _file.state | default(omit) }}"
+        # unsafe_writes: "{{ _file.unsafe_writes | default(omit) }}"
 
     - name: seed-file.push|unfact param
       run_once: "{{ file_share.any | default(false) }}"

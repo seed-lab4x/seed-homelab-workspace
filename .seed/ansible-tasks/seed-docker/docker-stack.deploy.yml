@@ -16,6 +16,16 @@
   ansible.builtin.set_fact:
     _stack_deploy: "{{ stack }}"
 
+- name: docker-stack.deploy|include vars
+  vars:
+    vars_file: "{{
+      _stack_deploy.override.vars_file | default(None) or
+      _stack_deploy.vars_file | default(None) or
+      '' }}"
+  when: vars_file != ''
+  ansible.builtin.include_vars:
+    file: "{{ vars_file }}"
+
 - block:
   - name: docker-stack.deploy|mkdir workpath
     ansible.builtin.file:
@@ -23,92 +33,158 @@
       path: "{{ workpath.remote.full }}"
 
   - name: docker-stack.deploy|push files
-    vars:
-      files: "{{ _stack_deploy.vars.files | default(files_default,true) }}"
-      files_default: "{{ _stack_deploy.default.files | default([],true) }}"
-      files_share: "{{ _stack_deploy.share.files | default({},true) }}"
     when: files | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
+    vars:
+      files: "{{
+        _stack_deploy.override.files | default(None) or
+        _stack_deploy.files | default(None) or
+        [] }}"
+      files_share: "{{
+        _stack_deploy.override.share.files | default(None) or
+        _stack_deploy.share.files | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|init nfs-mounts
-    vars:
-      mounts: "{{ _stack_deploy.vars.mounts | default(mounts_default,true) }}"
-      mounts_default: "{{ _stack_deploy.default.mounts | default({},true) }}"
-      mounts_share: "{{ _stack_deploy.share.mounts | default({},true) }}"
     when: mounts | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-nfs/nfs-mounts.init.yml"
+    vars:
+      mounts: "{{
+        _stack_deploy.override.mounts | default(None) or
+        _stack_deploy.mounts | default(None) or
+        [] }}"
+      mounts_share: "{{
+        _stack_deploy.override.share.mounts | default(None) or
+        _stack_deploy.share.mounts | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|init volumes
-    vars:
-      volumes: "{{ _stack_deploy.vars.volumes | default(volumes_default,true) }}"
-      volumes_default: "{{ _stack_deploy.default.volumes | default({},true) }}"
-      volumes_share: "{{ _stack_deploy.share.volumes | default({},true) }}"
     when: volumes | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-volumes.init.yml"
+    vars:
+      volumes: "{{
+        _stack_deploy.override.volumes | default(None) or
+        _stack_deploy.volumes | default(None) or
+        [] }}"
+      volumes_share: "{{
+        _stack_deploy.override.share.volumes | default(None) or
+        _stack_deploy.share.volumes | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|init networks
-    vars:
-      networks: "{{ _stack_deploy.vars.networks | default(networks_default,true) }}"
-      networks_default: "{{ _stack_deploy.default.networks | default({},true) }}"
-      networks_share: "{{ _stack_deploy.share.networks | default({},true) }}"
     when: networks | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-networks.init.yml"
+    vars:
+      networks: "{{
+        _stack_deploy.override.networks | default(None) or
+        _stack_deploy.networks | default(None) or
+        [] }}"
+      networks_share: "{{
+        _stack_deploy.override.share.networks | default(None) or
+        _stack_deploy.share.networks | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|add configs
-    vars:
-      configs: "{{ _stack_deploy.vars.configs | default(configs_default,true) }}"
-      configs_default: "{{ _stack_deploy.default.configs | default({},true) }}"
-      configs_share: "{{ _stack_deploy.share.configs | default({},true) }}"
     when: configs | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-configs.add.yml"
+    vars:
+      configs: "{{
+        _stack_deploy.override.configs | default(None) or
+        _stack_deploy.configs | default(None) or
+        [] }}"
+      configs_share: "{{
+        _stack_deploy.override.share.configs | default(None) or
+        _stack_deploy.share.configs | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|add secrets
-    vars:
-      secrets: "{{ _stack_deploy.vars.secrets | default(secrets_default,true) }}"
-      secrets_default: "{{ _stack_deploy.default.secrets | default({},true) }}"
-      secrets_share: "{{ _stack_deploy.share.secrets | default({},true) }}"
     when: secrets | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-secrets.add.yml"
+    vars:
+      secrets: "{{
+        _stack_deploy.override.secrets | default(None) or
+        _stack_deploy.secrets | default(None) or
+        [] }}"
+      secrets_share: "{{
+        _stack_deploy.override.share.secrets | default(None) or
+        _stack_deploy.share.secrets | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|add labels
-    vars:
-      labels: "{{ _stack_deploy.vars.labels | default(labels_default,true) }}"
-      labels_default: "{{ _stack_deploy.default.labels | default({},true) }}"
-      labels_share: "{{ _stack_deploy.share.labels | default({},true) }}"
     when: labels | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-labels.add.yml"
+    vars:
+      labels: "{{
+        _stack_deploy.override.labels | default(None) or
+        _stack_deploy.labels | default(None) or
+        [] }}"
+      labels_share: "{{
+        _stack_deploy.override.share.labels | default(None) or
+        _stack_deploy.share.labels | default(None) or
+        {} }}"
 
   - name: docker-stack.deploy|push envs
-    vars:
-      envs: "{{ _stack_deploy.vars.envs | default(envs_default,true) }}"
-      envs_default: "{{ _stack_deploy.default.envs | default({},true) }}"
-      envs_share:
-        mode: value
-        group: docker-manager
     when: envs | length > 0
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-envs.push.yml"
+    vars:
+      envs: "{{
+        _stack_deploy.override.envs | default(None) or
+        _stack_deploy.envs | default(None) or
+        [] }}"
+      envs_share:
+        mode: "{{
+          _stack_deploy.override.share.envs.mode | default(None) or
+          _stack_deploy.share.envs.mode | default(None) or
+          'value' }}"
+        group: "{{
+          _stack_deploy.override.share.envs.mode | default(None) or
+          _stack_deploy.share.envs.mode | default(None) or
+          'docker-manager' }}"
 
-  - vars:
-      composes: "{{ _stack_deploy.vars.composes | default(composes_default,true) }}"
-      composes_default: "{{ _stack_deploy.default.composes | default({},true) }}"
-      composes_share:
-        mode: value
-        group: docker-manager
+  - name: docker-stack.deploy|push composes
     when: composes | length > 0
-    block:
-    - name: docker-stack.deploy|push composes
-      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-composes.push.yml"
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-composes.push.yml"
+    vars:
+      composes: "{{
+        _stack_deploy.override.composes | default(None) or
+        _stack_deploy.composes | default(None) or
+        [] }}"
+      composes_share:
+        mode: "{{
+          _stack_deploy.override.share.composes.mode | default(None) or
+          _stack_deploy.share.composes.mode | default(None) or
+          'value' }}"
+        group: "{{
+          _stack_deploy.override.share.composes.mode | default(None) or
+          _stack_deploy.share.composes.mode | default(None) or
+          'docker-manager' }}"
 
-    - name: docker-stack.deploy|add compose
-      vars:
-        compose_share:
-          group: docker-manager
-        compose:
-          type: stack
-          name: "{{ _stack_deploy.name | default(workpath.name,true) }}"
-          path: "{{ _stack_deploy.path | default(workpath.remote.full,true) }}"
-          files: "{{ composes | map(attribute='file') }}"
-      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.add.yml"
+  - name: docker-stack.deploy|add compose
+    when: compose.files | length > 0
+    include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.add.yml"
+    vars:
+      compose:
+        type: stack
+        name: "{{ _stack_deploy.name | default(workpath.name,true) }}"
+        path: "{{ _stack_deploy.path | default(workpath.remote.full,true) }}"
+        files: "{{ (
+          _stack_deploy.override.composes | default(None) or
+          _stack_deploy.composes | default(None) or
+          []
+          ) | map(attribute='file') }}"
+      compose_share:
+        group: "{{
+          _stack_deploy.override.share.group | default(None) or
+          _stack_deploy.share.group | default(None) or
+          'docker-manager' }}"
+        once: "{{
+          _stack_deploy.override.share.once | default(None) or
+          _stack_deploy.share.once | default(None) or
+          false }}"
+        any: "{{
+          _stack_deploy.override.share.any | default(None) or
+          _stack_deploy.share.any | default(None) or
+          true }}"
 
 - name: docker-stack.deploy|unfact param
   run_once: true
