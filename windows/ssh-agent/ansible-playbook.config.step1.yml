@@ -1,0 +1,46 @@
+#!/usr/bin/env -S ansible-playbook -k -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config step1:windows
+  hosts: windows
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].ssh-agent | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].ssh_agent | default(None,true) != None
+          msg: "host var assert fail 'ssh_agent'"
+          quiet: true
+
+      - vars:
+          mode: "{{ ssh_agent.config.mode | default('normal',true) }}"
+        block:
+        - when: mode == 'normal'
+          block:
+          - name: set ssh-agent service startup mode to auto and ensure it is started
+            ansible.windows.win_service:
+              name: ssh-agent
+              start_mode: auto
+              state: started
+
+          # - name: install npiperelay
+          #   # become: true
+          #   # become_method: runas
+          #   # become_user: "{{ ansible_user }}"
+          #   ansible.windows.win_command:
+          #     cmd: winget install --accept-package-agreements --accept-source-agreements jstarks.npiperelay
+
+
+      - name: fact windows user name
+        delegate_to: localhost
+        ansible.builtin.set_fact:
+          windows_user_name: "{{ ansible_user }}"

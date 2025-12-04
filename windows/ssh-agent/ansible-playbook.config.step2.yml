@@ -1,0 +1,117 @@
+#!/usr/bin/env -S ansible-playbook -k -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: config step2:wsl
+  hosts: wsl
+  tasks:
+
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].ssh_agent.wsl | default(None,true) != None
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
+
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].ssh_agent.wsl | default(None,true) != None
+          msg: "host var assert fail 'ssh-agent'"
+          quiet: true
+
+      - name: install socat
+        become: true
+        ansible.builtin.package:
+          name: socat
+          state: present
+
+      # https://github.com/microsoft/WSL/issues/8843
+      - name: ensure binfmt of systemd for WSL interop
+        when: ssh_agent.wsl.interop | default(true,true)
+        become: true
+        ansible.builtin.lineinfile:
+          path: /usr/lib/binfmt.d/WSLInterop.conf
+          line: :WSLInterop:M::MZ::/init:PF
+          create: yes
+
+      - vars:
+          daemon: "{{ ssh_agent.wsl.daemon | default('systemd',true) }}"
+          npiperelay: "{{ ssh_agent.wsl.user_path }}/AppData/Local/Microsoft/WinGet/Packages/jstarks.npiperelay_Microsoft.Winget.Source_8wekyb3d8bbwe/npiperelay.exe"
+        block:
+        - when: daemon == 'bashrc'
+          block:
+          - name: ensure content in bashrc
+            ansible.builtin.blockinfile:
+              path: "{{ ansible_user_dir }}/.bashrc"
+              marker: "# {mark} seed ssh-agent socat to npiperelay"
+              block: |
+                # Use Windows ssh-agent in WSL
+                export SSH_AUTH_SOCK=$HOME/.ssh/agent.sock
+
+                WIN_NPIPE_RELAY="{{ npiperelay }}"
+
+                # If the socket doesn't exist, recreate it
+                if [ ! -S "$SSH_AUTH_SOCK" ]; then
+                    rm -f "$SSH_AUTH_SOCK"
+                    socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork EXEC:"$WIN_NPIPE_RELAY -ei -s //./pipe/openssh-ssh-agent",nofork &
+                fi
+
+        - when: daemon == 'systemd'
+          block:
+          - name: copy using inline content
+            become: true
+            ansible.builtin.copy:
+              backup: true
+              dest: /usr/lib/systemd/user/wsl-ssh-agent.service
+              content: |
+                [Unit]
+                Description=Windows SSH Agent Proxy via npiperelay
+                StartLimitIntervalSec=0
+
+                [Service]
+                Delegate=true
+                Type=exec
+                KillMode=process
+                ExecStart=/usr/bin/socat UNIX-LISTEN:'/run/user/{{ ansible_user_uid }}/wsl-ssh_agent.sock',fork EXEC:'{{ npiperelay }} -ei -s //./pipe/openssh-ssh-agent',nofork
+
+                [Install]
+                WantedBy=default.target
+
+          - name: start wsl-ssh-agent service
+            ansible.builtin.systemd_service:
+              name: wsl-ssh-agent
+              scope: user
+              state: started
+              enabled: true
+              daemon_reload: true
+
+          - name: ensure SSH_AUTH_SOCK in bashrc
+            ansible.builtin.blockinfile:
+              path: "{{ ansible_user_dir }}/.bashrc"
+              backup: true
+              marker: "# {mark} seed ssh-agent socat to npiperelay"
+              block: |
+                export SSH_AUTH_SOCK=${XDG_RUNTIME_DIR}/wsl-ssh_agent.sock
+
+      - block:
+        - name: list ssh-add
+          ansible.builtin.command: "ssh-add -l"
+          register: ssh_add_list_cli
+
+        - name: print version
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',ansible_play_hosts)
+              | selectattr('value.ssh_add_list_cli','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.ssh_add_list_cli.stdout | default('',true) }}
+              {{ host.value.ssh_add_list_cli.stderr | default('',true) }}
+              {% endfor %}
