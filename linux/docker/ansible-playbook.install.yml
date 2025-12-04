@@ -41,11 +41,11 @@
             name: xiaoyao9184.ansible-role-docker
 
       - block:
-        - name: verion docker
+        - name: version docker
           ansible.builtin.command: "docker --version"
           register: docker_version_cli
 
-        - name: print verion
+        - name: print version
           vars:
             linux_hostvars: "{{ hostvars | dict2items
               | selectattr('key','in',ansible_play_hosts)
