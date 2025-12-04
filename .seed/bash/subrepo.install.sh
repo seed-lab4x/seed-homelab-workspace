@@ -14,7 +14,7 @@ then
         sudo yum install git
     else
         echo "You need install git"
-        return 1
+        exit 1
     fi
 fi
 

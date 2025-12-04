@@ -16,7 +16,7 @@ then
         sudo yum install crudini
     else
         echo "You need install crudini"
-        return 1
+        exit 1
     fi
 fi
 

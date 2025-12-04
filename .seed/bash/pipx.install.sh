@@ -32,7 +32,7 @@ then
         sudo yum install -y "${pkgs_for_yum[@]}"
     else
         echo "Please install: ${pkgs_to_install[*]}"
-        return 1
+        exit 1
     fi
 fi
 

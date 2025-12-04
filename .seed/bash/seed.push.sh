@@ -18,7 +18,7 @@ then
         sudo yum install jq
     else
         echo "You need install jq"
-        return 1
+        exit 1
     fi
 fi
 
@@ -30,7 +30,7 @@ do
     if [[ "$workspace_path" == "/" ]]
     then
         echo "Unable to find workspace seed.json file in parent directory."
-        return 1
+        exit 1
     fi
 done
 
@@ -144,7 +144,7 @@ then
         git subrepo config --force $subrepo_subdir remote $subrepo_remote
         git add $subrepo_subdir/.gitrepo
         git commit --amend --no-edit
-        return
+        exit 0
     fi
 fi
 

@@ -14,7 +14,7 @@ do
     if [[ "$workspace_path" == "/" ]]
     then
         echo "Unable to find workspace seed.json file in parent directory."
-        return 1
+        exit 1
     fi
 done
 

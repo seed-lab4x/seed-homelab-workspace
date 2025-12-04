@@ -18,7 +18,7 @@ then
             sudo yum install curl
         else
             echo "You need install curl"
-            return 1
+            exit 1
         fi
     fi
     curl -sL https://raw.githubusercontent.com/wslutilities/wslu/master/extras/scripts/wslu-install | bash

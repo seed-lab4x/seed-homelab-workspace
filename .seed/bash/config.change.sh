@@ -18,7 +18,7 @@ then
         sudo yum install jq
     else
         echo "You need install jq"
-        return 1
+        exit 1
     fi
 fi
 
@@ -30,7 +30,7 @@ do
     if [[ "$workspace_path" == "/" ]]
     then
         echo "Unable to find workspace seed.json file in parent directory."
-        return 1
+        exit 1
     fi
 done
 
@@ -115,7 +115,7 @@ then
             submodule_change_url="$repo_domain$workspace_user_name/$config_url_basename"
         else
             echo "Unable to parse '$repo_url' by /$re/."
-            return 1
+            exit 1
         fi
     else
         submodule_change_url="$repo_url_rootname/$workspace_user_name/$config_url_basename"
