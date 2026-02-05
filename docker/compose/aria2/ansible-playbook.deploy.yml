@@ -17,22 +17,21 @@
       vars:
         compose:
           name: aria2
-          vars: "{{ aria2 | default({},true) }}"
-          default:
-            volumes:
-              - name: external_vol-aria2-config
-                driver: local
-              - name: external_vol-aria2-downloads
-                driver: local
-              - name: external_vol-aria2-completed
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: |
-                  RPC_SECRET=aria2.123
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml.j2"
-                vars:
-                  PROPAGATION_DOWNLOAD: false
-                  BIND_DOWNLOAD: downloads
+          override: "{{ aria2 | default({},true) }}"
+          volumes:
+            - name: external_vol-aria2-config
+              driver: local
+            - name: external_vol-aria2-downloads
+              driver: local
+            - name: external_vol-aria2-completed
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: |
+                RPC_SECRET=aria2.123
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml.j2"
+              vars:
+                PROPAGATION_DOWNLOAD: false
+                BIND_DOWNLOAD: downloads

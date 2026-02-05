@@ -17,18 +17,17 @@
       vars:
         compose:
           name: wechat
-          vars: "{{ wechat_selkies | default({},true) }}"
-          default:
-            volumes:
-              - name: external_vol-wechat-config
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: |
-                  TZ=Asia/Shanghai             # timezone
-                  LC_ALL=zh_CN.UTF-8           # locale
-                  AUTO_START_WECHAT=true       # default is true
-                  AUTO_START_QQ=false          # default is false
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ wechat_selkies | default({},true) }}"
+          volumes:
+            - name: external_vol-wechat-config
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: |
+                TZ=Asia/Shanghai             # timezone
+                LC_ALL=zh_CN.UTF-8           # locale
+                AUTO_START_WECHAT=true       # default is true
+                AUTO_START_QQ=false          # default is false
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"

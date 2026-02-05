@@ -23,14 +23,13 @@
       vars:
         compose:
           name: tailscale
-          vars: "{{ tailscale | default({},true) }}"
-          default:
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ tailscale | default({},true) }}"
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"
 
     - name: up network
       when: tailscale.network is defined

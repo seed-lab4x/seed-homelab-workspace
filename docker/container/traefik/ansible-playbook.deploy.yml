@@ -16,22 +16,21 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ traefik | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              env:
-                TRAEFIK_API: 'true'
-                TRAEFIK_PROVIDERS_DOCKER: 'true'
-                TRAEFIK_API_INSECURE: 'true'
-              volumes:
-                - /var/run/docker.sock:/var/run/docker.sock
-              ports:
-                - 80:80
-                - 443:443
-                - 443:443/udp
-                - 8080:8080
-              hostname: traefik
-              name: traefik 
-              image: traefik:latest
+          override: "{{ traefik | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            env:
+              TRAEFIK_API: 'true'
+              TRAEFIK_PROVIDERS_DOCKER: 'true'
+              TRAEFIK_API_INSECURE: 'true'
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock
+            ports:
+              - 80:80
+              - 443:443
+              - 443:443/udp
+              - 8080:8080
+            hostname: traefik
+            name: traefik 
+            image: traefik:latest

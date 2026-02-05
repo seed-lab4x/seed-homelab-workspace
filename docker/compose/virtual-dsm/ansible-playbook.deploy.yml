@@ -16,14 +16,13 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
       vars:
         compose:
-          vars: "{{ virtual_dsm | default({},true) }}"
-          default:
-            volumes:
-              - name: external_vol-dsm-storage
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ virtual_dsm | default({},true) }}"
+          volumes:
+            - name: external_vol-dsm-storage
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"

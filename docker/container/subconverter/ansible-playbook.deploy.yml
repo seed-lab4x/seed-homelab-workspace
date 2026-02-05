@@ -16,28 +16,26 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ subconverter | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              ports:
-                - 25500:25500
-              hostname: subconverter
-              name: subconverter
-              image: tindy2013/subconverter:latest
+          override: "{{ subconverter | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            ports:
+              - 25500:25500
+            hostname: subconverter
+            name: subconverter
+            image: tindy2013/subconverter:latest
 
     - name: deploy container
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ subweb | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              ports:
-                - 25501:80
-              hostname: subweb
-              name: subweb
-              image: careywong/subweb:latest
+          override: "{{ subweb | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            ports:
+              - 25501:80
+            hostname: subweb
+            name: subweb
+            image: careywong/subweb:latest

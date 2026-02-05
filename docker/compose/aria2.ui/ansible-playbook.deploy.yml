@@ -17,12 +17,11 @@
       vars:
         compose:
           name: aria2
-          vars: "{{ aria2.ui | default({},true) }}"
-          default:
-            envs:
-              - file: external_env-all.env
-                content: |
-                  RPC_SECRET=aria2.123
-            composes:
-              - file: docker-compose.yml
-                src: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ aria2.ui | default({},true) }}"
+          envs:
+            - file: external_env-all.env
+              content: |
+                RPC_SECRET=aria2.123
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"

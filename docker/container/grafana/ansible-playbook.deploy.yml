@@ -16,24 +16,23 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ grafana | default({},true) }}"
-          default:
+          override: "{{ grafana | default({},true) }}"
+          volumes:
+            - name: external_vol-grafana-data
+              driver: local
+            - name: external_vol-grafana-config
+              driver: local
+            - name: external_vol-grafana-provisioning
+              driver: local
+          container:
+            detach: true
+            restart_policy: always
             volumes:
-              - name: external_vol-grafana-data
-                driver: local
-              - name: external_vol-grafana-config
-                driver: local
-              - name: external_vol-grafana-provisioning
-                driver: local
-            container:
-              detach: true
-              restart_policy: always
-              volumes:
-                - external_vol-grafana-data:/var/lib/grafana
-                - external_vol-grafana-dashboards:/var/lib/grafana/dashboards
-                - external_vol-grafana-provisioning:/etc/grafana/provisioning
-              ports:
-                - 3000:3000
-              hostname: grafana
-              name: grafana
-              image: grafana/grafana:latest
+              - external_vol-grafana-data:/var/lib/grafana
+              - external_vol-grafana-dashboards:/var/lib/grafana/dashboards
+              - external_vol-grafana-provisioning:/etc/grafana/provisioning
+            ports:
+              - 3000:3000
+            hostname: grafana
+            name: grafana
+            image: grafana/grafana:latest

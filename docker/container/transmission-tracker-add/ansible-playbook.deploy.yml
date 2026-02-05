@@ -16,15 +16,14 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ transmission.tracker_add | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always              
-              env:
-                HOSTPORT: transmission
-                TR_AUTH: admin:transmission
-                TORRENTLIST: https://cf.trackerslist.com/all.txt
-              hostname: transmission-tracker-add
-              name: transmission-tracker-add
-              image: andrewmhub/transmission-tracker-add:latest
+          override: "{{ transmission.tracker_add | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always              
+            env:
+              HOSTPORT: transmission
+              TR_AUTH: admin:transmission
+              TORRENTLIST: https://cf.trackerslist.com/all.txt
+            hostname: transmission-tracker-add
+            name: transmission-tracker-add
+            image: andrewmhub/transmission-tracker-add:latest

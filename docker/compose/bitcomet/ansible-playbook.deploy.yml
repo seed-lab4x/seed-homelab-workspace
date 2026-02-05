@@ -17,18 +17,17 @@
       vars:
         compose:
           name: bitcomet
-          vars: "{{ bitcomet | default({},true) }}"
-          default:
-            volumes:
-              - name: external_vol-bitcomet-shared
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: |
-                  VNC_PASSWORD=123456
-                  HTTP_PASSWORD=123456
-                  USER=sandbox
-                  PASSWORD=123456
-            composes:
-              - file: docker-compose.yml
-                src: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ bitcomet | default({},true) }}"
+          volumes:
+            - name: external_vol-bitcomet-shared
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: |
+                VNC_PASSWORD=123456
+                HTTP_PASSWORD=123456
+                USER=sandbox
+                PASSWORD=123456
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"

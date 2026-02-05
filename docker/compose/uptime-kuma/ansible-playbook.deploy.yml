@@ -17,14 +17,13 @@
       vars:
         compose:
           name: uptime-kuma
-          vars: "{{ uptime_kuma | default({},true) }}"
-          default:
-            volumes:
-              - name: external_vol-uptime-data
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                src: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ uptime_kuma | default({},true) }}"
+          volumes:
+            - name: external_vol-uptime-data
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"

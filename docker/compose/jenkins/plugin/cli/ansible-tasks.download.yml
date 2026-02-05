@@ -5,39 +5,38 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
   vars:
     container:
-      vars: "{{ _plugin.override.container | default({},true) }}"
-      default:
-        files:
-          - dest: "{{ _plugin.directory }}"
-            mode: "0777"
-          - src: "{{ _plugin.file }}"
-            dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+      override: "{{ _plugin.override.container | default({},true) }}"
+      files:
+        - dest: "{{ _plugin.directory }}"
+          mode: "0777"
+        - src: "{{ _plugin.file }}"
+          dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+      volumes:
+        - name: "{{ _plugin.volume }}"
+          driver: local
+          driver_options:
+            type: none
+            device: "{{ _plugin.directory }}"
+            o: bind
+      envs:
+        - file: external_env-all.env
+          content: ''
+      container:
+        detach: false
         volumes:
-          - name: "{{ _plugin.volume }}"
-            driver: local
-            driver_options:
-              type: none
-              device: "{{ _plugin.directory }}"
-              o: bind
-        envs:
-          - file: external_env-all.env
-            content: ''
-        container:
-          detach: false
-          volumes:
-            - "{{ _plugin.volume }}:/plugins"
-            - "{{ workpath.remote.full }}/bind_file-plugins.yml:/usr/share/jenkins/ref/plugins.yml"
-          command: >
-            jenkins-plugin-cli
-            --jenkins-version {{ _plugin.version }}
-            --plugin-file /usr/share/jenkins/ref/plugins.yml
-            --plugin-download-directory /plugins
-            {{ _plugin.flags }}
-          user: "1000:1000"
-          env_file: "{{ workpath.remote.full }}/external_env-all.env"
-          hostname: "{{ _plugin.container }}"
-          name: "{{ _plugin.container }}"
-          image: "{{ _plugin.image }}"
+          - "{{ _plugin.volume }}:/plugins"
+          - "{{ workpath.remote.full }}/bind_file-plugins.yml:/usr/share/jenkins/ref/plugins.yml"
+        command: >
+          jenkins-plugin-cli
+          --jenkins-version {{ _plugin.version }}
+          --plugin-file /usr/share/jenkins/ref/plugins.yml
+          --plugin-download-directory /plugins
+          {{ _plugin.flags }}
+        user: "1000:1000"
+        env_file: "{{ workpath.remote.full }}/external_env-all.env"
+        hostname: "{{ _plugin.container }}"
+        name: "{{ _plugin.container }}"
+        image: "{{ _plugin.image }}"
 
 - name: jenkins-plugin-manager.download|remove container
   when: _plugin.container is regex('^anonymous_.*')

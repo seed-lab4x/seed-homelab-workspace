@@ -16,11 +16,10 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
       vars:
         compose:
-          vars: "{{ xui | default({},true) }}"
-          default:
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ xui | default({},true) }}"
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"

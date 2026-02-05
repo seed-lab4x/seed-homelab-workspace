@@ -16,17 +16,16 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ shadowsocks.libev | default({},true) }}"
-          default:
-            files:
-              - src: "{{ playbook_dir }}/../config/libev.json"
-                dest: "{{ workpath.remote.full }}/bind_file-libev.json"
-            container:
-              detach: true
-              restart_policy: always
-              volumes:
-                - "{{ workpath.remote.full }}/bind_file-libev.json:/etc/shadowsocks-libev/config.json"
-              network_mode: host
-              hostname: shadowsocks
-              name: shadowsocks
-              image: teddysun/shadowsocks-libev:latest
+          override: "{{ shadowsocks.libev | default({},true) }}"
+          files:
+            - src: "{{ playbook_dir }}/../config/libev.json"
+              dest: "{{ workpath.remote.full }}/bind_file-libev.json"
+          container:
+            detach: true
+            restart_policy: always
+            volumes:
+              - "{{ workpath.remote.full }}/bind_file-libev.json:/etc/shadowsocks-libev/config.json"
+            network_mode: host
+            hostname: shadowsocks
+            name: shadowsocks
+            image: teddysun/shadowsocks-libev:latest

@@ -16,16 +16,15 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ zerotier | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              volumes:
-                - /var/lib/zerotier-one:/var/lib/zerotier-one
-              capabilities:
-                - NET_ADMIN
-                - SYS_ADMIN
-              hostname: zerotier
-              name: zerotier
-              image: zerotier/zerotier:latest
+          override: "{{ zerotier | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            volumes:
+              - /var/lib/zerotier-one:/var/lib/zerotier-one
+            capabilities:
+              - NET_ADMIN
+              - SYS_ADMIN
+            hostname: zerotier
+            name: zerotier
+            image: zerotier/zerotier:latest

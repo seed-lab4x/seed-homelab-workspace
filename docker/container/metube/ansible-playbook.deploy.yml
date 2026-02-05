@@ -16,13 +16,12 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ metube | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              ports:
-                - 8980:80
-              hostname: metube
-              name: metube
-              image: rudloff/metube:latest
+          override: "{{ metube | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            ports:
+              - 8980:80
+            hostname: metube
+            name: metube
+            image: rudloff/metube:latest

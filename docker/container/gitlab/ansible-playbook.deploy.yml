@@ -16,31 +16,30 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ gitlab | default({},true) }}"
-          default:
-            files:
-              - src: "{{ playbook_dir }}/config/omnibus.rb"
-                dest: "{{ workpath.remote.full }}/bind_file-omnibus.rb"
+          override: "{{ gitlab | default({},true) }}"
+          files:
+            - src: "{{ playbook_dir }}/config/omnibus.rb"
+              dest: "{{ workpath.remote.full }}/bind_file-omnibus.rb"
+          volumes:
+            - name: external_vol-gitlab-config
+              driver: local
+            - name: external_vol-gitlab-log
+              driver: local
+            - name: external_vol-gitlab-data
+              driver: local
+          container:
+            detach: true
+            restart_policy: always
             volumes:
-              - name: external_vol-gitlab-config
-                driver: local
-              - name: external_vol-gitlab-log
-                driver: local
-              - name: external_vol-gitlab-data
-                driver: local
-            container:
-              detach: true
-              restart_policy: always
-              volumes:
-                - external_vol-gitlab-config:/etc/gitlab
-                - external_vol-gitlab-log:/var/log/gitlab
-                - external_vol-gitlab-data:/var/opt/gitlab
-                - "{{ workpath.remote.full }}/bind_file-omnibus.rb:/omnibus.rb"
-              ports:
-                # https://github.com/docker/compose/issues/3109#issuecomment-195435884
-                - '2222:22'
-                - 8880:80
-                - 8443:443
-              hostname: gitlab
-              name: gitlab
-              image: gitlab/gitlab-ce:15.9.1-ce.0
+              - external_vol-gitlab-config:/etc/gitlab
+              - external_vol-gitlab-log:/var/log/gitlab
+              - external_vol-gitlab-data:/var/opt/gitlab
+              - "{{ workpath.remote.full }}/bind_file-omnibus.rb:/omnibus.rb"
+            ports:
+              # https://github.com/docker/compose/issues/3109#issuecomment-195435884
+              - '2222:22'
+              - 8880:80
+              - 8443:443
+            hostname: gitlab
+            name: gitlab
+            image: gitlab/gitlab-ce:15.9.1-ce.0

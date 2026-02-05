@@ -17,12 +17,11 @@
       vars:
         compose:
           name: watchtower
-          vars: "{{ watchtower | default({},true) }}"
-          default:
-            volumes:
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                src: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ watchtower | default({},true) }}"
+          volumes:
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"

@@ -16,18 +16,17 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ portainer.ce | default({},true) }}"
-          default:
-            container:
-              detach: true
-              restart_policy: always
-              volumes:
-                - /var/run/docker.sock:/var/run/docker.sock
-                - portainer_data:/data
-              ports:
-                - 9000:9000
-                - 9443:9443
-                - 8000:8000
-              hostname: portainer-ce
-              name: portainer-ce
-              image: portainer/portainer-ce:latest
+          override: "{{ portainer.ce | default({},true) }}"
+          container:
+            detach: true
+            restart_policy: always
+            volumes:
+              - /var/run/docker.sock:/var/run/docker.sock
+              - portainer_data:/data
+            ports:
+              - 9000:9000
+              - 9443:9443
+              - 8000:8000
+            hostname: portainer-ce
+            name: portainer-ce
+            image: portainer/portainer-ce:latest

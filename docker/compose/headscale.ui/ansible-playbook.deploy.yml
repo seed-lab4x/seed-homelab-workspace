@@ -17,14 +17,13 @@
       vars:
         compose:
           name: headscale
-          vars: "{{ headscale.ui | default({},true) }}"
-          default:
-            files:
-              - src: "{{ playbook_dir }}/config/Caddyfile"
-                dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ headscale.ui | default({},true) }}"
+          files:
+            - src: "{{ playbook_dir }}/config/Caddyfile"
+              dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"

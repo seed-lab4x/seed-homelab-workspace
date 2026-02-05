@@ -49,32 +49,31 @@
     include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
     vars:
       container:
-        vars: "{{ _usr.override.container | default({},true) }}"
-        default:
-          files:
-            - dest: "{{ _usr.directory }}"
-              mode: "0777"
+        override: "{{ _usr.override.container | default({},true) }}"
+        files:
+          - dest: "{{ _usr.directory }}"
+            mode: "0777"
+        volumes:
+          - name: "{{ _usr.volume }}"
+            driver: local
+            driver_options:
+              type: none
+              device: "{{ _usr.directory }}"
+              o: bind
+        envs:
+          - file: external_env-all.env
+            content: ''
+        container:
+          detach: false
           volumes:
-            - name: "{{ _usr.volume }}"
-              driver: local
-              driver_options:
-                type: none
-                device: "{{ _usr.directory }}"
-                o: bind
-          envs:
-            - file: external_env-all.env
-              content: ''
-          container:
-            detach: false
-            volumes:
-              - "{{ _usr.volume }}:/usr/local/share/bettercap"
-            command: >
-               -eval "caplets.update; ui.update; q"
-            user: "0:0"
-            env_file: "{{ workpath.remote.full }}/external_env-all.env"
-            hostname: "{{ _usr.container }}"
-            name: "{{ _usr.container }}"
-            image: "{{ _usr.image }}"
+            - "{{ _usr.volume }}:/usr/local/share/bettercap"
+          command: >
+              -eval "caplets.update; ui.update; q"
+          user: "0:0"
+          env_file: "{{ workpath.remote.full }}/external_env-all.env"
+          hostname: "{{ _usr.container }}"
+          name: "{{ _usr.container }}"
+          image: "{{ _usr.image }}"
 
   - name: bettercap-usr.download|remove container
     when: _usr.container is regex('^anonymous_.*')

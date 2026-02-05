@@ -16,23 +16,22 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ headscale | default({},true) }}"
-          default:
+          override: "{{ headscale | default({},true) }}"
+          volumes:
+            - name: external_vol-headscale-etc
+              driver: local
+            - name: external_vol-headscale-lib
+              driver: local
+          container:
+            detach: true
+            restart_policy: always
+            command: headscale serve
             volumes:
-              - name: external_vol-headscale-etc
-                driver: local
-              - name: external_vol-headscale-lib
-                driver: local
-            container:
-              detach: true
-              restart_policy: always
-              command: headscale serve
-              volumes:
-                - external_vol-headscale-etc:/etc/headscale
-                - external_vol-headscale-lib:/var/lib/headscale
-                - "{{ workpath.remote.full }}/bind_file-config.yaml:/etc/headscale/config.yaml"
-              ports:
-                - 8280:8080
-              hostname: headscale
-              name: headscale
-              image: headscale/headscale:0.20.0-debug
+              - external_vol-headscale-etc:/etc/headscale
+              - external_vol-headscale-lib:/var/lib/headscale
+              - "{{ workpath.remote.full }}/bind_file-config.yaml:/etc/headscale/config.yaml"
+            ports:
+              - 8280:8080
+            hostname: headscale
+            name: headscale
+            image: headscale/headscale:0.20.0-debug

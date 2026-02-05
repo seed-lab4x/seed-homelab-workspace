@@ -16,22 +16,21 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-container.deploy.yml"
       vars:
         container:
-          vars: "{{ tailscale | default({},true) }}"
-          default:
+          override: "{{ tailscale | default({},true) }}"
+          volumes:
+            - name: external_vol-netbird-etc
+              driver: local
+          container:
+            detach: true
+            restart_policy: always
+            env:
+              TS_SOCKET: /var/run/tailscale/tailscaled.sock
             volumes:
-              - name: external_vol-netbird-etc
-                driver: local
-            container:
-              detach: true
-              restart_policy: always
-              env:
-                TS_SOCKET: /var/run/tailscale/tailscaled.sock
-              volumes:
-                - external_vol-netbird-etc:/etc/netbird
-              capabilities:
-                - NET_ADMIN
-                - SYS_ADMIN
-                - SYS_RESOURCE
-              hostname: netbird
-              name: netbird
-              image: netbirdio/netbird:latest
+              - external_vol-netbird-etc:/etc/netbird
+            capabilities:
+              - NET_ADMIN
+              - SYS_ADMIN
+              - SYS_RESOURCE
+            hostname: netbird
+            name: netbird
+            image: netbirdio/netbird:latest

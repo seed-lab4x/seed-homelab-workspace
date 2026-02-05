@@ -17,17 +17,16 @@
       vars:
         compose:
           name: nginx
-          vars: "{{ nginx.docker_proxy | default({},true) }}"
-          default:
-            files:
-              - src: "{{ playbook_dir }}/config/nginx.conf"
-                dest: "{{ workpath.remote.full }}/bind_file-nginx.conf"
-            volumes:
-              - name: external_vol-nginx-etc
-                driver: local
-            envs:
-              - file: external_env-all.env
-                content: ''
-            composes:
-              - file: docker-compose.yml
-                template: "{{ playbook_dir }}/docker-compose.yml"
+          override: "{{ nginx.docker_proxy | default({},true) }}"
+          files:
+            - src: "{{ playbook_dir }}/config/nginx.conf"
+              dest: "{{ workpath.remote.full }}/bind_file-nginx.conf"
+          volumes:
+            - name: external_vol-nginx-etc
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              template: "{{ playbook_dir }}/docker-compose.yml"
