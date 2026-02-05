@@ -52,8 +52,8 @@
             name: cloudflared
             override: "{{ cloudflared | default({},true) }}"
             files:
-              - src: "{{ _config.dir }}/"
-                dest: "{{ workpath.remote.full }}/config/"
+              - path: "{{ workpath.remote.full }}/config/"
+                copy: "{{ _config.dir }}/"
             volumes:
               - name: external_vol-cloudflared-data
                 driver: local

@@ -21,8 +21,8 @@
         compose:
           override: "{{ shadowsocks.go | default({},true) }}"
           files:
-            - src: "{{ workpath.local.name }}/config/go.json"
-              dest: "{{ workpath.remote.name }}/bind_file-go.json"
+            - path: "{{ workpath.remote.name }}/bind_file-go.json"
+              copy: "{{ workpath.local.name }}/config/go.json"
           envs:
             - file: external_env-go.env
               content: ''

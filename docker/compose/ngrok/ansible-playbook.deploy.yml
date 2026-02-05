@@ -39,8 +39,8 @@
             name: ngrok
             override: "{{ ngrok | default({},true) }}"
             files:
-              - src: "{{ ngrok.config }}"
-                dest: "{{ workpath.remote.full }}/ngrok.yml"
+              - path: "{{ workpath.remote.full }}/ngrok.yml"
+                copy: "{{ ngrok.config }}"
             volumes:
               - name: external_vol-ngrok-config
                 driver: local
@@ -69,8 +69,8 @@
             name: ngrok
             override: "{{ ngrok | default({},true) }}"
             files:
-              - src: "{{ playbook_dir }}/config/ngrok.yml"
-                dest: "{{ workpath.remote.full }}/ngrok.yml"
+              - path: "{{ workpath.remote.full }}/ngrok.yml"
+                copy: "{{ playbook_dir }}/config/ngrok.yml"
             volumes:
               - name: external_vol-ngrok-config
                 driver: local

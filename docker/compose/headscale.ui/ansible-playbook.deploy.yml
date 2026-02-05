@@ -19,8 +19,8 @@
           name: headscale
           override: "{{ headscale.ui | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/Caddyfile"
-              dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+            - path: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+              copy: "{{ playbook_dir }}/config/Caddyfile"
           envs:
             - file: external_env-all.env
               content: ''

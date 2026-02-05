@@ -18,8 +18,8 @@
         container:
           override: "{{ gitlab | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/omnibus.rb"
-              dest: "{{ workpath.remote.full }}/bind_file-omnibus.rb"
+            - path: "{{ workpath.remote.full }}/bind_file-omnibus.rb"
+              copy: "{{ playbook_dir }}/config/omnibus.rb"
           volumes:
             - name: external_vol-gitlab-config
               driver: local

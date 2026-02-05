@@ -18,8 +18,8 @@
         compose:
           override: "{{ nfs_server | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/exports/exports"
-              dest: "{{ workpath.remote.full }}/bind_file-exports"
+            - path: "{{ workpath.remote.full }}/bind_file-exports"
+              copy: "{{ playbook_dir }}/exports/exports"
           volumes:
             - name: external_vol-nfs-server-data
               driver: local

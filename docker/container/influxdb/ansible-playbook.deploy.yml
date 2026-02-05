@@ -18,8 +18,8 @@
         container:
           override: "{{ influxdb | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/conf/influxdb.conf"
-              dest: "{{ workpath.remote.full }}/bind_file-influxdb.conf"
+            - path: "{{ workpath.remote.full }}/bind_file-influxdb.conf"
+              copy: "{{ playbook_dir }}/conf/influxdb.conf"
           volumes:
             - name: external_vol-influxdb-data
               driver: local

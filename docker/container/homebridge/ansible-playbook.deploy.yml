@@ -18,8 +18,8 @@
         container:
           override: "{{ homebridge | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/config.json"
-              dest: "{{ workpath.remote.full }}/bind_file-config.json"
+            - path: "{{ workpath.remote.full }}/bind_file-config.json"
+              copy: "{{ playbook_dir }}/config/config.json"
           volumes:
             - name: external_vol-homebridge-data
               driver: local

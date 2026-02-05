@@ -19,8 +19,8 @@
           name: nginx
           override: "{{ nginx.docker_proxy | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/nginx.conf"
-              dest: "{{ workpath.remote.full }}/bind_file-nginx.conf"
+            - path: "{{ workpath.remote.full }}/bind_file-nginx.conf"
+              copy: "{{ playbook_dir }}/config/nginx.conf"
           volumes:
             - name: external_vol-nginx-etc
               driver: local

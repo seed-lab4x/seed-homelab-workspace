@@ -21,8 +21,8 @@
         compose:
           override: "{{ shadowsocks.libev | default({},true) }}"
           files:
-            - src: "{{ workpath.local.name }}/config/libev.json"
-              dest: "{{ workpath.remote.name }}/bind_file-libev.json"
+            - path: "{{ workpath.remote.name }}/bind_file-libev.json"
+              copy: "{{ workpath.local.name }}/config/libev.json"
           envs:
             - file: external_env-libev.env
               content: ''

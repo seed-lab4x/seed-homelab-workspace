@@ -18,8 +18,8 @@
         compose:
           override: "{{ librespeed | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/servers.json"
-              dest: "{{ workpath.remote.full }}/bind_file-servers.json"
+            - path: "{{ workpath.remote.full }}/bind_file-servers.json"
+              copy: "{{ playbook_dir }}/config/servers.json"
           volumes:
             - name: external_vol-librespeed-database
               driver: local

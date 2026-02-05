@@ -23,8 +23,8 @@
         container:
           override: "{{ telegraf | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/conf/telegraf.conf"
-              dest: "{{ workpath.remote.full }}/bind_file-telegraf.conf"
+            - path: "{{ workpath.remote.full }}/bind_file-telegraf.conf"
+              copy: "{{ playbook_dir }}/conf/telegraf.conf"
           container:
             detach: true
             restart_policy: always

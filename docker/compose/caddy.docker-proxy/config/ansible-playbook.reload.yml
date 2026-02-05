@@ -21,6 +21,6 @@
         config:
           name: caddy
           files:
-            - src: "{{ workpath.local.name }}/config/Caddyfile"
-              dest: "{{ workpath.remote.name }}/config/Caddyfile"
+            - path: "{{ workpath.remote.name }}/config/Caddyfile"
+              redirect: "{{ workpath.local.name }}/config/Caddyfile"
           override: "{{ caddy.docker_proxy.config | default({},true) }}"

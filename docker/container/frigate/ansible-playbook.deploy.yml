@@ -18,8 +18,8 @@
         container:
           override: "{{ frigate | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/conf/frigate.yml"
-              dest: "{{ workpath.remote.full }}/bind_file-frigate.yml"
+            - path: "{{ workpath.remote.full }}/bind_file-frigate.yml"
+              copy: "{{ playbook_dir }}/conf/frigate.yml"
           volumes:
             - name: external_vol-frigate-config
               driver: local

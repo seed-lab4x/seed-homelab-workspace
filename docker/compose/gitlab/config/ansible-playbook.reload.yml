@@ -21,6 +21,6 @@
         config:
           name: gitlab-ce
           files:
-            - src: "{{ workpath.local.name }}/config/omnibus.rb"
-              dest: "{{ workpath.remote.name }}/config/omnibus.rb"
+            - path: "{{ workpath.remote.name }}/config/omnibus.rb"
+              redirect: "{{ workpath.local.name }}/config/omnibus.rb"
           override: "{{ gitlab.config | default({},true) }}"

@@ -21,8 +21,8 @@
         compose:
           override: "{{ shadowsocks.rust | default({},true) }}"
           files:
-            - src: "{{ workpath.local.name }}/config/rust.json"
-              dest: "{{ workpath.remote.name }}/bind_file-rust.json"
+            - path: "{{ workpath.remote.name }}/bind_file-rust.json"
+              copy: "{{ workpath.local.name }}/config/rust.json"
           envs:
             - file: external_env-rust.env
               content: ''

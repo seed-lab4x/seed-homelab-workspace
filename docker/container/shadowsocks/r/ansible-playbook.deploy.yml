@@ -18,8 +18,8 @@
         container:
           override: "{{ shadowsocks.r | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../config/r.json"
-              dest: "{{ workpath.remote.full }}/bind_file-r.json"
+            - path: "{{ workpath.remote.full }}/bind_file-r.json"
+              copy: "{{ playbook_dir }}/../config/r.json"
           container:
             detach: true
             restart_policy: always

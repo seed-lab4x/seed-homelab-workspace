@@ -21,6 +21,6 @@
         config:
           name: nginx
           files:
-            - src: "{{ workpath.local.name }}/config/nginx.conf"
-              dest: "{{ workpath.remote.name }}/config/bind_file-nginx.conf"
+            - path: "{{ workpath.remote.name }}/config/bind_file-nginx.conf"
+              redirect: "{{ workpath.local.name }}/config/nginx.conf"
           override: "{{ nginx.docker_proxy.config | default({},true) }}"

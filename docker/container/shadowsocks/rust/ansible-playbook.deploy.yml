@@ -18,8 +18,8 @@
         container:
           override: "{{ shadowsocks.rust | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../config/rust.json"
-              dest: "{{ workpath.remote.full }}/bind_file-rust.json"
+            - path: "{{ workpath.remote.full }}/bind_file-rust.json"
+              copy: "{{ playbook_dir }}/../config/rust.json"
           container:
             detach: true
             restart_policy: always

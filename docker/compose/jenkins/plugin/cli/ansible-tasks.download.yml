@@ -7,10 +7,10 @@
     container:
       override: "{{ _plugin.override.container | default({},true) }}"
       files:
-        - dest: "{{ _plugin.directory }}"
+        - path: "{{ _plugin.directory }}"
           mode: "0777"
-        - src: "{{ _plugin.file }}"
-          dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+        - path: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+          copy: "{{ _plugin.file }}"
       volumes:
         - name: "{{ _plugin.volume }}"
           driver: local

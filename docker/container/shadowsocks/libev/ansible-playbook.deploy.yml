@@ -18,8 +18,8 @@
         container:
           override: "{{ shadowsocks.libev | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../config/libev.json"
-              dest: "{{ workpath.remote.full }}/bind_file-libev.json"
+            - path: "{{ workpath.remote.full }}/bind_file-libev.json"
+              copy: "{{ playbook_dir }}/../config/libev.json"
           container:
             detach: true
             restart_policy: always

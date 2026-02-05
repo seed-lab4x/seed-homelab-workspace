@@ -51,7 +51,7 @@
       container:
         override: "{{ _usr.override.container | default({},true) }}"
         files:
-          - dest: "{{ _usr.directory }}"
+          - path: "{{ _usr.directory }}"
             mode: "0777"
         volumes:
           - name: "{{ _usr.volume }}"

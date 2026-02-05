@@ -18,8 +18,8 @@
         container:
           override: "{{ shadowsocks.python | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../config/python.json"
-              dest: "{{ workpath.remote.full }}/bind_file-python.json"
+            - path: "{{ workpath.remote.full }}/bind_file-python.json"
+              copy: "{{ playbook_dir }}/../config/python.json"
           container:
             detach: true
             restart_policy: always

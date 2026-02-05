@@ -35,8 +35,8 @@
           name: caddy
           override: "{{ caddy.docker_proxy | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/Caddyfile"
-              dest: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+            - path: "{{ workpath.remote.full }}/bind_file-Caddyfile"
+              copy: "{{ playbook_dir }}/config/Caddyfile"
           volumes:
             - name: external_vol-caddy-data
               driver: local

@@ -18,8 +18,8 @@
         compose:
           override: "{{ headscale | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/config.yaml"
-              dest: "{{ workpath.remote.full }}/bind_file-config.yaml"
+            - path: "{{ workpath.remote.full }}/bind_file-config.yaml"
+              copy: "{{ playbook_dir }}/config/config.yaml"
           volumes:
             - name: external_vol-headscale-data
               driver: local

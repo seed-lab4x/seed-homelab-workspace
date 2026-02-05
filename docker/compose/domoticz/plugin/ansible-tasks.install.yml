@@ -24,8 +24,8 @@
           #   repo: https://github.com/xiaoyao9184/Domoticz-XAir-Plugin.git
         # file for push
         files: []
-          # - dest: "{{ workpath.remote.full }}/.plugin/Domoticz-XAir-Plugin"
-          #   src: "{{ inventory_dir }}/../domoticz/userdata/{{ inventory_hostname }}/plugins/Domoticz-XAir-Plugin"
+          # - path: "{{ workpath.remote.full }}/.plugin/Domoticz-XAir-Plugin"
+          #   copy: "{{ inventory_dir }}/../domoticz/userdata/{{ inventory_hostname }}/plugins/Domoticz-XAir-Plugin"
         volume:
           name: external_vol-domoticz-userdata
           driver: local

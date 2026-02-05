@@ -19,8 +19,8 @@
         container:
           override: "{{ frp.server | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/frps.ini"
-              dest: "{{ workpath.remote.full }}/bind_file-frps.ini"
+            - path: "{{ workpath.remote.full }}/bind_file-frps.ini"
+              copy: "{{ playbook_dir }}/config/frps.ini"
           container:
             detach: true
             restart_policy: always
@@ -42,8 +42,8 @@
         container:
           override: "{{ frp.client | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/frpc.ini"
-              dest: "{{ workpath.remote.full }}/bind_file-frpc.ini"
+            - path: "{{ workpath.remote.full }}/bind_file-frpc.ini"
+              copy: "{{ playbook_dir }}/config/frpc.ini"
           container:
             detach: true
             restart_policy: always

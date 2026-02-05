@@ -18,8 +18,8 @@
         container:
           override: "{{ mosquitto | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/conf/mosquitto.conf"
-              dest: "{{ workpath.remote.full }}/bind_file-mosquitto.conf"
+            - path: "{{ workpath.remote.full }}/bind_file-mosquitto.conf"
+              copy: "{{ playbook_dir }}/conf/mosquitto.conf"
           volumes:
             - name: external_vol-mosquitto-data
               driver: local

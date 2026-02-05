@@ -19,8 +19,8 @@
           name: mediamtx
           override: "{{ mediamtx | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/mediamtx.yml"
-              dest: "{{ workpath.remote.full }}/bind_file-mediamtx.yml"
+            - path: "{{ workpath.remote.full }}/bind_file-mediamtx.yml"
+              copy: "{{ playbook_dir }}/config/mediamtx.yml"
           envs:
             - file: external_env-all.env
               content: ''

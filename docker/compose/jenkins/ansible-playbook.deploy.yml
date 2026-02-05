@@ -18,9 +18,9 @@
         compose:
           override: "{{ jenkins | default({},true) }}"
           files:
-            - dest: "{{ workpath.remote.full }}/config"
-              src: "{{ playbook_dir }}/config/"
-            - dest: "{{ workpath.remote.full }}/plugin/external_vol-jenkins-plugin/"
+            - path: "{{ workpath.remote.full }}/config"
+              copy: "{{ playbook_dir }}/config/"
+            - path: "{{ workpath.remote.full }}/plugin/external_vol-jenkins-plugin/"
           volumes:
             - name: external_vol-jenkins-var
               driver: local

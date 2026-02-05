@@ -18,8 +18,8 @@
         container:
           override: "{{ shadowsocks,go | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../config/go.json"
-              dest: "{{ workpath.remote.full }}/bind_file-go.json"
+            - path: "{{ workpath.remote.full }}/bind_file-go.json"
+              copy: "{{ playbook_dir }}/../config/go.json"
           container:
             detach: true
             restart_policy: always

@@ -5,8 +5,8 @@
   include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-files.push.yml"
   vars:
     files:
-      - src: "{{ workpath.local.name }}/exports/exports"
-        dest: "{{ workpath.remote.name }}/exports/exports"
+      - path: "{{ workpath.remote.name }}/exports/exports"
+        redirect: "{{ workpath.local.name }}/exports/exports"
 
 # https://medium.com/@jonsbun/why-need-to-be-careful-when-mounting-single-files-into-a-docker-container-4f929340834
 - name: nfsserver-exports.reload|overwrite bind

@@ -18,8 +18,8 @@
         compose:
           override: "{{ olah | default({},true) }}"
           files:
-            - dest: "{{ workpath.remote.full }}/bind_file-configs.toml"
-              src: "{{ playbook_dir }}/config/configs.toml"
+            - path: "{{ workpath.remote.full }}/bind_file-configs.toml"
+              copy: "{{ playbook_dir }}/config/configs.toml"
           volumes:
             - name: external_vol-olah-mirrors
               driver: local

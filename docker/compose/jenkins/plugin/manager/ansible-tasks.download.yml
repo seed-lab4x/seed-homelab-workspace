@@ -13,12 +13,12 @@
     container:
       override: "{{ _plugin.override.container | default({},true) }}"
       files:
-        - dest: "{{ _plugin.directory }}"
+        - path: "{{ _plugin.directory }}"
           mode: "0777"
-        - dest: "{{ workpath.remote.full }}/bind_file-plugins.yml"
-          src: "{{ _plugin.file }}"
-        - dest: "{{ workpath.remote.full }}/bind_file-{{ _manager.name }}"
-          src: "{{ _manager.dest }}"
+        - path: "{{ workpath.remote.full }}/bind_file-plugins.yml"
+          copy: "{{ _plugin.file }}"
+        - path: "{{ workpath.remote.full }}/bind_file-{{ _manager.name }}"
+          copy: "{{ _manager.dest }}"
       volumes:
         - name: "{{ _plugin.volume }}"
           driver: local

@@ -18,8 +18,8 @@
         container:
           override: "{{ v2ray | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/config/config.json"
-              dest: "{{ workpath.remote.full }}/bind_file-config.json"
+            - path: "{{ workpath.remote.full }}/bind_file-config.json"
+              copy: "{{ playbook_dir }}/config/config.json"
           volumes:
             - name: external_vol-v2ray-etc
               driver: local

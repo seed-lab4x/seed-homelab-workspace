@@ -21,8 +21,8 @@
         compose:
           override: "{{ frp.client | default({},true) }}"
           files:
-            - src: "{{ playbook_dir }}/../ini/frpc.ini"
-              dest: "{{ workpath.remote.full }}/bind_file-frpc.ini"
+            - path: "{{ workpath.remote.full }}/bind_file-frpc.ini"
+              copy: "{{ playbook_dir }}/../ini/frpc.ini"
           envs:
             - file: external_env-all.env
               content: ''
