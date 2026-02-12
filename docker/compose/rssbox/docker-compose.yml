@@ -1,0 +1,56 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-rssbox-data
+    external: true
+
+networks:
+  rssbox:
+
+services:
+  rssbox:
+    image: versun/rssbox:latest
+    env_file: external_env-all.env
+    # environment:
+    #   - SITE_URL=http://127.0.0.1:8000
+    #   - REDIS_URL=redis://rssbox_redis:6379/0
+    #   - CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000
+    #   - DEFAULT_TARGET_LANGUAGE=Chinese Simplified # See https://github.com/versun/rssbox/blob/main/config/settings.py#L199 for optional values
+    #   - PORT=8000
+    #   - DEBUG=0
+    #   - DEMO=0
+    #   - USER_MANAGEMENT=0
+    #   - LOG_LEVEL=ERROR
+    #   - default_max_posts=20
+    volumes:
+      - data:/app/data
+    networks:
+      - rssbox
+    ports:
+      - 8000
+    # network_mode: bridge
+    container_name: rssbox
+    restart: always
+    healthcheck:
+      test: ["CMD", "python", "-c", "import redis,os; r=redis.Redis.from_url(os.getenv('REDIS_URL')); r.ping()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rssbox_redis:
+    image: redis:latest
+    volumes:
+      - data:/data
+    networks:
+      - rssbox
+    ports:
+      - 6379
+    container_name: rssbox_redis
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5s

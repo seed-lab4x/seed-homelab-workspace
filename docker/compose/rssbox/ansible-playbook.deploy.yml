@@ -1,0 +1,39 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          name: rssbox
+          override: "{{ rssbox | default({},true) }}"
+          volumes:
+            - name: external_vol-rssbox-data
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: |
+                SITE_URL=http://127.0.0.1:8000
+                REDIS_URL=redis://rssbox_redis:6379/0
+                CSRF_TRUSTED_ORIGINS=http://127.0.0.1:8000
+                DEFAULT_TARGET_LANGUAGE=Chinese Simplified
+                PORT=8000
+                DEBUG=0
+                DEMO=0
+                USER_MANAGEMENT=0
+                LOG_LEVEL=ERROR
+                default_max_posts=20
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"
