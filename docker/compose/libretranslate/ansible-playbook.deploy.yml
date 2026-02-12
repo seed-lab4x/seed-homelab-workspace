@@ -1,0 +1,38 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          name: libretranslate
+          override: "{{ libretranslate | default({},true) }}"
+          volumes:
+            - name: external_vol-libretranslate-db
+              driver: local
+            - name: external_vol-libretranslate-local
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: |
+                LT_API_KEYS_DB_PATH=/app/db/api_keys.db
+                LT_API_KEYS=True
+                LT_REQ_LIMIT=120
+                LT_UPDATE_MODELS=True
+                # LT_LOAD_ONLY=en,fr
+                # LT_DEBUG=True
+                # PUID=root
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"

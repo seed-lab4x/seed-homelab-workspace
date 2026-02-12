@@ -1,0 +1,41 @@
+version: "3.8"
+
+volumes:
+  db:
+    name: external_vol-libretranslate-db
+    external: true
+  local:
+    name: external_vol-libretranslate-local
+    external: true
+
+networks:
+  libretranslate:
+
+services:
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    env_file: external_env-all.env
+    # environment:
+    #  - LT_API_KEYS_DB_PATH=/app/db/api_keys.db
+    #  - LT_API_KEYS=True
+    #  - LT_REQ_LIMIT=120
+    #  - LT_UPDATE_MODELS=True
+    #  - LT_LOAD_ONLY=en,fr
+    #  - LT_DEBUG=True
+    #  - PUID=root
+    volumes:
+      - db:/app/db
+      - local:/root/.local
+    networks:
+      - libretranslate
+    ports:
+      - 5000
+    # network_mode: bridge
+    container_name: libretranslate
+    restart: always
+    healthcheck:
+      test: ['CMD-SHELL', './venv/bin/python scripts/healthcheck.py']
+      interval: 10s
+      timeout: 4s
+      retries: 4
+      start_period: 5s
