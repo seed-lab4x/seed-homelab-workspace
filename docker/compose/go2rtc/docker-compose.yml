@@ -1,0 +1,26 @@
+version: "3.8"
+
+volumes:
+  config:
+    name: external_vol-go2rtc-config
+    external: true
+
+networks:
+  go2rtc:
+
+services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    env_file: external_env-go2rtc.env
+    # environment:
+    #   - TZ=Atlantic/Bermuda
+    volumes:
+      - config:/config
+    networks:
+      - go2rtc
+    ports:
+      - 1984
+    # network_mode: bridge
+    container_name: go2rtc
+    privileged: true
+    restart: always
