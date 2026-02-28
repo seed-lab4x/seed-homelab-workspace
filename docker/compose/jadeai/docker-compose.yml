@@ -1,0 +1,34 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-jadeai-data
+    external: true
+
+networks:
+  jadeai:
+
+services:
+  jadeai:
+    image: twwch/jadeai:latest
+    env_file: external_env-all.env
+    # environment:
+    #   - AUTH_SECRET=openssl rand -base64 32
+    #   - SQLITE_PATH=./data/jade.db
+    #   - DB_TYPE=postgresql
+    #   - DATABASE_URL=postgresql://user:pass@host:5432/jadeai
+    #   - GOOGLE_CLIENT_ID=xxx
+    #   - GOOGLE_CLIENT_SECRET=xxx
+    #   - NEXT_PUBLIC_AUTH_ENABLED=false
+    #   - NEXT_PUBLIC_APP_NAME=JadeAI
+    #   - NEXT_PUBLIC_APP_URL=http://localhost:3000
+    #   - NEXT_PUBLIC_DEFAULT_LOCALE=zh
+    volumes:
+      - data:/app/data
+    networks:
+      - jadeai
+    ports:
+      - 3000
+    # network_mode: bridge
+    container_name: jadeai
+    restart: always
