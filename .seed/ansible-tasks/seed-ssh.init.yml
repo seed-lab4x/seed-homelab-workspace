@@ -8,7 +8,7 @@
       group: 'ssh'
       dir: "~/.ssh"
       approve_task: "seed-ssh.approve.yml"
-      known_hash: true
+      known_hash: false
       known_scan: []
       mark_comment: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
     ssh_param: "{{ ssh_optional | combine(ssh | default({},true), recursive=True) }}"
