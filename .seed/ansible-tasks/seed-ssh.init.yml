@@ -81,7 +81,7 @@
       item_known_name: "{{ item_keyscan_host }}"
       item_keyscan_command: "ssh-keyscan -t {{ item_keyscan_type }} -p {{ item_keyscan_port }} {{ item_keyscan_host }}"
       name: "{{ item.value.inventory_hostname }}"
-      item_key: "{{ lookup('pipe', item_keyscan_command, errors='ignore') }}"
+      item_key: "{{ lookup('pipe', item_keyscan_command ~ ' | grep -v ^#', errors='ignore') }}"
     loop: "{{ list_host_scan }}"
     loop_control:
       loop_var: item_host_scan
