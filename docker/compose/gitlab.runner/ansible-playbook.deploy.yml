@@ -16,6 +16,7 @@
       include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
       vars:
         compose:
+          name: gitlab
           override: "{{ gitlab.runner | default({},true) }}"
           volumes:
             - name: external_vol-gitlab-runner-config
