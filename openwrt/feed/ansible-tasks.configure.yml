@@ -23,5 +23,6 @@
     path: "{{ file | default('/etc/opkg/customfeeds.conf',true) }}"
     block: "{{ content }}"
     marker: "# ANSIBLE MANAGED BLOCK group: {{ group_name | default('<NONE>',true) }} {mark}"
+    create: true
   register: feed_configure
   until: feed_configure is succeeded
