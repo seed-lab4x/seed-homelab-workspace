@@ -3,7 +3,6 @@ version: "3.8"
 networks:
   gitlab:
     name: gitlab_gitlab
-    attachable: true
 
 volumes:
   config:
