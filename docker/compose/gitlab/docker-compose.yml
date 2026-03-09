@@ -1,5 +1,9 @@
 version: "3.8"
 
+networks:
+  gitlab:
+    name: gitlab_gitlab
+
 volumes:
   config:
     name: external_vol-gitlab-config
@@ -23,6 +27,8 @@ services:
       - log:/var/log/gitlab
       - data:/var/opt/gitlab
       - ./bind_file-omnibus.rb:/omnibus.rb
+    networks:
+      - gitlab
     ports:
       - 80
       - 443
