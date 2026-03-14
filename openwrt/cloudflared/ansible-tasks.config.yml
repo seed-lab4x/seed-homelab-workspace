@@ -1,0 +1,29 @@
+# code: language=ansible
+---
+
+- name: config|mkdir cloudflared etc
+  ansible.builtin.file:
+    state: directory
+    path: /etc/cloudflared
+
+- name: config|copy cloudflared config
+  when: cloudflared.config is defined
+  ansible.builtin.copy:
+    src: "{{ cloudflared.config }}"
+    dest: "/etc/cloudflared/config.yml"
+
+- name: config|copy cloudflared cert
+  ansible.builtin.copy:
+    src: "{{ cloudflared.cert }}"
+    dest: "/etc/cloudflared/cert.pem"
+
+- name: config|enable cloudflared
+  loop:
+    - uci set cloudflared.config.enabled='1'
+    - uci set cloudflared.config.token='{{ cloudflared.token }}'
+    - uci commit
+  loop_control:
+    loop_var: cmd
+  ansible.builtin.command: "{{ cmd }}"
+  register: cloudflared_config
+  until: cloudflared_config is succeeded

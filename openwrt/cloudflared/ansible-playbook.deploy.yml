@@ -1,0 +1,33 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: install
+  hosts: openwrt
+  tasks:
+    - name: install opkg
+      include_tasks: ansible-tasks.install.yml
+
+    - name: config opkg
+      include_tasks: ansible-tasks.config.yml
+
+    - name: get cloudflared version
+      ansible.builtin.shell: cloudflared version
+      register: cloudflared_version
+      ignore_errors: true
+
+    - name: print cloudflared version
+      vars:
+        openwrt_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.cloudflared_version','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in openwrt_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.cloudflared_version.stdout | default('',true) }}
+          {{ host.value.cloudflared_version.stderr | default('',true) }}
+          {% endfor %}
