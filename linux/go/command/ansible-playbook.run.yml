@@ -1,0 +1,33 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: linux
+  tasks:
+
+    - name: run commands
+      loop: "{{ go.commands | default([]) }}"
+      loop_control:
+        loop_var: go_command
+      when: go_command | substring(0, 2) != 'go'
+      ansible.builtin.shell:
+        cmd: "{{ go_command }}"
+      register: run_commands
+      ignore_errors: true
+
+    - name: show commands
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.run_commands','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.run_commands.stdout | default('',true) }}
+          {{ host.value.run_commands.stderr | default('',true) }}
+          {% endfor %}

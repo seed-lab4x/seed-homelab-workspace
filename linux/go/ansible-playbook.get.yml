@@ -1,0 +1,42 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: get
+  hosts: linux
+  tasks:
+
+    - name: role go
+      vars:
+        go_version: "{{ go.version | default('1.17.3',true) }}"
+        go_platform: linux
+        go_arch: "{{ go.arch | default('amd64',true) }}"
+        go_tarball: "go{{ go.version | default('1.17.3',true) }}.{{ go_platform | default('linux',true) }}-{{ go_arch | default('amd64',true) }}.tar.gz"
+        go_download_url: "https://go.dev/dl/go{{ go.version | default('1.17.3',true) }}.{{ go_platform | default('linux',true) }}-{{ go_arch | default('amd64',true) }}.tar.gz"
+        go_checksum: "{{ go.checksum | default('550f9845451c0c94be679faf116291e7807a8d78b43149f9506c1b15eb89008c',true) }}"
+      ansible.builtin.include_role:
+        name: geerlingguy.go
+        apply:
+          become: true
+
+    - name: check go
+      ansible.builtin.command:
+        cmd: go version
+      register: go_version
+      changed_when: false
+
+    - name: print version
+      vars:
+        linux_hostvars: "{{ hostvars | dict2items
+          | selectattr('key','in',ansible_play_hosts)
+          | selectattr('value.go_version','defined') }}"
+      ansible.builtin.pause:
+        seconds: 1
+        prompt: |
+          {% for host in linux_hostvars %}
+
+          [{{ host.key }}] =>
+          --------------------------------------------------
+          {{ host.value.go_version.stdout | default('',true) }}
+          {{ host.value.go_version.stderr | default('',true) }}
+          {% endfor %}
