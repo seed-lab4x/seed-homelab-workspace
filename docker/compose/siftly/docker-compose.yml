@@ -1,0 +1,22 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-siftly-data
+    external: true
+
+services:
+  siftly:
+    image: xiaoyao9184/siftly:support-docker
+    env_file: external_env-siftly.env
+    # environment:
+    #   DATABASE_URL: file:/data/dev.db
+    #   ANTHROPIC_CLI_KEY: ...
+    #   ANTHROPIC_API_KEY: ...
+    #   ANTHROPIC_BASE_URL: ...
+    volumes:
+      - data:/data
+    ports:
+      - 3000
+    container_name: siftly
+    restart: unless-stopped
