@@ -17,10 +17,42 @@
     src: "{{ cloudflared.cert }}"
     dest: "/etc/cloudflared/cert.pem"
 
+- name: config|set cloudflared token
+  when: cloudflared.token is defined
+  ansible.builtin.command: uci set cloudflared.config.token='{{ cloudflared.token }}'
+
+- name: config|set cloudflared options
+  loop:
+    - when: "{{ cloudflared.edge_bind_address is defined }}"
+      cmd: uci set cloudflared.config.edge_bind_address='{{ cloudflared.edge_bind_address | default("") }}'
+    - when: "{{ cloudflared.edge_ip_version is defined }}"
+      cmd: uci set cloudflared.config.edge_ip_version='{{ cloudflared.edge_ip_version | default("") }}'
+    - when: "{{ cloudflared.grace_period is defined }}"
+      cmd: uci set cloudflared.config.grace_period='{{ cloudflared.grace_period | default("") }}'
+    - when: "{{ cloudflared.protocol is defined }}"
+      cmd: uci set cloudflared.config.protocol='{{ cloudflared.protocol | default("") }}'
+    - when: "{{ cloudflared.region is defined }}"
+      cmd: uci set cloudflared.config.region='{{ cloudflared.region | default("") }}'
+    - when: "{{ cloudflared.retries is defined }}"
+      cmd: uci set cloudflared.config.retries='{{ cloudflared.retries | default("") }}'
+    - when: "{{ cloudflared.tag is defined }}"
+      cmd: uci set cloudflared.config.tag='{{ cloudflared.tag | default("") }}'
+    - when: "{{ cloudflared.metrics is defined }}"
+      cmd: uci set cloudflared.config.metrics='{{ cloudflared.metrics | default("") }}'
+    - when: "{{ cloudflared.loglevel is defined }}"
+      cmd: uci set cloudflared.config.loglevel='{{ cloudflared.loglevel | default("") }}'
+    - when: "{{ cloudflared.logfile is defined }}"
+      cmd: uci set cloudflared.config.logfile='{{ cloudflared.logfile | default("") }}'
+  loop_control:
+    loop_var: item
+  when: item.when
+  ansible.builtin.command: "{{ item.cmd }}"
+  register: cloudflared_config
+  until: cloudflared_config is succeeded
+
 - name: config|enable cloudflared
   loop:
     - uci set cloudflared.config.enabled='1'
-    - uci set cloudflared.config.token='{{ cloudflared.token }}'
     - uci commit
   loop_control:
     loop_var: cmd
