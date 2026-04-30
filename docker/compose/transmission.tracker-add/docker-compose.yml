@@ -2,8 +2,6 @@ version: "3.8"
 
 networks:
   transmission:
-    name: transmission_transmission
-    attachable: true
 
 services:
   tracker-add:
