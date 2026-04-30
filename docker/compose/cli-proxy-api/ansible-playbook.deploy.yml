@@ -1,0 +1,36 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: generate auth secret
+      set_fact:
+        auth_secret: "{{ lookup('pipe', 'openssl rand -base64 32') }}"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          name: cli-proxy-api
+          override: "{{ cli_proxy_api | default({},true) }}"
+          files:
+            - path: "{{ workpath.remote.full }}/bind_file-config.yaml"
+              copy: "{{ playbook_dir }}/config/bind_file-config.yaml"
+          volumes:
+            - name: external_vol-cli_proxy_api-dotfile
+              driver: local
+          envs:
+            - file: external_env-all.env
+              content: ''
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"
