@@ -8,7 +8,7 @@
 
     - name: download get pixi
       ansible.builtin.get_url:
-        url: "https://pixi.sh/install.sh"
+        url: "{{ pixi.install_script_url | default('https://pixi.sh/install.sh', true) }}"
         dest: "~/get-pixi.sh"
       register: pixi_get
 
