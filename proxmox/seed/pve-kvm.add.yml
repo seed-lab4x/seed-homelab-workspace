@@ -31,4 +31,7 @@
         api_password: "{{ proxmox.api_password }}"
       args: "{{ _instance | combine(combine, recursive=True) }}"
     community.proxmox.proxmox_kvm: "{{ args }}"
-    register: instance_add
+    register: kvm_add
+    retries: 10
+    delay: 5
+    until: kvm_add is succeeded
