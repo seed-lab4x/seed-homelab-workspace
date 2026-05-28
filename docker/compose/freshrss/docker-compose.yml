@@ -1,0 +1,48 @@
+version: "3.8"
+
+volumes:
+  data:
+    name: external_vol-freshrss-data
+    external: true
+  extensions:
+    name: external_vol-freshrss-extensions
+    external: true
+
+networks:
+  freshrss:
+
+services:
+  freshrss:
+    image: freshrss/freshrss:latest
+    env_file: external_env-all.env
+    # environment:
+    #   - TZ=UTC
+    #   - CRON_MIN=
+    #   - DATA_PATH=
+    #   - FRESHRSS_ENV=production
+    #   - COPY_LOG_TO_SYSLOG=On
+    #   - COPY_SYSLOG_TO_STDERR=On
+    #   - LISTEN=0.0.0.0:80
+    #   - TRUSTED_PROXY=
+    #   - FRESHRSS_INSTALL=
+    #   - FRESHRSS_USER=
+    #   - OIDC_ENABLED=
+    #   - OIDC_SCOPES=
+    #   - OIDC_SESSION_INACTIVITY_TIMEOUT=
+    #   - OIDC_SESSION_MAX_DURATION=
+    #   - OIDC_SESSION_TYPE=
+    volumes:
+      - data:/var/www/FreshRSS/data
+      - extensions:/var/www/FreshRSS/extensions
+    networks:
+      - freshrss
+    ports:
+      - 80
+    # network_mode: bridge
+    container_name: freshrss
+    restart: always
+    healthcheck:
+      test: ["CMD", "cli/health.php"]
+      interval: 75s
+      timeout: 10s
+      retries: 3
