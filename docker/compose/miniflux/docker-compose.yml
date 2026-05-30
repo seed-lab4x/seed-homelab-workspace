@@ -1,0 +1,46 @@
+version: "3.8"
+
+volumes:
+  db:
+    name: external_vol-miniflux-db
+    external: true
+
+networks:
+  miniflux:
+
+services:
+  miniflux:
+    image: miniflux/miniflux:latest
+    env_file: external_env-miniflux.env
+    # environment:
+    #   - DATABASE_URL=postgres://miniflux:*password*@*dbhost*/miniflux?sslmode=disable
+    #   - RUN_MIGRATIONS=1
+    #   - CREATE_ADMIN=1
+    #   - ADMIN_USERNAME=*username*
+    #   - ADMIN_PASSWORD=*password*
+    networks:
+      - miniflux
+    ports:
+      - 8080
+    # network_mode: bridge
+    container_name: miniflux
+    restart: always
+  db:
+    image: postgres:18
+    env_file: external_env-db.env
+    # environment:
+    #   - POSTGRES_USER=miniflux
+    #   - POSTGRES_PASSWORD=secret
+    #   - POSTGRES_DB=miniflux
+    volumes:
+      # You may have to adjust the volume path depending on the version of Postgres
+      # Postgres 18 uses /var/lib/postgresql
+      # Postgres 17 and below uses /var/lib/postgresql/data
+      # See https://hub.docker.com/_/postgres#pgdata
+      - db:/var/lib/postgresql
+    networks:
+      - miniflux
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "miniflux"]
+      interval: 10s
+      start_period: 30s

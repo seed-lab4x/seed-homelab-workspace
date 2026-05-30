@@ -1,0 +1,37 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: deploy
+  hosts: docker
+  tasks:
+
+    - name: fact workspace
+      include_tasks: "{{ workspace.local }}/.seed/ansible-tasks/seed-workspace.fact.yml"
+
+    - name: fact workpath
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-workpath.fact.yml"
+
+    - name: deploy compose
+      include_tasks: "{{ workspace.local }}/{{ workspace.seedpath }}/ansible-tasks/seed-docker/docker-compose.deploy.yml"
+      vars:
+        compose:
+          name: miniflux
+          override: "{{ miniflux | default({},true) }}"
+          volumes:
+            - name: external_vol-miniflux-db
+              driver: local
+          envs:
+            - file: external_env-miniflux.env
+              content: |
+                DATABASE_URL=postgres://miniflux:secret@db/miniflux?sslmode=disable
+                RUN_MIGRATIONS=1
+                CREATE_ADMIN=1
+            - file: external_env-db.env
+              content: |
+                POSTGRES_USER=miniflux
+                POSTGRES_PASSWORD=secret
+                POSTGRES_DB=miniflux
+          composes:
+            - file: docker-compose.yml
+              src: "{{ playbook_dir }}/docker-compose.yml"
