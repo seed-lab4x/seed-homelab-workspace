@@ -1,0 +1,52 @@
+version: "3.8"
+
+volumes:
+  redis-data:
+    name: external_vol-rsshub-redis-data
+    external: true
+
+networks:
+  rsshub:
+
+services:
+  rsshub:
+    image: diygod/rsshub:latest
+    env_file: external_env-rsshub.env
+    # environment:
+    #   NODE_ENV: production
+    #   CACHE_TYPE: redis
+    #   REDIS_URL: 'redis://redis:6379/'
+    #   PLAYWRIGHT_WS_ENDPOINT: 'ws://browserless:3000'
+    networks:
+      - rsshub
+    ports:
+      - 1200
+    # network_mode: bridge
+    container_name: rsshub
+    restart: always
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:1200/healthz']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  browserless:
+    image: browserless/chrome
+    restart: always
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/pressure']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:alpine
+    restart: always
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5s
