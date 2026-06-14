@@ -2,32 +2,57 @@
 # code: language=ansible
 ---
 
-- name: install
+- name: deploy
   hosts: openwrt
   tasks:
-    - name: install opkg
-      include_tasks: ansible-tasks.install.yml
 
-    - name: config opkg
-      include_tasks: ansible-tasks.config.yml
+    - rescue:
+      - name: rescue|fail tasks
+        when:
+          - hostvars[inventory_hostname].cloudflared | default(None) != None
+        ansible.builtin.fail:
+          msg: "config fail. exclude host var assert."
 
-    - name: get cloudflared version
-      ansible.builtin.shell: cloudflared version
-      register: cloudflared_version
-      ignore_errors: true
+      block:
+      - name: assert host var
+        ansible.builtin.assert:
+          that:
+            - hostvars[inventory_hostname].cloudflared | default(None) != None
+          msg: "host var assert fail 'cloudflared'"
+          quiet: true
+      - block:
+        - name: include vars
+          when: cloudflared.vars_file is defined
+          ansible.builtin.include_vars:
+            file: "{{ cloudflared.vars_file }}"
 
-    - name: print cloudflared version
-      vars:
-        openwrt_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',ansible_play_hosts)
-          | selectattr('value.cloudflared_version','defined') }}"
-      ansible.builtin.pause:
-        seconds: 1
-        prompt: |
-          {% for host in openwrt_hostvars %}
+        - name: copy file
+          when: cloudflared.cert_file is defined
+          community.openwrt.copy:
+            src: "{{ cloudflared.cert_file }}"
+            dest: /etc/cloudflared/cert.pem
 
-          [{{ host.key }}] =>
-          --------------------------------------------------
-          {{ host.value.cloudflared_version.stdout | default('',true) }}
-          {{ host.value.cloudflared_version.stderr | default('',true) }}
-          {% endfor %}
+        - name: include cloudflared
+          ansible.builtin.include_role:
+            name: xiaoyao9184.cloudflare-configured
+
+      - block:
+        - name: version cloudflared
+          ansible.builtin.command: "cloudflared --version"
+          register: cloudflared_version_cli
+
+        - name: print version
+          vars:
+            linux_hostvars: "{{ hostvars | dict2items
+              | selectattr('key','in',ansible_play_hosts)
+              | selectattr('value.cloudflared_version_cli','defined') }}"
+          ansible.builtin.pause:
+            seconds: 1
+            prompt: |
+              {% for host in linux_hostvars %}
+
+              [{{ host.key }}] =>
+              --------------------------------------------------
+              {{ host.value.cloudflared_version_cli.stdout | default('',true) }}
+              {{ host.value.cloudflared_version_cli.stderr | default('',true) }}
+              {% endfor %}

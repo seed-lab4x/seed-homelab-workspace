@@ -1,7 +1,0 @@
-# code: language=ansible
----
-
-- name: install|install cloudflared
-  community.general.opkg:
-    update_cache: true
-    name: luci-app-cloudflared
