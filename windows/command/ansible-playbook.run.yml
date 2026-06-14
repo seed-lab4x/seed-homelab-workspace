@@ -16,7 +16,7 @@
       args: "{{ args }}"
       register: command_run
       until: command_run is succeeded
-
+    - debug: msg="{{ hostvars | dict2items }}"
     - name: debug command
       vars:
         windows_hostvars: "{{ hostvars | dict2items
@@ -26,11 +26,12 @@
         seconds: 1
         prompt: |
           {% for host in windows_hostvars %}
-
-          [{{ host.key }}] =>
+          {% for result in host.value.command_run.results %}
+          [{{ host.key }}] => ({{ result.cmd }}) =>
           --------------------------------------------------
-          {{ host.value.command_run.stdout | default('',true) }}
-          {{ host.value.command_run.stderr | default('',true) }}
+          {{ result.stdout | default('',true) }}
+          {{ result.stderr | default('',true) }}
+          {% endfor %}
           {% endfor %}
 
     - name: run group command
@@ -61,10 +62,11 @@
         seconds: 1
         prompt: |
           {% for host in windows_hostvars %}
-
-          [{{ host.key }}] =>
+          {% for result in host.value.command_run.results %}
+          [{{ host.key }}] => ({{ result.cmd }}) =>
           --------------------------------------------------
-          {{ host.value.command_run.stdout | default('',true) }}
-          {{ host.value.command_run.stderr | default('',true) }}
+          {{ result.stdout | default('',true) }}
+          {{ result.stderr | default('',true) }}
+          {% endfor %}
           {% endfor %}
 
