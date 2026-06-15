@@ -35,7 +35,8 @@
   - name: winget.install|cmd winget version
     ansible.windows.win_command:
       cmd: winget -v
-      chdir: "{{ installer.home | default(omit,true) }}"
+      # BUG: Could not find specified -WorkingDirectory 
+      # chdir: "{{ installer.home | default(omit,true) }}"
     register: winget_version_cmd
     ignore_errors: true
 
