@@ -1,0 +1,30 @@
+version: "3.8"
+
+volumes:
+  root:
+    name: external_vol-easyconnect-root
+    external: true
+
+networks:
+  easyconnect:
+
+services:
+  easyconnect:
+    image: hagb/docker-easyconnect:7.6.7
+    env_file: external_env-all.env
+    # environment:
+    #   - URLWIN=1
+    #   - PASSWORD=xxxx
+    volumes:
+      - root:/root
+    networks:
+      - easyconnect
+    ports:
+      - 5901
+      - 1080
+      - 8888
+    # network_mode: bridge
+    container_name: easyconnect
+    devices:
+      - /dev/net/tun
+    restart: always
