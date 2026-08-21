@@ -1,0 +1,45 @@
+#!/usr/bin/env -S ansible-playbook -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: run
+  hosts: qts
+  tasks:
+
+    - name: fact command sequence names
+      vars:
+        _sequence_arg: "{{ s | default('',true) }}"
+        _sequence_arg_names: "{{ _sequence_arg
+          if(_sequence_arg | type_debug == 'list')
+          else(_sequence_arg | string | split(',')) }}"
+      ansible.builtin.set_fact:
+        command_sequence_names: "{{
+          (command.sequence | default([],true))
+          + (_sequence_arg_names | map('trim') | reject('equalto','') | list)
+        }}"
+
+    - name: prompt command sequence names
+      ansible.builtin.include_tasks: ansible-tasks.prompt.loop.yml
+      when: command_sequence_names | length == 0
+
+    - name: validate command sequence names
+      vars:
+        _sequence_invalid_names: "{{ command_sequence_names
+          | difference((command.sequences | default({},true)).keys() | list) }}"
+      ansible.builtin.assert:
+        that:
+          - _sequence_invalid_names | length == 0
+        fail_msg: |
+          unknown command.sequences key(s): {{ _sequence_invalid_names | join(', ') }}
+          available command.sequences key(s): {{
+            (command.sequences | default({},true)).keys() | list | join(', ')
+          }}
+      when: command_sequence_names | length > 0
+
+    - name: run command sequence names
+      vars:
+        command_run_params: "{{ command.sequences[command_sequence_name] }}"
+      ansible.builtin.include_tasks: ansible-tasks.run.yml
+      loop: "{{ command_sequence_names }}"
+      loop_control:
+        loop_var: command_sequence_name

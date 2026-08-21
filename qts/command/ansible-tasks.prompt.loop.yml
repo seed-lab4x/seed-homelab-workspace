@@ -1,0 +1,26 @@
+# code: language=ansible
+---
+
+- vars:
+    command_sequence_current: "{{ command_sequence_names | default([],true) | join(', ') }}"
+  block:
+  - name: command.prompt.loop|input next command sequences key 
+    ansible.builtin.pause:
+      prompt: |
+        input command.sequences key, empty to finish
+        available: {{ (command.sequences | default({},true)).keys() | list | join(', ') }}
+        current: {{ command_sequence_current }}
+    register: command_sequence_input
+    until: >
+      (command_sequence_input.user_input | trim) == ''
+      or (command_sequence_input.user_input | trim) in ((command.sequences | default({},true)).keys() | list)
+    retries: 10000
+
+  - name: command.prompt.loop|append command.sequences key
+    ansible.builtin.set_fact:
+      command_sequence_names: "{{ command_sequence_names + [command_sequence_input.user_input | trim] }}"
+    when: command_sequence_input.user_input | trim != ''
+
+- name: command.prompt.loop|prompt next command.sequences key
+  ansible.builtin.include_tasks: ansible-tasks.prompt.loop.yml
+  when: command_sequence_input.user_input | trim != ''

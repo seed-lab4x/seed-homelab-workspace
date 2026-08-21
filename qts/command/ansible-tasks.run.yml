@@ -1,0 +1,42 @@
+# code: language=ansible
+---
+
+- name: command.run|debug command
+  ansible.builtin.debug:
+    msg: "{{ command_run_params }}"
+    verbosity: 3
+
+- name: command.run|run command
+  vars:
+    _run_params:
+      _raw_params: "{{ command_run_item }}"
+    _run_args: "{{ command_run_item if(command_run_item | type_debug == 'dict') else _run_params }}"
+    _run_become: "{{ command_run_params.become | default(false, true) }}"
+    _run_environment: "{{ command_run_params.environment | default({}, true) }}"
+  loop: "{{ command_run_params['loop.ansible.builtin.command'] }}"
+  loop_control:
+    loop_var: command_run_item
+  ansible.builtin.command:
+  args: "{{ _run_args }}"
+  become: "{{ _run_become }}"
+  environment: "{{ _run_environment }}"
+  register: command_run_register
+  until: command_run_register is succeeded
+
+- name: command.run|print command
+  vars:
+    command_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',ansible_play_hosts)
+      | selectattr('value.command_run_register.skipped','equalto',false) }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in command_hostvars %}
+      {%   for item in host.value.command_run_register.results %}
+
+      [{{ host.key }}] => (item={{ item.cmd | join(' ') }}) =>
+      --------------------------------------------------
+      {{ item.stdout | default('',true) }}
+      {{ item.stderr | default('',true) }}
+      {%   endfor %}
+      {% endfor %}
