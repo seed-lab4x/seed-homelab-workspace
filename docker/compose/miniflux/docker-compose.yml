@@ -40,6 +40,7 @@ services:
       - db:/var/lib/postgresql
     networks:
       - miniflux
+    restart: always
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "miniflux"]
       interval: 10s
