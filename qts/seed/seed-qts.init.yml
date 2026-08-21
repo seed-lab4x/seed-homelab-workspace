@@ -1,0 +1,55 @@
+# code: language=ansible
+---
+
+# pip configed
+
+- vars:
+    pipconfig_dir: "~/config/pip"
+    pipconfig_dir_mode: '0755'
+    pipconfig_extra_index_urls: []
+    pipconfig_file: "pip.conf"
+    pipconfig_file_mode: '0644'
+    pipconfig_find_links_urls: []
+    pipconfig_index_url: ""
+    pipconfig_timeout: 10
+    pipconfig_template_file: "pip.conf"
+    pipconfig_pip_upgrade: before
+    pipconfig_pip_virtualenv: ""
+    pipconfig_pip_cmd: "{{ ansible_python_interpreter }} -m pip"
+    pipconfig_pip_level: user
+    pipconfig_pip_options:
+      global.index-url: "{{ python.pip.proxy | default('https://pypi.example.com/simple',true) }}"
+  block:
+  - name: seed-qts.init|pip|include vars
+    when: python.pip.vars_file is defined
+    ansible.builtin.include_vars:
+      file: "{{ python.pip.vars_file }}"
+
+  - name: seed-qts.init|pip|include role
+    ansible.builtin.include_role:
+      name: xiaoyao9184.ansible-role-pip-configure
+
+# pip package installed
+
+- block:
+  - name: seed-qts.init|pip|install setuptools(for ansible.builtin.pip)<81(for ansible-core 2.15)
+    ansible.builtin.shell:
+      cmd: "{{ ansible_python_interpreter }} -m pip install --upgrade 'setuptools<81'"
+
+  - name: seed-qts.init|pip|install packages
+    loop: "{{ python.pip.packages | default([],true) }}"
+    ansible.builtin.pip:
+      break_system_packages: "{{ item.break_system_packages | default(omit,true) }}"
+      chdir: "{{ item.chdir | default(omit,true) }}"
+      executable: "{{ item.executable | default(omit,true) }}"
+      extra_args: "{{ item.extra_args | default(omit,true) }}"
+      name: "{{ item.name | default(omit,true) }}"
+      requirements: "{{ item.requirements | default(omit,true) }}"
+      state: "{{ item.state | default(omit,true) }}"
+      umask: "{{ item.umask | default(omit,true) }}"
+      version: "{{ item.version | default(omit,true) }}"
+      virtualenv: "{{ item.virtualenv | default(omit,true) }}"
+      virtualenv_command: "{{ item.virtualenv_command | default(omit,true) }}"
+      virtualenv_python: "{{ item.virtualenv_python | default(omit,true) }}"
+      virtualenv_site_packages: "{{ item.virtualenv_site_packages | default(omit,true) }}"
+    retries: 3
