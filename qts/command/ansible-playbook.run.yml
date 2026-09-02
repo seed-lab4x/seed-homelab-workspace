@@ -43,8 +43,8 @@
 
     - name: run command sequence names
       vars:
-        command_run_params: "{{ command.sequences[command_sequence_name] }}"
-      ansible.builtin.include_tasks: ansible-tasks.run.yml
+        command_run: "{{ command.sequences[command_sequence_name] }}"
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-command.run.yml"
       loop: "{{ command_sequence_names }}"
       loop_control:
         loop_var: command_sequence_name
