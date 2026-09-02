@@ -13,16 +13,22 @@
           if(_sequence_arg | type_debug == 'list')
           else(_sequence_arg | string | split(',')) }}"
       ansible.builtin.set_fact:
-        command_sequence_names: "{{
+        command_sequence_names: >-
+          {{
           (command.sequence | default([],true))
           + (_sequence_arg_names | map('trim') | reject('equalto','') | list)
-        }}"
+          }}
 
     - name: prompt command sequence names
-      ansible.builtin.include_tasks: ansible-tasks.prompt.loop.yml
       when: command_sequence_names | length == 0
+      include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-sequence.loop-prompt.yml"
+      vars:
+        sequence:
+          path: command.sequences
+          fact: command_sequence_names
 
     - name: validate command sequence names
+      when: command_sequence_names | length > 0
       vars:
         _sequence_invalid_names: "{{ command_sequence_names
           | difference((command.sequences | default({},true)).keys() | list) }}"
@@ -34,7 +40,6 @@
           available command.sequences key(s): {{
             (command.sequences | default({},true)).keys() | list | join(', ')
           }}
-      when: command_sequence_names | length > 0
 
     - name: run command sequence names
       vars:
