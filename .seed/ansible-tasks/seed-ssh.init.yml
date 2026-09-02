@@ -128,16 +128,16 @@
 
   - name: seed-ssh.init|config|loop add by fact
     vars:
-      item_host: "{{ hostvars[host_name].ansible_host | default(host_name,true) }}"
-      item_port: "{{ hostvars[host_name].ansible_port | default('',true) }}"
-      item_user: "{{ hostvars[host_name].ansible_user | default('root',true) }}"
+      item_host: "{{ hostvars[item_host_config].ansible_host | default(item_host_config,true) }}"
+      item_port: "{{ hostvars[item_host_config].ansible_port | default('',true) }}"
+      item_user: "{{ hostvars[item_host_config].ansible_user | default('root',true) }}"
     loop: "{{ groups[_ssh.group] | intersect(ansible_play_hosts) }}"
     loop_control:
-      loop_var: host_name
+      loop_var: item_host_config
     community.general.ssh_config:
       state: present
       ssh_config_file: "{{ _ssh.config_path }}"
-      host: "{{ item_host }}"
+      host: "{{ item_host_config }}"
       hostname: "{{ item_host }}"
       port: "{{ item_port | default(omit,true) }}"
       remote_user: "{{ item_user | default(omit,true) }}"
