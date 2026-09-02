@@ -1,0 +1,157 @@
+# code: language=ansible
+---
+
+# example
+
+# - name: test
+#   hosts: all
+#   gather_facts: false
+#   tasks:
+# 
+#   - include_tasks: ../ansible-tasks/seed-sequence.loop-prompt.yml
+#     vars:
+#       command:
+#         sequences:
+#           key1:
+#             test: 1
+#           key2:
+#             test: 2
+#       sequence:
+#         path: command.sequences
+#         fact: command_sequence_names
+#   - name: debug 1
+#     debug:
+#       msg:
+#       - "{{ command_sequence_names }}"
+#       - "{{ sequence_results }}"
+# 
+#   - include_tasks: ../ansible-tasks/seed-sequence.loop-prompt.yml
+#     vars:
+#       command:
+#         sequences:
+#           key1:
+#             test: 1
+#           key2:
+#             test: 2
+#       sequence:
+#         path: command.sequences
+#         fact: command_sequence_names
+#   - name: debug 2
+#     debug:
+#       msg:
+#       - "{{ command_sequence_names }}"
+#       - "{{ sequence_results }}"
+# 
+#   - include_tasks: ../ansible-tasks/seed-sequence.loop-prompt.yml
+#     vars:
+#       command:
+#         sequences:
+#           key1:
+#             test: 1
+#           key2:
+#             test: 2
+#       sequence:
+#         path: command.sequences
+#         fact: command_results.a.b.c
+#   - name: debug 3
+#     debug:
+#       msg:
+#       - "{{ command_results.a.b.c }}"
+#       - "{{ sequence_results }}"
+
+
+- name: seed-sequence.loop-prompt|assert param
+  ansible.builtin.assert:
+    that:
+      - sequence is defined
+      - sequence.path is defined
+      - sequence.fact is defined
+    msg: "param undefined 'sequence.path' or 'sequence.fact'"
+    quiet: true
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: seed-sequence.loop-prompt|ensure _item exist
+  when: _sequence_item is not defined or _sequence_item == None or _sequence_item is not mapping
+  ansible.builtin.set_fact:
+    _sequence_item:
+      count: 0
+      current: []
+
+- vars:
+    _sequence_fact_root: "{{ sequence.fact.split('.')[0] }}"
+  block:
+  - name: seed-sequence.loop-prompt|ensure fact root
+    vars:
+      _sequence_fact_root_value: "{{ lookup('ansible.builtin.vars', _sequence_fact_root, default='__seed_missing__') }}"
+      _value: "{{ (sequence.fact.split('.') | length > 1) | ternary({}, []) }}"
+    when: _sequence_fact_root_value == '__seed_missing__'
+    ansible.builtin.set_fact:
+      "{{ _sequence_fact_root }}": "{{ _value }}"
+
+  - vars:
+      _sequence_fact_parts: "{{ sequence.fact.split('.') }}"
+      _sequence_fact_object_updates: >-
+        {% set ns = namespace(updates=[]) %}
+        {% for index in range(2, (_sequence_fact_parts | length) + 1) %}
+        {% set path = _sequence_fact_parts[:index] | join('.') %}
+        {% set value = (vars | community.general.json_query(path)) | default('__seed_missing__', true) %}
+        {% if value == '__seed_missing__' %}
+        {% set ns.updates = ns.updates + [{'path': path, 'value': {}}] %}
+        {% endif %}
+        {% endfor %}
+        {{ ns.updates }}
+    when: (_sequence_fact_object_updates | from_yaml) | length > 0
+    block:
+    - name: seed-sequence.loop-prompt|update fact leaf
+      ansible.utils.update_fact:
+        updates: "{{ _sequence_fact_object_updates | from_yaml }}"
+      register: sequence_tree
+
+    - name: seed-sequence.loop-prompt|fact object leaf
+      ansible.builtin.set_fact:
+        "{{ _sequence_fact_root }}": "{{ sequence_tree[_sequence_fact_root] }}"
+
+- name: seed-sequence.loop-prompt|input next sequence
+  vars:
+    _available: "{{ (vars | community.general.json_query(sequence.path) | default({},true)).keys() | list }}"
+    _current: "{{ sequence_results | default({},true) | community.general.json_query('_sequence_item.current') }}"
+  ansible.builtin.pause:
+    prompt: |
+      input {{ sequence.path }} key, empty to finish
+      available: {{ _available | join(', ') }}
+      current: {{ _current | join(', ') }}
+  register: sequence_input
+  until: >
+    (sequence_input.user_input | trim) == ''
+    or (sequence_input.user_input | trim) in _available
+  retries: 10
+  delay: 0
+
+- when: sequence_input.user_input | trim != ''
+  block:
+  - name: seed-sequence.loop-prompt|append current sequence
+    vars:
+      _item: "{{ sequence_results | default({},true) | community.general.json_query('_sequence_item') }}"
+      _results: "{{ sequence_results | default({},true) | community.general.json_query(sequence.fact) }}"
+    ansible.utils.update_fact:
+      updates:
+        - path: "_sequence_item.count"
+          value: "{{ _item['count'] | default(0,true) | int + 1 }}"
+        - path: "_sequence_item.current"
+          value: "{{ (_item['current'] | default([],true) | list) + [sequence_input.user_input | trim] }}"
+        - path: "{{ sequence.fact }}"
+          value: "{{ (_results | default([],true) | list) + [sequence_input.user_input | trim] }}"
+    # When user_input is empty this task is skipped, and Ansible replaces
+    # sequence_results with the skipped result. This is equivalent to clearing
+    # the recursive state so the next run cannot reuse stale sequence data.
+    register: sequence_results
+
+  - name: seed-sequence.loop-prompt|fact object attrs
+    vars:
+      _sequence_fact_root: "{{ sequence.fact.split('.')[0] }}"
+    ansible.builtin.set_fact:
+      "{{ _sequence_fact_root }}": "{{ sequence_results[_sequence_fact_root] }}"
+
+  - name: seed-sequence.loop-prompt|include next sequence
+    ansible.builtin.include_tasks: seed-sequence.loop-prompt.yml
