@@ -6,25 +6,45 @@
   hosts: proxmox
   tasks:
 
-    - name: deploy instance
+    - name: fact ct sequence names
       vars:
-        pubkey: "{{ ct.pubkey | default(None,true) }}"
-        template: "{{ ct.template | default(None,true) }}"
-        instance: "{{ ct.instance | default(None,true) }}"
-        config: "{{ ct.config | default(None,true) }}"
-        command: "{{ ct.command | default(None,true) }}"
-      include_tasks: ansible-tasks.deploy.yml
+        _sequence_arg: "{{ s | default('',true) }}"
+        _sequence_arg_names: "{{ _sequence_arg
+          if(_sequence_arg | type_debug == 'list')
+          else(_sequence_arg | string | split(',')) }}"
+      ansible.builtin.set_fact:
+        ct_sequence_names: >-
+          {{
+          (ct.sequence | default([],true))
+          + (_sequence_arg_names | map('trim') | reject('equalto','') | list)
+          }}
 
-    - name: deploy group instance
+    - name: prompt ct sequence names
+      when: ct_sequence_names | length == 0
+      include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-sequence.loop-prompt.yml"
       vars:
-        group_names: "{{ ct.groups | default([],true) }}"
-        group_var: "{{ ct_groups[group_name] | default({},true) }}"
-        pubkey: "{{ group_var.pubkey | default(None,true) }}"
-        template: "{{ group_var.template | default(None,true) }}"
-        instance: "{{ group_var.instance | default(None,true) }}"
-        config: "{{ group_var.config | default(None,true) }}"
-        command: "{{ group_var.command | default(None,true) }}"
-      loop: "{{ group_names }}"
+        sequence:
+          path: ct.sequences
+          fact: ct_sequence_names
+
+    - name: validate ct sequence names
+      when: ct_sequence_names | length > 0
+      vars:
+        _sequence_invalid_names: "{{ ct_sequence_names
+          | difference((ct.sequences | default({},true)).keys() | list) }}"
+      ansible.builtin.assert:
+        that:
+          - _sequence_invalid_names | length == 0
+        fail_msg: |
+          unknown ct.sequences key(s): {{ _sequence_invalid_names | join(', ') }}
+          available ct.sequences key(s): {{
+            (ct.sequences | default({},true)).keys() | list | join(', ')
+          }}
+
+    - name: run ct sequence names
+      vars:
+        ct_deployer: "{{ ct.sequences[ct_sequence_name] }}"
+      ansible.builtin.include_tasks: ansible-tasks.deploy.yml
+      loop: "{{ ct_sequence_names }}"
       loop_control:
-        loop_var: group_name
-      include_tasks: ansible-tasks.deploy.yml
+        loop_var: ct_sequence_name
