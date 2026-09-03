@@ -1,38 +1,52 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: pve-instance.add|rescue|fail tasks
-    when:
+- name: pve-instance.add|assert param
+  ansible.builtin.assert:
+    that:
       - proxmox is defined
-      - instance is defined
-    ansible.builtin.fail:
-      msg: "add instance fail. exclude var undefined."
+      - proxmox.api_host is defined
+      - proxmox.api_user is defined
+      - proxmox.api_password is defined
+    msg: "param undefined 'proxmox.api_host' or 'proxmox.api_user' or 'proxmox.api_password'"
+    quiet: true
 
-  block:
-  - name: pve-instance.add|assert var
-    ansible.builtin.assert:
-      that:
-        - proxmox is defined
-        - instance is defined
-      msg: "var eval fail {{ instance }}"
-      quiet: true
+- name: pve-instance.add|assert param
+  ansible.builtin.assert:
+    that:
+      - instance_adder is defined
+    msg: "param undefined 'instance_adder'"
+    quiet: true
 
-  - name: pve-instance.add|fact param
-    ansible.builtin.set_fact:
-      _instance: "{{ instance }}"
+- name: pve-instance.add|debug param
+  ansible.builtin.debug:
+    msg: "{{ instance_adder }}"
+    verbosity: 3
 
-  - name: pve-instance.add|add instance
-    delegate_to: localhost
-    vars:
-      combine:
-        api_host: "{{ proxmox.api_host }}"
-        api_user: "{{ proxmox.api_user }}"
-        api_password: "{{ proxmox.api_password }}"
-      args: "{{ _instance | combine(combine, recursive=True) }}"
-    community.proxmox.proxmox: "{{ args }}"
-    register: instance_add
-    # There is a chance that when state=started, the error "An error occurred: 'name'" will occur.
-    retries: 10
-    delay: 5
-    until: instance_add is succeeded
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: pve-instance.add|ensure _params exist
+  ansible.builtin.set_fact:
+    _params: {}
+
+- name: pve-instance.add|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params"
+        value: "{{ instance_adder }}"
+  register: instance_add
+
+- name: pve-instance.add|add instance
+  delegate_to: localhost
+  vars:
+    combine:
+      api_host: "{{ proxmox.api_host }}"
+      api_user: "{{ proxmox.api_user }}"
+      api_password: "{{ proxmox.api_password }}"
+    args: "{{ instance_add._params | combine(combine, recursive=True) }}"
+  community.proxmox.proxmox: "{{ args }}"
+  register: instance_proxmox
+  until: instance_proxmox is succeeded
+  # There is a chance that when state=started, the error "An error occurred: 'name'" will occur.
+  retries: 10
+  delay: 5

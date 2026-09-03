@@ -1,14 +1,15 @@
 # code: language=ansible
 ---
 
-- name: pve-pubkey.fact|fact key
+- name: pve-pubkey.fact|fact pubkey
   vars:
     parts_keypair_path:
       - "{{ _ssh.dir }}"
       - "{{ _ssh.name }}"
       - "id_rsa.pub"
     local_pub_path: "{{ parts_keypair_path | path_join }}"
-    pubkey_combine:
-      key: "{{ lookup('file', local_pub_path | path_join) }}"
+  when: pubkey_add._params.name is defined
   ansible.builtin.set_fact:
-    _pubkey: "{{ _pubkey | combine(pubkey_combine, recursive=True) }}"
+    pubkey_fact:
+      name: "{{ pubkey_add._params.name }}"
+      key: "{{ lookup('file', local_pub_path | path_join) }}"

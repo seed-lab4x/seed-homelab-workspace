@@ -1,46 +1,160 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: pve-template.add|rescue|fail tasks
-    when:
+- name: pve-template.add|assert param
+  ansible.builtin.assert:
+    that:
       - proxmox is defined
-      - template is defined
-      - not _template.skip
-    ansible.builtin.fail:
-      msg: "add template fail. exclude var undefined."
+      - proxmox.api_host is defined
+      - proxmox.api_user is defined
+      - proxmox.api_password is defined
+    msg: "param undefined 'proxmox.api_host' or 'proxmox.api_user' or 'proxmox.api_password'"
+    quiet: true
 
-  block:
-  - name: pve-template.add|assert var
-    ansible.builtin.assert:
-      that:
-        - proxmox is defined
-        - template is defined
-      msg: "var eval fail {{ template }}"
-      quiet: true
+- name: pve-template.add|assert param
+  ansible.builtin.assert:
+    that:
+      - template_adder is defined
+    msg: "param undefined 'template_adder'"
+    quiet: true
 
-  - name: pve-template.add|fact param
-    vars:
-      default:
-        skip: false
-    ansible.builtin.set_fact:
-      _template: "{{ default | combine(template, recursive=True) }}"
+- name: pve-template.add|debug param
+  ansible.builtin.debug:
+    msg: "{{ template_adder }}"
+    verbosity: 3
 
-  - name: pve-template.add|download proxmox OS templates
-    delegate_to: localhost
-    community.proxmox.proxmox_template:
-      api_host: "{{ proxmox.api_host }}"
-      api_user: "{{ proxmox.api_user }}"
-      api_password: "{{ proxmox.api_password }}"
-      checksum: "{{ _template.checksum | default(omit,true) }}"
-      checksum_algorithm: "{{ _template.checksum_algorithm | default(omit,true) }}"
-      content_type: "{{ _template.content_type | default(omit,true) }}"
-      force: "{{ _template.force | default(omit,true) }}"
-      node: "{{ _template.node | default(omit,true) }}"
-      src: "{{ _template.src | default(omit,true) }}"
-      state: "{{ _template.state | default(omit,true) }}"
-      storage: "{{ _template.storage | default(omit,true) }}"
-      template: "{{ _template.template | default(omit,true) }}"
-      timeout: "{{ _template.timeout | default(omit,true) }}"
-      url: "{{ _template.url | default(omit,true) }}"
-      validate_certs: "{{ _template.validate_certs | default(omit,true) }}"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: pve-template.add|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      cache_valid_time: <seconds>
+      checksum: "<template_adder.checksum>"
+      checksum_algorithm: "<template_adder.checksum_algorithm>"
+      content_type: "<template_adder.content_type>"
+      force: "<template_adder.force>"
+      node: "<template_adder.node>"
+      src: "<template_adder.src>"
+      state: "<template_adder.state>"
+      storage: "<template_adder.storage>"
+      template: "<template_adder.template>"
+      timeout: "<template_adder.timeout>"
+      url: "<template_adder.url>"
+      validate_certs: "<template_adder.validate_certs>"
+
+- name: pve-template.add|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.cache_valid_time"
+        value: "{{ template_adder.cache_valid_time | default(0,true) }}"
+      - path: "_params.checksum"
+        value: "{{ template_adder.checksum | default('',true) }}"
+      - path: "_params.checksum_algorithm"
+        value: "{{ template_adder.checksum_algorithm | default('',true) }}"
+      - path: "_params.content_type"
+        value: "{{ template_adder.content_type | default('',true) }}"
+      - path: "_params.force"
+        value: "{{ template_adder.force | default('',true) }}"
+      - path: "_params.node"
+        value: "{{ template_adder.node | default('',true) }}"
+      - path: "_params.src"
+        value: "{{ template_adder.src | default('',true) }}"
+      - path: "_params.state"
+        value: "present"
+      - path: "_params.storage"
+        value: "{{ template_adder.storage | default('',true) }}"
+      - path: "_params.template"
+        value: "{{ template_adder.template | default('',true) }}"
+      - path: "_params.storage"
+        value: "{{ template_adder.storage | default('',true) }}"
+      - path: "_params.timeout"
+        value: "{{ template_adder.timeout | default('',true) }}"
+      - path: "_params.url"
+        value: "{{ template_adder.url | default('',true) }}"
+      - path: "_params.validate_certs"
+        value: "{{ template_adder.validate_certs | default('',true) }}"
+  register: template_add
+
+- name: pve-template.add|stat pveam cache dir
+  ansible.builtin.stat:
+    path: /var/lib/pve-manager/apl-info
+  register: template_aplinfo_dir
+
+- name: pve-template.add|find pveam cache files
+  when:
+    - template_aplinfo_dir.stat.exists
+    - template_aplinfo_dir.stat.isdir
+  ansible.builtin.find:
+    paths: /var/lib/pve-manager/apl-info
+    file_type: file
+    recurse: false
+    excludes:
+      - "pveam-*.tmp.*"
+  register: template_aplinfo_files
+
+- name: pve-template.add|ensure pveam cache exist
+  vars:
+    pveam_cache_mtimes: "{{ template_aplinfo_files.files | default([]) | map(attribute='mtime') | map('int') | list }}"
+  ansible.builtin.set_fact:
+    _cache:
+      time: >-
+        {{
+          (pveam_cache_mtimes | max)
+          if (pveam_cache_mtimes | length > 0)
+          else (template_add._cache.time | default(0,true) | int)
+        }}
+
+- name: pve-template.add|append _cache attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params"
+        value: "{{ template_add._params }}"
+      - path: "_cache"
+        value: "{{ _cache }}"
+  register: template_add
+
+- name: pve-template.add|current time
+  ansible.builtin.command:
+    cmd: date +%s
+  changed_when: false
+  register: template_now
+
+- name: pve-template.add|update templates by pveam
+  when: >
+    (template_add._params.cache_valid_time | int == 0)
+    or
+    ((template_now.stdout | int) - (template_add._cache.time | int) >= (template_add._params.cache_valid_time | int))
+  ansible.builtin.shell:
+    cmd: pveam update
+  register: template_update
+
+- name: pve-template.add|append _update time
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params"
+        value: "{{ template_add._params }}"
+      - path: "_cache"
+        value: "{{ template_add._cache }}"
+      - path: "_cache.time"
+        value: "{{ (template_update is not skipped) | ternary(template_now.stdout, template_add._cache.time) }}"
+  register: template_add
+
+- name: pve-template.add|download templates to pve
+  delegate_to: localhost
+  community.proxmox.proxmox_template:
+    api_host: "{{ proxmox.api_host }}"
+    api_user: "{{ proxmox.api_user }}"
+    api_password: "{{ proxmox.api_password }}"
+    checksum: "{{ template_add._params.checksum | default(omit,true) }}"
+    checksum_algorithm: "{{ template_add._params.checksum_algorithm | default(omit,true) }}"
+    content_type: "{{ template_add._params.content_type | default(omit,true) }}"
+    force: "{{ template_add._params.force | default(omit,true) }}"
+    node: "{{ template_add._params.node | default(omit,true) }}"
+    src: "{{ template_add._params.src | default(omit,true) }}"
+    state: "{{ template_add._params.state | default(omit,true) }}"
+    storage: "{{ template_add._params.storage | default(omit,true) }}"
+    template: "{{ template_add._params.template | default(omit,true) }}"
+    timeout: "{{ template_add._params.timeout | default(omit,true) }}"
+    url: "{{ template_add._params.url | default(omit,true) }}"
+    validate_certs: "{{ template_add._params.validate_certs | default(omit,true) }}"
+  register: template_proxmox

@@ -1,33 +1,50 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: pve-pubkey.add|rescue|fail tasks
-    when:
+- name: pve-pubkey.add|assert param
+  ansible.builtin.assert:
+    that:
       - proxmox is defined
-      - pubkey is defined
-    ansible.builtin.fail:
-      msg: "add pubkey fail. exclude var undefined."
+      - proxmox.api_host is defined
+      - proxmox.api_user is defined
+      - proxmox.api_password is defined
+    msg: "param undefined 'proxmox.api_host' or 'proxmox.api_user' or 'proxmox.api_password'"
+    quiet: true
 
-  block:
-  - name: pve-pubkey.add|assert var
-    ansible.builtin.assert:
-      that:
-        - proxmox is defined
-        - pubkey is defined
-      msg: "var eval fail {{ pubkey }}"
-      quiet: true
+- name: pve-pubkey.add|assert param
+  ansible.builtin.assert:
+    that:
+      - pubkey_adder is defined
+      - pubkey_adder.name is defined
+      - pubkey_adder.name | length > 0
+    msg: "param undefined 'pubkey_adder.name'"
+    quiet: true
 
-  - name: pve-pubkey.add|fact param
-    ansible.builtin.set_fact:
-      _pubkey: "{{ pubkey }}"
+- name: pve-pubkey.add|debug param
+  ansible.builtin.debug:
+    msg: "{{ pubkey_adder }}"
+    verbosity: 3
 
-  - name: pve-pubkey.add|init ssh
-    include_tasks: ../../.seed/ansible-tasks/seed-ssh.init.yml
-    vars:
-      ssh:
-        name: "{{ _pubkey.name }}"
-        # group: "{{ _pubkey.group }}"
-        group: none
-        known_scan: []
-        approve_task: "{{ playbook_dir }}/../seed/pve-pubkey.fact.yml"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: pve-pubkey.add|ensure _params exist
+  when: _params is not defined or _params == None or _params is not mapping
+  ansible.builtin.set_fact:
+    _params:
+      name: <seed-ssh.init:ssh.name>
+
+- name: pve-pubkey.add|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.name"
+        value: "{{ pubkey_adder.name }}"
+  register: pubkey_add
+
+- name: pve-pubkey.add|init ssh
+  include_tasks: ../../.seed/ansible-tasks/seed-ssh.init.yml
+  vars:
+    ssh:
+      name: "{{ pubkey_add._params.name }}"
+      group: none
+      known_scan: []
+      approve_task: "{{ playbook_dir }}/../seed/pve-pubkey.fact.yml"

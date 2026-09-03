@@ -1,31 +1,54 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: pve-config.add|rescue|fail tasks
-    when:
+- name: pve-config.add|assert param
+  ansible.builtin.assert:
+    that:
       - proxmox is defined
-      - config is defined
-    ansible.builtin.fail:
-      msg: "add config fail. exclude var undefined."
+      - proxmox.api_host is defined
+      - proxmox.api_user is defined
+      - proxmox.api_password is defined
+    msg: "param undefined 'proxmox.api_host' or 'proxmox.api_user' or 'proxmox.api_password'"
+    quiet: true
 
-  block:
-  - name: pve-config.add|assert var
-    ansible.builtin.assert:
-      that:
-        - proxmox is defined
-        - config is defined
-      msg: "var eval fail {{ config }}"
-      quiet: true
+- name: pve-config.add|assert param
+  ansible.builtin.assert:
+    that:
+      - config_adder is defined
+      - config_adder.type is defined
+      - config_adder.vmid is defined
+    msg: "param undefined 'config_adder.type' or 'config_adder.vmid'"
+    quiet: true
 
-  - name: pve-config.add|fact param
-    ansible.builtin.set_fact:
-      _config: "{{ config }}"
+- name: pve-config.add|debug param
+  ansible.builtin.debug:
+    msg: "{{ config_adder }}"
+    verbosity: 3
 
-  - name: pve-config.add|add config
-    loop: "{{ _config.configs | dict2items }}"
-    ansible.builtin.lineinfile:
-      path: "/etc/pve/{{ _config.type | default('lxc',true) }}/{{ _config.vmid }}.conf"
-      line: "{{ item.key }}: {{ item.value }}"
-      create: yes
-    register: config_add
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: pve-config.add|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      type: lxc
+      configs:
+        - key: value
+
+- name: pve-config.add|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.type"
+        value: "{{ config_adder.type }}"
+      - path: "_params.vmid"
+        value: "{{ config_adder.vmid }}"
+      - path: "_params.configs"
+        value: "{{ config_adder.configs | default([],true) }}"
+  register: config_add
+
+- name: pve-config.add|add config
+  loop: "{{ config_add._params.configs | dict2items }}"
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/{{ config_add._params.type }}/{{ config_add._params.vmid }}.conf"
+    line: "{{ item.key }}: {{ item.value }}"
+    create: yes
+  register: config_lineinfile
