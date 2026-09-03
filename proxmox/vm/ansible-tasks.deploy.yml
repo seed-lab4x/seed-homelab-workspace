@@ -1,134 +1,62 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: vm.deploy|pubkey|rescue|fail tasks
-    when:
-      - pubkey | default(None,true) != None
-    ansible.builtin.fail:
-      msg: "deploy vm fail. exclude var undefined."
+- name: vm.deploy|assert param
+  ansible.builtin.assert:
+    that:
+      - vm_deployer is defined
+    msg: "param undefined 'vm_deployer'"
+    quiet: true
 
-  block:
-  - name: vm.deploy|pubkey|assert var
-    ansible.builtin.assert:
-      that:
-        - pubkey | default(None,true) != None
-      msg: "var eval fail {{ pubkey }}"
-      quiet: true
+- name: vm.deploy|debug param
+  ansible.builtin.debug:
+    msg: "{{ vm_deployer }}"
+    verbosity: 3
 
-  - name: vm.deploy|pubkey|fact param
-    ansible.builtin.set_fact:
-      _vm:
-        pubkey: "{{ pubkey }}"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: vm.deploy|ensure _param exist
+  ansible.builtin.set_fact:
+    _param:
+      pubkey: {}
+      template: {}
+      kvm: {}
+      config: {}
+      command: {}
 
-  - name: vm.deploy|pubkey|add pubkey
-    vars:
-      pubkey: "{{ _vm.pubkey }}"
-    include_tasks: ../seed/pve-pubkey.add.yml
+- name: vm.deploy|append _param attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_param"
+        value: "{{ vm_deployer | default({},true) }}"
+  register: vm_deploy
 
-- rescue:
-  - name: vm.deploy|template|rescue|fail tasks
-    when:
-      - template | default(None,true) != None
-    ansible.builtin.fail:
-      msg: "deploy vm fail. exclude var undefined."
+- name: vm.deploy|add pubkey
+  when: vm_deploy._param.pubkey | default(None,true) != None
+  include_tasks: ../seed/pve-pubkey.add.yml
+  vars:
+    pubkey_adder: "{{ vm_deploy._param.pubkey }}"
 
-  block:
-  - name: vm.deploy|template|assert var
-    ansible.builtin.assert:
-      that:
-        - template | default(None,true) != None
-      msg: "var eval fail {{ template }}"
-      quiet: true
+- name: vm.deploy|add template
+  when: vm_deploy._param.template | default(None,true) != None
+  include_tasks: ../seed/pve-template.add.yml
+  vars:
+    template_adder: "{{ vm_deploy._param.template }}"
 
-  - name: vm.deploy|template|fact param
-    ansible.builtin.set_fact:
-      _vm:
-        template: "{{ template }}"
+- name: vm.deploy|add kvm
+  when: vm_deploy._param.kvm | default(None,true) != None
+  include_tasks: ../seed/pve-kvm.add.yml
+  vars:
+    kvm_adder: "{{ vm_deploy._param.kvm }}"
 
-  - name: vm.deploy|template|pveam update
-    ansible.builtin.shell:
-      cmd: pveam update
+- name: vm.deploy|add config
+  when: vm_deploy._param.config | default(None,true) != None
+  include_tasks: ../seed/pve-config.add.yml
+  vars:
+    config_adder: "{{ vm_deploy._param.config | combine({'type': 'qemu-server'}, recursive=True) }}"
 
-  - name: vm.deploy|template|add templates
-    vars:
-      templates: "{{ _vm.template }}"
-    when: templates | length > 0
-    include_tasks: ../seed/pve-templates.add.yml
-
-- rescue:
-  - name: vm.deploy|kvm|rescue|fail tasks
-    when:
-      - kvm | default(None,true) != None
-    ansible.builtin.fail:
-      msg: "deploy kvm fail. exclude var undefined."
-
-  block:
-  - name: vm.deploy|kvm|assert var
-    ansible.builtin.assert:
-      that:
-        - kvm | default(None,true) != None
-      msg: "var eval fail {{ kvm }}"
-      quiet: true
-
-  - name: vm.deploy|kvm|fact param
-    ansible.builtin.set_fact:
-      _vm:
-        kvm: "{{ kvm }}"
-
-  - name: vm.deploy|kvm|add kvm
-    vars:
-      kvm: "{{ _vm.kvm }}"
-    include_tasks: ../seed/pve-kvm.add.yml
-
-- rescue:
-  - name: vm.deploy|config|rescue|fail tasks
-    when:
-      - config | default(None,true) != None
-    ansible.builtin.fail:
-      msg: "deploy config fail. exclude var undefined."
-
-  block:
-  - name: vm.deploy|config|assert var
-    ansible.builtin.assert:
-      that:
-        - config | default(None,true) != None
-      msg: "var eval fail {{ config }}"
-      quiet: true
-
-  - name: vm.deploy|config|fact param
-    ansible.builtin.set_fact:
-      _vm:
-        config: "{{ config }}"
-
-  - name: vm.deploy|config|add config
-    vars:
-      config_type:
-        type: qemu-server
-      config: "{{ _vm.config | combine(config_type, recursive=True) }}"
-    include_tasks: ../seed/pve-config.add.yml
-
-- rescue:
-  - name: vm.deploy|command|rescue|fail tasks
-    when:
-      - command | default(None,true) != None
-    ansible.builtin.fail:
-      msg: "deploy command fail. exclude var undefined."
-
-  block:
-  - name: vm.deploy|command|assert var
-    ansible.builtin.assert:
-      that:
-        - command | default(None,true) != None
-      msg: "var eval fail {{ command }}"
-      quiet: true
-
-  - name: vm.deploy|command|fact param
-    ansible.builtin.set_fact:
-      _vm:
-        command: "{{ command }}"
-
-  - name: vm.deploy|command|add command
-    vars:
-      command: "{{ _vm.command }}"
-    include_tasks: ../seed/pve-command.run.yml
+- name: vm.deploy|run command
+  when: vm_deploy._param.command | default(None,true) != None
+  include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-command.run.yml"
+  vars:
+    command_run: "{{ vm_deploy._param.command }}"
