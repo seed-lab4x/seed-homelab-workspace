@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- name: openwrt-opkg.install|assert param
+  ansible.builtin.assert:
+    that:
+      - opkg_installer is defined
+      - opkg_installer.packages is defined
+    msg: "param undefined 'opkg_installer.packages'"
+    quiet: true
+
+- name: openwrt-opkg.install|debug param
+  ansible.builtin.debug:
+    msg: "{{ opkg_installer }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: openwrt-opkg.install|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      host: null
+      packages: []
+
+- name: openwrt-opkg.install|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.host"
+        value: "{{ opkg_installer.host | default(None,true) }}"
+      - path: "_params.packages"
+        value: "{{ opkg_installer.packages | default([],true) }}"
+  register: opkg_install
+
+- name: openwrt-opkg.install|replace opkg distfeeds
+  when: opkg_install._params.host | default(None,true) != None
+  community.openwrt.command: "sed -i.bak 's|//downloads.openwrt.org|//{{ opkg_install._params.host }}|g' /etc/opkg/distfeeds.conf"
+  register: opkg_distfeeds_replaced
+  until: opkg_distfeeds_replaced is succeeded
+
+- name: openwrt-opkg.install|install opkg package
+  when: opkg_install._params.packages | length > 0
+  community.openwrt.opkg:
+    update_cache: true
+    name: "{{ opkg_install._params.packages | join(',') }}"
+  ignore_errors: yes
+  register: opkg_package_installed
+  until: opkg_package_installed is succeeded

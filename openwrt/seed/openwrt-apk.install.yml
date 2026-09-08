@@ -1,0 +1,47 @@
+# code: language=ansible
+---
+
+- name: openwrt-apk.install|assert param
+  ansible.builtin.assert:
+    that:
+      - apk_installer is defined
+      - apk_installer.packages is defined
+    msg: "param undefined 'apk_installer.packages'"
+    quiet: true
+
+- name: openwrt-apk.install|debug param
+  ansible.builtin.debug:
+    msg: "{{ apk_installer }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: openwrt-apk.install|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      host: null
+      packages: []
+
+- name: openwrt-apk.install|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.host"
+        value: "{{ apk_installer.host | default(None,true) }}"
+      - path: "_params.packages"
+        value: "{{ apk_installer.packages | default([],true) }}"
+  register: apk_install
+
+- name: openwrt-apk.install|replace apk distfeeds
+  when: apk_install._params.host | default(None,true) != None
+  community.openwrt.command: "sed -i.bak 's|//downloads.openwrt.org|//{{ apk_install._params.host }}|g' /etc/apk/repositories.d/distfeeds.list"
+  register: apk_distfeeds_replaced
+  until: apk_distfeeds_replaced is succeeded
+
+- name: openwrt-apk.install|install apk packages
+  when: apk_install._params.packages | length > 0
+  community.openwrt.apk:
+    update_cache: true
+    name: "{{ apk_install._params.packages | join(',') }}"
+  ignore_errors: yes
+  register: apk_package_installed
+  until: apk_package_installed is succeeded

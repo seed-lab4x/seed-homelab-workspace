@@ -1,0 +1,35 @@
+# code: language=ansible
+---
+
+# role included
+
+- name: openwrt-pip.install|role gekmihesg
+  when: role.gekmihesg.enable | default(false,true)
+  vars:
+    openwrt_install_recommended_packages: false
+  ansible.builtin.include_role:
+    name: gekmihesg.openwrt
+
+# opkg installed
+
+- name: openwrt-python.init|opkg install
+  when: opkg is defined
+  include_tasks: openwrt-opkg.install.yml
+  vars:
+    opkg_installer: "{{ opkg }}"
+
+# apk installed
+
+- name: openwrt-python.init|apk install
+  when: apk is defined
+  include_tasks: openwrt-apk.install.yml
+  vars:
+    apk_installer: "{{ apk }}"
+
+# pip installed
+
+- name: openwrt-python.init|pip install
+  when: python.pip is defined
+  include_tasks: openwrt-pip.install.yml
+  vars:
+    pip_installer: "{{ python.pip }}"
