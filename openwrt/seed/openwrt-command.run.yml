@@ -1,0 +1,67 @@
+# code: language=ansible
+---
+
+- name: openwrt-command.run|assert param
+  ansible.builtin.assert:
+    that:
+      - command_runner is defined
+      - command_runner['loop.community.openwrt.command'] is defined
+    msg: "param undefined 'command_runner['loop.community.openwrt.command']'"
+    quiet: true
+
+- name: openwrt-command.run|debug param
+  ansible.builtin.debug:
+    msg: "{{ command_runner }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: openwrt-command.run|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      become: false
+      environment: {}
+      loop.community.openwrt.command: []
+
+- name: openwrt-command.run|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.become"
+        value: "{{ command_runner.become | default(_params.become,true) }}"
+      - path: "_params.environment"
+        value: "{{ command_runner.environment | default(_params.environment,true) }}"
+      - path: "_params['loop.community.openwrt.command']"
+        value: "{{ command_runner['loop.community.openwrt.command'] | default(_params['loop.community.openwrt.command'],true) }}"
+  register: command_run
+
+- name: openwrt-command.run|run command
+  loop: "{{ command_run._params['loop.community.openwrt.command'] }}"
+  community.openwrt.command:
+    chdir: "{{ item.chdir | default(omit,true) }}"
+    cmd: "{{ item.cmd }}"
+    creates: "{{ item.creates | default(omit,true) }}"
+    executable: "{{ item.executable | default(omit,true) }}"
+    removes: "{{ item.removes | default(omit,true) }}"
+    uses_shell: "{{ item.uses_shell | default(omit,true) }}"
+  become: "{{ command_run._params.become }}"
+  environment: "{{ command_run._params.environment }}"
+  register: command_runned
+  until: command_runned is succeeded
+
+- name: openwrt-command.run|print command
+  vars:
+    command_hostvars: "{{ hostvars | dict2items
+      | selectattr('key','in',ansible_play_hosts)
+      | selectattr('value.command_runned.skipped','equalto',false) }}"
+  ansible.builtin.pause:
+    seconds: 1
+    prompt: |
+      {% for host in command_hostvars %}
+      {%   for item in host.value.command_runned.results %}
+
+      [{{ host.key }}] => (item={{ item.cmd | join(' ') }}) =>
+      --------------------------------------------------
+      {{ item.stdout | default('',true) }}
+      {{ item.stderr | default('',true) }}
+      {%   endfor %}
+      {% endfor %}

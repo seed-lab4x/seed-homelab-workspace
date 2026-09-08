@@ -6,68 +6,45 @@
   hosts: openwrt
   tasks:
 
-    - name: run command
+    - name: fact command sequence names
       vars:
-        params:
-          _raw_params: "{{ item }}"
-        args: "{{ item if(item | type_debug == 'dict') else params }}"
-      loop: "{{ command.commands | default([],true) }}"
-      ansible.builtin.command:
-      args: "{{ args }}"
-      register: command_run
-      until: command_run is succeeded
+        _sequence_arg: "{{ s | default('',true) }}"
+        _sequence_arg_names: "{{ _sequence_arg
+          if(_sequence_arg | type_debug == 'list')
+          else(_sequence_arg | string | split(',')) }}"
+      ansible.builtin.set_fact:
+        command_sequence_names: >-
+          {{
+          (command.sequence | default([],true))
+          + (_sequence_arg_names | map('trim') | reject('equalto','') | list)
+          }}
 
-    - name: debug command
+    - name: prompt command sequence names
+      when: command_sequence_names | length == 0
+      include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-sequence.loop-prompt.yml"
       vars:
-        openwrt_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',ansible_play_hosts)
-          | selectattr('value.command_run.skipped','equalto',false) }}"
-      ansible.builtin.pause:
-        seconds: 1
-        prompt: |
-          {% for host in openwrt_hostvars %}
+        sequence:
+          path: command.sequences
+          fact: command_sequence_names
 
-          [{{ host.key }}] =>
-          --------------------------------------------------
-          {%   for item in host.value.command_run.results %}
-          {{ item.stdout | default('',true) }}
-          {{ item.stderr | default('',true) }}
-          {%   endfor %}
-          {% endfor %}
-
-    - name: run group command
+    - name: validate command sequence names
+      when: command_sequence_names | length > 0
       vars:
-        group_names: "{{ command.groups | default([],true) }}"
-        group_vars: "{{ command_groups | default({},true)
-          | dict2items
-          | selectattr('key','in',group_names)
-          | selectattr('value.commands','defined')
-          | rejectattr('value.commands','equalto',None)
-          | map(attribute='value.commands')
-          | flatten }}"
-        params:
-          _raw_params: "{{ item }}"
-        args: "{{ item if(item | type_debug == 'dict') else params }}"
-      loop: "{{ group_vars }}"
-      ansible.builtin.command:
-      args: "{{ args }}"
-      register: command_run
-      until: command_run is succeeded
+        _sequence_invalid_names: "{{ command_sequence_names
+          | difference((command.sequences | default({},true)).keys() | list) }}"
+      ansible.builtin.assert:
+        that:
+          - _sequence_invalid_names | length == 0
+        fail_msg: |
+          unknown command.sequences key(s): {{ _sequence_invalid_names | join(', ') }}
+          available command.sequences key(s): {{
+            (command.sequences | default({},true)).keys() | list | join(', ')
+          }}
 
-    - name: debug group command
+    - name: run command sequence names
       vars:
-        openwrt_hostvars: "{{ hostvars | dict2items
-          | selectattr('key','in',ansible_play_hosts)
-          | selectattr('value.command_run.skipped','equalto',false) }}"
-      ansible.builtin.pause:
-        seconds: 1
-        prompt: |
-          {% for host in openwrt_hostvars %}
-
-          [{{ host.key }}] =>
-          --------------------------------------------------
-          {%   for item in host.value.command_run.results %}
-          {{ item.stdout | default('',true) }}
-          {{ item.stderr | default('',true) }}
-          {%   endfor %}
-          {% endfor %}
+        command_runner: "{{ command.sequences[command_sequence_name] }}"
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/../seed/openwrt-command.run.yml"
+      loop: "{{ command_sequence_names }}"
+      loop_control:
+        loop_var: command_sequence_name
