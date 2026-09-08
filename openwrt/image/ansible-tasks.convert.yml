@@ -1,122 +1,162 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: image.convert|rescue|fail tasks
-    when:
-      - converter | default(None) != None
-      - _converter.type is defined
-      - _converter.files is defined
-      - _converter.files | length > 0
-    ansible.builtin.fail:
-      msg: "convert image fail. exclude attr undefined."
+- name: image.convert|assert param
+  ansible.builtin.assert:
+    that:
+      - image_converter is defined
+      - image_converter.type is defined
+      - image_converter.path is defined
+    msg: "param undefined 'image_converter.type' or 'image_converter.path'"
+    quiet: true
 
-  block:
-  - name: image.convert|assert defined
-    ansible.builtin.assert:
-      that:
-        - converter | default(None) != None
-      msg: "var eval fail {{ converter }}"
-      quiet: true
+- name: image.convert|debug param
+  ansible.builtin.debug:
+    msg: "{{ image_converter }}"
+    verbosity: 3
 
-  - name: image.convert|fact _converter
-    vars:
-      default:
-        path: "{{ image.builder.output.dest | default(converter.path,true) }}"
-        regex: '.*\.img\.gz$'
-        type: 'vmdk'
-        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
-    ansible.builtin.set_fact:
-      _converter: "{{ default | combine(converter | default({},true), recursive=True) }}"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: image.convert|ensure _params/_files exist
+  ansible.builtin.set_fact:
+    _params:
+      path: <path>
+      id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+      regex: '.*\.img\.gz$'
+      type: '<vmdk,qcow2>'
+      files: []
+      output:
+        dest: null
+        mode: copy
+    _files:
+      all: []
+      archives: []
+      unarchives: []
+      image: []
 
-  - name: image.convert|find converter file
+- name: image.convert|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.path"
+        value: "{{ image_converter.path }}"
+      - path: "_params.type"
+        value: "{{ image_converter.type }}"
+      - path: "_params.regex"
+        value: "{{ image_converter.regex | default(_params.regex,true) }}"
+      - path: "_params.files"
+        value: "{{ image_converter.files | default(_params.files,true) }}"
+      - path: "_params.output.dest"
+        value: "{{ image_converter.output.dest | default(_params.output.dest,true) }}"
+      - path: "_params.output.mode"
+        value: "{{ image_converter.output.mode | default(_params.output.mode,true) }}"
+  register: image_convert
+
+- block:
+
+  - name: image.convert|find image file
     ansible.builtin.find:
-      paths: "{{ _converter.path }}"
+      paths: "{{ image_convert._params.path }}"
       file_type: file
       use_regex: yes
-      patterns: "{{ _converter.regex }}"
-    register: converter_file_find
+      patterns: "{{ image_convert._params.regex }}"
+    register: image_find
 
-  - name: image.convert|fact files attr
+  - name: image.convert|append _files all
     vars:
-      list: "{{ _converter.files | default([],true) }}"
-      append: "{{ converter_file_find.files | map(attribute='path') }}"
-      attr:
-        files: "{{ list + append }}"
-    ansible.builtin.set_fact:
-      _converter: "{{ _converter | combine(attr | default({},true), recursive=True) }}"
+      append: "{{ image_find.files | map(attribute='path') }}"
+    ansible.utils.update_fact:
+      updates:
+        - path: "_params"
+          value: "{{ image_convert._params }}"
+        - path: "_files.all"
+          value: "{{ image_convert._params.files + append }}"
+    register: image_convert
 
-  - name: image.convert|fact unarchive attr
+  - name: image.convert|append _files attrs
     vars:
-      files: "{{ _converter.files | reject('search','.*\\.gz$') }}"
-      archives: "{{ _converter.files | select('search','.*\\.gz$') }}"
-      unarchives: "{{ archives | map('regex_replace', '\\.gz', '') }}"
-      attr:
-        files: "{{ files + unarchives }}"
-        archives: "{{ archives }}"
-    ansible.builtin.set_fact:
-      _converter: "{{ _converter | combine(attr | default({},true), recursive=True) }}"
+      unarchives: "{{ image_convert._files.all | reject('search','.*\\.gz$') }}"
+      archives: "{{ image_convert._files.all | select('search','.*\\.gz$') }}"
+      target: "{{ archives | map('regex_replace', '\\.gz', '') }}"
+    ansible.utils.update_fact:
+      updates:
+        - path: "_params"
+          value: "{{ image_convert._params }}"
+        - path: "_files.unarchives"
+          value: "{{ unarchives }}"
+        - path: "_files.archives"
+          value: "{{ archives }}"
+        - path: "_files.image"
+          value: "{{ unarchives + target }}"
+    register: image_convert
 
-  - name: image.convert|unarchive archives
-    loop: "{{ _converter.archives }}"
+  - name: image.convert|unarchive archives files
+    loop: "{{ image_convert._files.archives }}"
     ansible.builtin.shell:
       cmd: "gzip -dkqf {{ item }} || true"
     # not support .gz with out tar
     # ansible.builtin.unarchive:
     #   src: "{{ item }}"
-    #   dest: "{{ _converter.path }}"
-    register: converter_archive_unarchive
+    #   dest: "{{ _resizer.path }}"
+    register: image_unarchive
 
-  - name: image.convert|convert files
-    loop: "{{ _converter.files | default([],true) }}"
+  - name: image.convert|convert image files
+    vars:
+      _target: "{{ item | regex_replace('.img$','.' ~ image_convert._params.type) }}"
+    loop: "{{ image_convert._files.image }}"
     ansible.builtin.shell:
-      cmd: "qemu-img convert -f raw -O {{ _converter.type }} {{ item }} {{ item | regex_replace('.img$','.' ~ _converter.type) }} && echo {{ item | regex_replace('.img$','.' ~ _converter.type) }}"
-    register: converter_image_convert
+      cmd: "qemu-img convert -f raw -O {{ image_convert._params.type }} {{ item }} {{ _target }} && echo {{ _target }}"
+    register: image_qemu
 
-  - when: _converter.output.dest is defined
+  # output to
+  - when: image_convert._params.output.dest | default(None,true) != None
     block:
-    - name: image.convert|mkdir output
+    - name: image.convert|output|mkdir dest path
       ansible.builtin.file:
         state: directory
-        path: "{{ _converter.output.dest }}"
+        path: "{{ image_convert._params.output.dest }}"
 
-    - name: image.convert|move output
-      loop: "{{ converter_image_convert.results if(_converter.output.dest is defined) else [] }}"
-      ansible.builtin.shell:
-        cmd: "mv {{ item.stdout }} {{ _converter.output.dest }}"
-      register: converter_output_move
+    - name: image.convert|output|copy to dest
+      loop: "{{ image_convert._files.image }}"
+      vars:
+        item_converted: "{{ image_qemu.results | default([],true) | selectattr('item','equalto',item) | list | first | default({},true) }}"
+      when: item_converted.rc == 0
+      ansible.builtin.copy:
+        dest: "{{ image_convert._params.output.dest }}"
+        src: "{{ item_converted.stdout }}"
+      register: image_copy
+
+    - name: image.convert|output|remove src path
+      loop: "{{ image_convert._files.image }}"
+      when:
+        - image_convert._params.output.mode == 'move'
+      ansible.builtin.file:
+        state: absent
+        path: "{{ item }}"
 
   always:
-  - name: image.convert|always|print converter convert
+
+  - name: image.convert|summary|print convert info
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.converter_image_convert','defined') }}"
+        | selectattr('key','in',ansible_play_hosts_all) }}"
     ansible.builtin.pause:
       seconds: 1
       prompt: |
         {% for host in openwrt_hostvars %}
+        {%   if host.value.image_convert is defined %}
+        {%     for item in host.value.image_convert._files.image | default([],true) %}
+        {%       set converted = host.value.image_qemu.results | default([],true) | selectattr('item','equalto',item) | list | first | default({},true) %}
+        {%       set copyed = host.value.image_copy.results | default([],true) | selectattr('item','equalto',item) | list | first | default({},true) %}
 
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_qemu => (item={{ item }}) =>
         --------------------------------------------------
-        {%   for item in host.value.converter_image_convert.results %}
-        {{ item.item }}: {{ item.stdout | default('',true) }}{{ item.stderr | default('',true) }}
-        {%   endfor %}
-        {% endfor %}
+        {{ (converted.rc == 0) | ternary(converted.stdout,converted.stderr) }}
+        {%       if copyed.dest is defined %}
 
-  - name: image.convert|always|print converter output
-    vars:
-      openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.converter_output_move','defined') }}"
-    ansible.builtin.pause:
-      seconds: 1
-      prompt: |
-        {% for host in openwrt_hostvars %}
-
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_copyed => (item={{ item }}) =>
         --------------------------------------------------
-        {%   for item in host.value.converter_output_move.results %}
-        {{ item.item }}
-        {%   endfor %}
+        {{ copyed.dest }}
+        {%       endif %}
+        {%     endfor %}
+        {%   endif %}
         {% endfor %}

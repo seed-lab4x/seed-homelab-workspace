@@ -1,122 +1,157 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: image.resize|rescue|fail tasks
-    when:
-      - resizer | default(None) != None
-      - _resizer.size is defined
-      - _resizer.files is defined
-      - _resizer.files | length > 0
-    ansible.builtin.fail:
-      msg: "resize image fail. exclude attr undefined."
+- name: image.resize|assert param
+  ansible.builtin.assert:
+    that:
+      - image_resizer is defined
+      - image_resizer.size is defined
+      - image_resizer.path is defined
+    msg: "param undefined 'image_resizer.size' or 'image_resizer.path'"
+    quiet: true
 
-  block:
-  - name: image.resize|assert defined
-    ansible.builtin.assert:
-      that:
-        - resizer | default(None) != None
-      msg: "var eval fail {{ resizer }}"
-      quiet: true
+- name: image.resize|debug param
+  ansible.builtin.debug:
+    msg: "{{ image_resizer }}"
+    verbosity: 3
 
-  - name: image.resize|fact resizer
-    vars:
-      default:
-        path: "{{ image.builder.output.dest | default(resizer.path,true) }}"
-        regex: '.*\.img\.gz$'
-        size: '512M'
-        id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
-    ansible.builtin.set_fact:
-      _resizer: "{{ default | combine(resizer | default({},true), recursive=True) }}"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: image.resize|ensure _params/_files exist
+  ansible.builtin.set_fact:
+    _params:
+      path: <path>
+      id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+      regex: '.*\.img\.gz$'
+      size: '<512M,1G>'
+      files: []
+      output:
+        dest: null
+        mode: copy
+    _files:
+      all: []
+      archives: []
+      unarchives: []
+      image: []
 
-  - name: image.resize|find resizer file
+- name: image.resize|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.path"
+        value: "{{ image_resizer.path }}"
+      - path: "_params.size"
+        value: "{{ image_resizer.size }}"
+      - path: "_params.regex"
+        value: "{{ image_resizer.regex | default(_params.regex,true) }}"
+      - path: "_params.files"
+        value: "{{ image_resizer.files | default(_params.files,true) }}"
+      - path: "_params.output.dest"
+        value: "{{ image_resizer.output.dest | default(_params.output.dest,true) }}"
+      - path: "_params.output.mode"
+        value: "{{ image_resizer.output.mode | default(_params.output.mode,true) }}"
+  register: image_resize
+
+- block:
+
+  - name: image.resize|find image file
     ansible.builtin.find:
-      paths: "{{ _resizer.path }}"
+      paths: "{{ image_resize._params.path }}"
       file_type: file
       use_regex: yes
-      patterns: "{{ _resizer.regex }}"
-    register: resizer_file_find
+      patterns: "{{ image_resize._params.regex }}"
+    register: image_find
 
-  - name: image.resize|fact resizer files
+  - name: image.resize|append _files all
     vars:
-      list: "{{ _resizer.files | default([],true) }}"
-      append: "{{ resizer_file_find.files | map(attribute='path') }}"
-      attr:
-        files: "{{ list + append }}"
-    ansible.builtin.set_fact:
-      _resizer: "{{ _resizer | combine(attr | default({},true), recursive=True) }}"
+      append: "{{ image_find.files | map(attribute='path') }}"
+    ansible.utils.update_fact:
+      updates:
+        - path: "_params"
+          value: "{{ image_resize._params }}"
+        - path: "_files.all"
+          value: "{{ image_resize._params.files + append }}"
+    register: image_resize
 
-  - name: image.resize|fact resizer archives
+  - name: image.resize|append _files attrs
     vars:
-      files: "{{ _resizer.files | reject('search','.*\\.gz$') }}"
-      archives: "{{ _resizer.files | select('search','.*\\.gz$') }}"
-      unarchives: "{{ archives | map('regex_replace', '\\.gz', '') }}"
-      attr:
-        files: "{{ files + unarchives }}"
-        archives: "{{ archives }}"
-    ansible.builtin.set_fact:
-      _resizer: "{{ _resizer | combine(attr | default({},true), recursive=True) }}"
+      unarchives: "{{ image_resize._files.all | reject('search','.*\\.gz$') }}"
+      archives: "{{ image_resize._files.all | select('search','.*\\.gz$') }}"
+      target: "{{ archives | map('regex_replace', '\\.gz', '') }}"
+    ansible.utils.update_fact:
+      updates:
+        - path: "_params"
+          value: "{{ image_resize._params }}"
+        - path: "_files.unarchives"
+          value: "{{ unarchives }}"
+        - path: "_files.archives"
+          value: "{{ archives }}"
+        - path: "_files.image"
+          value: "{{ unarchives + target }}"
+    register: image_resize
 
-  - name: image.resize|unarchive archives
-    loop: "{{ _resizer.archives }}"
+  - name: image.resize|unarchive archives files
+    loop: "{{ image_resize._files.archives }}"
     ansible.builtin.shell:
       cmd: "gzip -dkqf {{ item }} || true"
     # not support .gz with out tar
     # ansible.builtin.unarchive:
     #   src: "{{ item }}"
     #   dest: "{{ _resizer.path }}"
-    register: resizer_archive_unarchive
+    register: image_unarchive
 
-  - name: image.resize|resize files
-    loop: "{{ _resizer.files | default([],true) }}"
+  - name: image.resize|resize image files
+    loop: "{{ image_resize._files.image }}"
     ansible.builtin.shell:
-      cmd: "qemu-img resize -f raw {{ item }} {{ _resizer.size }}"
-    register: resizer_image_resize
+      cmd: "qemu-img resize -f raw {{ item }} {{ image_resize._params.size }}"
+    register: image_qemu
 
-  - when: _resizer.output.dest is defined
+  # output to
+  - when: image_resize._params.output.dest | default(None,true) != None
     block:
-    - name: image.resize|mkdir output
+    - name: image.resize|output|mkdir dest path
       ansible.builtin.file:
         state: directory
-        path: "{{ _resizer.output.dest }}"
+        path: "{{ image_resize._params.output.dest }}"
 
-    - name: image.resize|move output
-      loop: "{{ _resizer.files if(_resizer.output.dest is defined) else [] }}"
-      ansible.builtin.shell:
-        cmd: "mv {{ item }} {{ _resizer.output.dest }}"
-      register: resizer_output_move
+    - name: image.resize|output|copy to dest
+      loop: "{{ image_resize._files.image }}"
+      ansible.builtin.copy:
+        dest: "{{ image_resize._params.output.dest }}"
+        src: "{{ item }}"
+      register: image_copy
+
+    - name: image.resize|output|remove src path
+      loop: "{{ image_resize._files.image }}"
+      when:
+        - image_resize._params.output.mode == 'move'
+      ansible.builtin.file:
+        state: absent
+        path: "{{ item }}"
 
   always:
-  - name: image.resize|always|print resizer resize
+
+  - name: image.resize|summary|print resize info
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.resizer_image_resize','defined') }}"
+        | selectattr('key','in',ansible_play_hosts_all) }}"
     ansible.builtin.pause:
       seconds: 1
       prompt: |
         {% for host in openwrt_hostvars %}
+        {%   if host.value.image_resize is defined %}
+        {%     for item in host.value.image_resize._files.image %}
+        {%       set resized = host.value.image_qemu.results | default([],true) | selectattr('item','equalto',item) | list | first | default({},true) %}
+        {%       set copyed = host.value.image_copy.results | default([],true) | selectattr('item','equalto',item) | list | first | default({},true) %}
 
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_qemu => (item={{ item }}) =>
         --------------------------------------------------
-        {%   for item in host.value.resizer_image_resize.results %}
-        {{ item.item }}: {{ item.stdout | default('',true) }}{{ item.stderr | default('',true) }}
-        {%   endfor %}
-        {% endfor %}
+        {{ (resized.rc == 0) | ternary(resized.stdout,resized.stderr) }}
+        {%       if copyed.dest is defined %}
 
-  - name: image.resize|always|print resizer output
-    vars:
-      openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.resizer_output_move','defined') }}"
-    ansible.builtin.pause:
-      seconds: 1
-      prompt: |
-        {% for host in openwrt_hostvars %}
-
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_copy => (item={{ item }}) =>
         --------------------------------------------------
-        {%   for item in host.value.resizer_output_move.results %}
-        {{ item.item }}
-        {%   endfor %}
+        {{ copyed.dest }}
+        {%       endif %}
+        {%     endfor %}
+        {%   endif %}
         {% endfor %}

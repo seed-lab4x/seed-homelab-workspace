@@ -1,249 +1,339 @@
 # code: language=ansible
 ---
 
-- rescue:
-  - name: image.build|rescue|fail tasks
-    when:
-      - builder | default(None) != None
-      - _builder.release is defined
-      - _builder.target is defined
-      - _builder.option is defined
-    ansible.builtin.fail:
-      msg: "build image fail. exclude attr undefined."
+- name: image.build|assert param
+  ansible.builtin.assert:
+    that:
+      - image_builder is defined
+      - image_builder.release is defined
+      - image_builder.target is defined
+    msg: "param undefined 'image_builder.release' or 'image_builder.target'"
+    quiet: true
 
-  block:
-  - name: image.build|assert defined
-    ansible.builtin.assert:
-      that:
-        - builder | default(None) != None
-        - builder.release is defined
-        - builder.target is defined
-        - builder.option is defined
-      msg: "var eval fail {{ builder }}"
-      quiet: true
+- name: image.build|debug param
+  ansible.builtin.debug:
+    msg: "{{ image_builder }}"
+    verbosity: 3
 
-  - name: image.build|fact builder by snapshots
-    when: builder.release == 'snapshots'
-    vars:
-      dl_name: "openwrt-imagebuilder-{{ builder.target }}.Linux-x86_64"
-      dl_file: "{{ builder.url | basename if builder.url is defined else dl_name + '.tar.xz' }}"
-      dl_path: "snapshots/targets/{{ builder.target | regex_replace('-', '/') }}"
-      default:
-        # url -> file -> path
-        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
-        file: "~/.openwrt/{{ dl_file }}"
-        path: "~/.openwrt/{{ inventory_hostname }}/{{ dl_name }}"
-        # id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
-    ansible.builtin.set_fact:
-      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: image.build|ensure _params/_path exist
+  vars:
+    dl_snapshots_name: "openwrt-imagebuilder-{{ image_builder.target }}.Linux-x86_64"
+    dl_release_name: "openwrt-imagebuilder-{{ image_builder.release }}-{{ image_builder.target }}.Linux-x86_64"
+    dl_name: "{{ (image_builder.release == 'snapshots') | ternary(dl_snapshots_name,dl_release_name) }}"
+    dl_file: "{{ image_builder.url | basename if image_builder.url is defined else dl_name + '.tar.zst' }}"
+    dl_target_path: "targets/{{ image_builder.target | regex_replace('-', '/') }}"
+    dl_snapshots_path: "snapshots/{{ dl_target_path }}"
+    dl_release_path: "releases/{{ image_builder.release }}/{{ dl_target_path }}"
+    dl_path: "{{ (image_builder.release == 'snapshots') | ternary(dl_snapshots_path,dl_release_path) }}"
+  ansible.builtin.set_fact:
+    _params:
+      release: <release>
+      target: <target>
+      id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+      url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
+      # not support `$HOME`
+      file: "~/.openwrt/{{ dl_file }}"
+      # not support `$HOME`
+      path: "~/.openwrt/{{ dl_name }}@{{ inventory_hostname }}/{{ dl_name }}"
+      command: "make image"
+      config: {}
+      repositories: ""
+      option: {}
+      output:
+        path: build_dir/target-x86_64_musl/linux-x86_64/tmp/
+        dest: "{{ inventory_dir }}/../image/{{ inventory_hostname }}/{{ image_builder.release }}/"
+        mode: copy
+    _path:
+      config: "~/.openwrt/{{ inventory_hostname }}/{{ dl_name }}/.config"
+      repositories: "~/.openwrt/{{ inventory_hostname }}/{{ dl_name }}/repositories|~/.openwrt/{{ inventory_hostname }}/{{ dl_name }}/repositories.conf"
 
-  - name: image.build|fact builder by release
-    when: builder.release != 'snapshots'
-    vars:
-      dl_name: "openwrt-imagebuilder-{{ builder.release }}-{{ builder.target }}.Linux-x86_64"
-      dl_file: "{{ builder.url | basename if builder.url is defined else dl_name + '.tar.xz' }}"
-      dl_path: "releases/{{ builder.release }}/targets/{{ builder.target | regex_replace('-', '/') }}"
-      default:
-        # url -> file -> path
-        url: "https://downloads.openwrt.org/{{ dl_path }}/{{ dl_file }}"
-        file: "~/.openwrt/{{ dl_file }}"
-        path: "~/.openwrt/{{ inventory_hostname }}/{{ dl_name }}"
-        # id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
-    ansible.builtin.set_fact:
-      _builder: "{{ default | combine(builder | default({},true), recursive=True) }}"
+- name: image.build|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.release"
+        value: "{{ image_builder.release }}"
+      - path: "_params.target"
+        value: "{{ image_builder.target }}"
+      - path: "_params.url"
+        value: "{{ image_builder.url | default(_params.url,true) }}"
+      - path: "_params.file"
+        value: "{{ image_builder.file | default(_params.file,true) }}"
+      - path: "_params.path"
+        value: "{{ image_builder.path | default(_params.path,true) }}"
+      - path: "_params.command"
+        value: "{{ image_builder.command | default(_params.command,true) }}"
+      - path: "_params.config"
+        value: "{{ image_builder.config | default(_params.config,true) }}"
+      - path: "_params.repositories"
+        value: "{{ image_builder.repositories | default(_params.repositories,true) }}"
+      - path: "_params.option"
+        value: "{{ image_builder.option | default(_params.option,true) }}"
+      - path: "_params.output.path"
+        value: "{{ image_builder.output.path | default(_params.output.path,true) }}"
+      - path: "_params.output.dest"
+        value: "{{ image_builder.output.dest | default(_params.output.dest,true) }}"
+  register: image_build
 
-  - name: image.build|stat builder path
-    ansible.builtin.stat:
-      path: "{{ _builder.path }}"
-    register: builder_path_stat
+- block:
 
-  - when: not builder_path_stat.stat.exists
-    block:
-    - name: image.build|mkdir builder path
-      ansible.builtin.file:
-        state: directory
-        path: "{{ _builder.path | dirname }}"
-      register: builder_path_mkdir
-
-    - name: image.build|mkdir builder file
-      ansible.builtin.file:
-        state: directory
-        path: "{{ _builder.file | dirname }}"
-
-    - name: image.build|curl builder file
-      ansible.builtin.get_url:
-        dest: "{{ _builder.file }}"
-        url: "{{ _builder.url }}"
-
-    - name: image.build|unarchive builder file
-      ansible.builtin.unarchive:
-        src: "{{ _builder.file }}"
-        dest: "{{ _builder.path | dirname }}"
-
-    - name: image.build|restat builder path
+  # download builder
+  - block:
+    - name: image.build|builder|stat builder path
       ansible.builtin.stat:
-        path: "{{ _builder.path }}"
-      register: builder_path_restat
+        path: "{{ image_build._params.path }}"
+      register: image_path_stat
 
-  - name: image.build|refact builder path
-    vars:
-      path_attr:
-        path: "{{ builder_path_stat.stat.path | default(builder_path_restat.stat.path,true) }}"
-    ansible.builtin.set_fact:
-      _builder: "{{ _builder | combine(path_attr, recursive=True) }}"
+    - when: not image_path_stat.stat.exists
+      block:
+      - name: image.build|builder|mkdir builder path
+        ansible.builtin.file:
+          state: directory
+          path: "{{ image_build._params.path | dirname }}"
+        register: build_path_mkdir
 
-  - name: image.build|make builder info
-    ansible.builtin.shell:
-      cmd: make info
-      chdir: "{{ _builder.path }}"
-    register: builder_info_make
+      - name: image.build|builder|stat builder file
+        ansible.builtin.stat:
+          path: "{{ image_build._params.file }}"
+        register: image_file_stat
 
-  - name: image.build|print builder info
-    vars:
-      openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.builder_info_make','defined') }}"
-    ansible.builtin.pause:
-      seconds: 1
-      prompt: |
-        {% for host in openwrt_hostvars %}
+      - when: not image_file_stat.stat.exists
+        block:
+        - name: image.build|builder|mkdir builder file
+          ansible.builtin.file:
+            state: directory
+            path: "{{ image_build._params.file | dirname }}"
+          register: build_file_mkdir
 
-        [{{ host.key }}] =>
-        --------------------------------------------------
-        {{ host.value.builder_info_make.stdout | default('',true) }}
-        {{ host.value.builder_info_make.stderr | default('',true) }}
-        {% endfor %}
+        - name: image.build|builder|curl builder file
+          ansible.builtin.get_url:
+            dest: "{{ image_build._params.file }}"
+            url: "{{ image_build._params.url }}"
+          register: build_file_curl
 
-  - name: image.build|stat original .config
-    ansible.builtin.stat:
-      path: "{{ _builder.path }}/.config.original"
-    register: builder_config_original_stat
+      - name: image.build|builder|unarchive builder file
+        ansible.builtin.unarchive:
+          src: "{{ image_build._params.file }}"
+          dest: "{{ image_build._params.path | dirname }}"
+        register: build_file_unzip
 
-  - name: image.build|backup original .config
-    when: not builder_config_original_stat.stat.exists
-    ansible.builtin.copy:
-      src: "{{ _builder.path }}/.config"
-      dest: "{{ _builder.path }}/.config.original"
+    - name: image.build|builder|stat builder path
+      ansible.builtin.stat:
+        path: "{{ image_build._params.path }}"
+      register: image_path_stat
 
-  - when: _builder.config is defined
+    - name: image.build|builder|append _params path
+      ansible.utils.update_fact:
+        updates:
+          - path: "_params"
+            value: "{{ image_build._params }}"
+          - path: "_params.path"
+            value: "{{ image_path_stat.stat.path }}"
+      register: image_build
+
+  # make info
+  - block:
+    - name: image.build|info|run make info
+      ansible.builtin.shell:
+        cmd: make info
+        chdir: "{{ image_build._params.path }}"
+      register: image_info
+
+  # config conf
+  - block:
+    - name: image.build|config|stat .config conf
+      ansible.builtin.stat:
+        path: "{{ image_build._params.path }}/.config"
+      register: image_config_stat
+
+    - name: image.build|config|append _path attrs
+      ansible.utils.update_fact:
+        updates:
+          - path: "_params"
+            value: "{{ image_build._params }}"
+          - path: "_path.config"
+            value: "{{ image_config_stat.stat.path | default('',true) }}"
+      register: image_build
+
+    - when: image_build._path.config | length > 0
+      block:
+      - name: image.build|config|stat original conf
+        ansible.builtin.stat:
+          path: "{{ image_build._params.path }}/.config.original"
+        register: image_config_original_stat
+
+      - name: image.build|config|backup original conf
+        when:
+          - not image_config_original_stat.stat.exists
+          - image_config_stat.stat.exists
+        ansible.builtin.copy:
+          dest: "{{ image_build._params.path }}/.config.original"
+          src: "{{ image_build._params.path }}/.config"
+
+      - when: image_build._params.config is defined
+        block:
+        - name: image.build|config|restore original conf
+          when: image_config_original_stat.stat.exists
+          ansible.builtin.copy:
+            dest: "{{ image_build._params.path }}/.config"
+            src: "{{ image_build._params.path }}/.config.original"
+
+        - name: image.build|config|generate conf mark
+          ansible.builtin.lineinfile:
+            path: "{{ image_build._params.path }}/.config"
+            insertafter: EOF
+            line: "# auto generated by seed"
+            create: true
+
+        - name: image.build|config|comment conf key
+          loop: "{{ image_build._params.config | dict2items }}"
+          ansible.builtin.replace:
+            path: "{{ image_build._params.path }}/.config"
+            regexp: '(^ *{{ item.key }})'
+            replace: '# \1'
+
+        - name: image.build|config|append conf key
+          loop: "{{ image_build._params.config | dict2items }}"
+          ansible.builtin.lineinfile:
+            path: "{{ image_build._params.path }}/.config"
+            insertafter: EOF
+            line: "{{ item.key }}={{ item.value }}"
+
+  # repositories conf
+  - block:
+    - name: image.build|repositories|stat repositories conf
+      loop:
+        - "{{ image_build._params.path }}/repositories"
+        - "{{ image_build._params.path }}/repositories.conf"
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: image_repositories_stat
+
+    - name: image.build|repositories|append _path attrs
+      vars:
+        repositories_conf_paths: "{{ image_repositories_stat.results
+          | selectattr('stat.exists')
+          | map(attribute='stat.path')
+          | list }}"
+      ansible.utils.update_fact:
+        updates:
+          - path: "_params"
+            value: "{{ image_build._params }}"
+          - path: "_path"
+            value: "{{ image_build._path }}"
+          - path: "_path.repositories"
+            value: "{{ (repositories_conf_paths | length > 0) | ternary(repositories_conf_paths | first,'') }}"
+      register: image_build
+
+    - when: image_build._path.repositories | length > 0
+      block:
+      - name: image.build|repositories|stat original conf
+        ansible.builtin.stat:
+          path: "{{ image_build._path.repositories }}.original"
+        register: image_repositories_original_stat
+
+      - name: image.build|repositories|backup original conf
+        when:
+          - not image_repositories_original_stat.stat.exists
+        ansible.builtin.copy:
+          dest: "{{ image_build._path.repositories }}.original"
+          src: "{{ image_build._path.repositories }}"
+
+      - when: image_build._params.repositories is defined
+        block:
+        - name: image.build|repositories|restore original conf
+          when:
+            - image_repositories_original_stat.stat.exists
+          ansible.builtin.copy:
+            dest: "{{ image_build._path.repositories }}"
+            src: "{{ image_build._path.repositories }}.original"
+
+        - name: image.build|repositories|replace conf url
+          ansible.builtin.replace:
+            path: "{{ image_build._path.repositories }}"
+            regexp: 'https://downloads.openwrt.org'
+            replace: "{{ image_build._params.repositories }}"
+
+  # make command
+  - block:
+    - name: image.build|make|ensure _cmd exist
+      vars:
+        option: "{{ item.key }}='{{ item.value | replace('\n',' ') }}'" 
+      loop: "{{ image_build._params.option | dict2items }}"
+      ansible.builtin.set_fact:
+        _cmd: "{{ _cmd | default(image_build._params.command,true) }} {{ option }}" 
+
+    - name: image.build|make|append _cmd attrs
+      ansible.utils.update_fact:
+        updates:
+          - path: "_params"
+            value: "{{ image_build._params }}"
+          - path: "_path"
+            value: "{{ image_build._path }}"
+          - path: "_cmd"
+            value: "{{ _cmd }}"
+      register: image_build
+
+    - name: image.build|make|run make command
+      ansible.builtin.shell:
+        # cmd: "{{ image_build._params.command }} > {{ image_build._params.path }}/log-{{ image_build._params.id }}.image.log"
+        cmd: "{{ image_build._cmd }}"
+        chdir: "{{ image_build._params.path }}"
+      register: image_make
+
+  # output to
+  - when: image_build._params.output.dest is defined
     block:
-    - name: image.build|restore original .config
-      when: builder_config_original_stat.stat.exists
+    - name: image.build|output|mkdir dest path
+      ansible.builtin.file:
+        state: directory
+        path: "{{ image_build._params.output.dest }}"
+
+    - name: image.build|output|copy to dest
+      when: image_build._params.output.path is defined
       ansible.builtin.copy:
-        src: "{{ _builder.path }}/.config.original"
-        dest: "{{ _builder.path }}/.config"
+        dest: "{{ image_build._params.output.dest }}"
+        src: "{{ image_build._params.path }}/{{ image_build._params.output.path }}"
+      register: image_copy
 
-    - name: image.build|mark builder .config
-      ansible.builtin.lineinfile:
-        path: "{{ _builder.path }}/.config"
-        insertafter: EOF
-        line: "# auto generated by seed"
-        create: true
-
-    - name: image.build|comment builder .config
-      loop: "{{ _builder.config | dict2items }}"
-      ansible.builtin.replace:
-        path: "{{ _builder.path }}/.config"
-        regexp: '(^ *{{ item.key }})'
-        replace: '# \1'
-
-    - name: image.build|append builder .config
-      loop: "{{ _builder.config | dict2items }}"
-      ansible.builtin.lineinfile:
-        path: "{{ _builder.path }}/.config"
-        insertafter: EOF
-        line: "{{ item.key }}={{ item.value }}"
-
-  - name: image.build|stat original repositories.conf
-    ansible.builtin.stat:
-      path: "{{ _builder.path }}/repositories.conf.original"
-    register: builder_repositories_original_stat
-
-  - name: image.build|backup original repositories.conf
-    when: not builder_repositories_original_stat.stat.exists
-    ansible.builtin.copy:
-      src: "{{ _builder.path }}/repositories.conf"
-      dest: "{{ _builder.path }}/repositories.conf.original"
-
-  - when: _builder.repositories is defined
-    block:
-    - name: image.build|restore original repositories.conf
-      when: builder_repositories_original_stat.stat.exists
-      ansible.builtin.copy:
-        src: "{{ _builder.path }}/repositories.conf.original"
-        dest: "{{ _builder.path }}/repositories.conf"
-
-    - name: image.build|replace builder repositories.conf
-      ansible.builtin.replace:
-        path: "{{ _builder.path }}/repositories.conf"
-        regexp: 'https://downloads.openwrt.org'
-        replace: "{{ _builder.repositories }}"
-
-  - name: image.build|fact builder command
-    vars:
-      option: "{{ item.key }}='{{ item.value | replace('\n',' ') }}'"
-      command_attr:
-        command: "{{ _builder.command | default('make image',true) }} {{ option }}"
-    loop: "{{ _builder.option | dict2items }}"
-    ansible.builtin.set_fact:
-      _builder: "{{ _builder | combine(command_attr, recursive=True) }}"
-
-  - name: image.build|make image
-    ansible.builtin.shell:
-      # cmd: "{{ _builder.command }} > {{ _builder.path }}/log-{{ _builder.id }}.image.log"
-      cmd: "{{ _builder.command }}"
-      chdir: "{{ _builder.path }}"
-    register: builder_image_make
-
-  - when: _builder.output.dest is defined
-    block:
-    # - name: image.build|mkdir output
-    #   ansible.builtin.file:
-    #     state: directory
-    #     path: "{{ _builder.output.dest }}"
-
-    - name: image.build|copy output
+    - name: image.build|output|remove src path
       when:
-        - _builder.output.path is defined
-      ansible.builtin.copy:
-        src: "{{ _builder.path }}/{{ _builder.output.path }}"
-        dest: "{{ _builder.output.dest }}"
-      register: builder_output_copy
-
-    - name: image.build|remove output
-      when: builder_output_copy.src is defined
+        - image_build._params.output.mode == 'move'
+        - image_copy.src is defined
       ansible.builtin.file:
         state: absent
-        path: "{{ builder_output_copy.src }}"
+        path: "{{ image_copy.src }}"
 
   always:
-  - name: image.build|always|print make image
+
+  - name: image.build|summary|print build info
     vars:
       openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.builder_image_make','defined') }}"
+        | selectattr('key','in',ansible_play_hosts_all) }}"
     ansible.builtin.pause:
       seconds: 1
       prompt: |
         {% for host in openwrt_hostvars %}
+        {%   if host.value.image_info is defined %}
 
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_info =>
         --------------------------------------------------
-        {{ host.value.builder_image_make.stdout | default('',true) }}
-        {{ host.value.builder_image_make.stderr | default('',true) }}
-        {% endfor %}
+        {{ host.value.image_info.stdout | default('',true) }}
+        {{ host.value.image_info.stderr | default('',true) }}
+        {%   endif %}
+        {%   if host.value.image_make is defined %}
 
-  - name: image.build|always|print copy output
-    vars:
-      openwrt_hostvars: "{{ hostvars | dict2items
-        | selectattr('key','in',ansible_play_hosts)
-        | selectattr('value.builder_output_copy','defined') }}"
-    ansible.builtin.pause:
-      seconds: 1
-      prompt: |
-        {% for host in openwrt_hostvars %}
-
-        [{{ host.key }}] =>
+        [{{ host.key }}] => image_make =>
         --------------------------------------------------
-        {{ host.value.builder_output_copy.dest | default('',true) }}
+        {{ host.value.image_make.stdout | default('',true) }}
+        {{ host.value.image_make.stderr | default('',true) }}
+        {%   endif %}
+        {%   if host.value.image_copy is defined %}
+
+        [{{ host.key }}] => image_copy =>
+        --------------------------------------------------
+        from: {{ host.value.image_copy.src | default('',true) }}
+        to: {{ host.value.image_copy.dest | default('',true) }}
+        {%   endif %}
         {% endfor %}

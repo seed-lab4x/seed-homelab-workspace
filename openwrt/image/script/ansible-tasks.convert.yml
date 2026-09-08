@@ -1,0 +1,71 @@
+# code: language=ansible
+---
+
+- name: script.convert|assert param
+  ansible.builtin.assert:
+    that:
+      - image_converter is defined
+      - image_converter.type is defined
+      - image_converter.path is defined
+    msg: "param undefined 'image_converter.type' or 'image_converter.path'"
+    quiet: true
+
+- name: script.convert|debug param
+  ansible.builtin.debug:
+    msg: "{{ image_converter }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: script.convert|ensure _params/_path exist
+  ansible.builtin.set_fact:
+    _params:
+      path: <path>
+      id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+      regex: '.*\.img\.gz$'
+      type: '<vmdk,qcow2>'
+      files: []
+      output:
+        dest: null
+        mode: copy
+    _path:
+      env: <path>
+      script: <path>
+
+- name: script.convert|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.path"
+        value: "{{ image_converter.path }}"
+      - path: "_params.type"
+        value: "{{ image_converter.type }}"
+      - path: "_params.regex"
+        value: "{{ image_converter.regex | default(_params.regex,true) }}"
+      - path: "_params.files"
+        value: "{{ image_converter.files | default(_params.files,true) }}"
+      - path: "_params.output.dest"
+        value: "{{ image_converter.output.dest | default(_params.output.dest,true) }}"
+      - path: "_params.output.mode"
+        value: "{{ image_converter.output.mode | default(_params.output.mode,true) }}"
+      - path: "_path.env"
+        value: "{{ image_converter.path }}/image-convert.env"
+      - path: "_path.script"
+        value: "{{ image_converter.path }}/image-convert.bash"
+  register: script_convert
+
+- name: script.convert|mkdir output
+  ansible.builtin.file:
+    state: directory
+    path: "{{ script_convert._path.env | dirname }}"
+
+- name: script.convert|template env file
+  vars:
+    IMAGE_CONVERTER: "{{ script_convert._params }}"
+  ansible.builtin.template:
+    dest: "{{ script_convert._path.env }}"
+    src: "image-convert.env.j2"
+
+- name: script.convert|copy bash file
+  ansible.builtin.copy:
+    dest: "{{ script_convert._path.script }}"
+    src: "image-convert.bash"

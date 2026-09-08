@@ -1,0 +1,103 @@
+#!/usr/bin/env -S ansible-playbook -K -i ${PWD}/ansible-inventories
+# code: language=ansible
+---
+
+- name: make
+  hosts: openwrt
+  connection: local
+  tasks:
+
+    - name: install build package
+      run_once: true
+      become: true
+      delegate_to: localhost
+      connection: local
+      ansible.builtin.package:
+        name:
+          - build-essential
+          - libncurses5-dev
+          - libncursesw5-dev
+          - zlib1g-dev
+          - gawk
+          - git
+          - gettext
+          - libssl-dev
+          - xsltproc
+          - rsync
+          - wget
+          - unzip
+          - python3
+          # for image-builder
+          - file
+          # for *.zst file when > 24.0.x 
+          - zstd
+          - qemu-utils
+        state: present
+      register: package_install
+      until: package_install is succeeded
+
+    - name: fact image sequence names
+      vars:
+        _sequence_arg: "{{ s | default('',true) }}"
+        _sequence_arg_names: "{{ _sequence_arg
+          if(_sequence_arg | type_debug == 'list')
+          else(_sequence_arg | string | split(',')) }}"
+      ansible.builtin.set_fact:
+        image_sequence_names: >-
+          {{
+          (image.sequence | default([],true))
+          + (_sequence_arg_names | map('trim') | reject('equalto','') | list)
+          }}
+
+    - name: prompt image sequence names
+      when: image_sequence_names | length == 0
+      include_tasks: "{{ playbook_dir }}/../../.seed/ansible-tasks/seed-sequence.loop-prompt.yml"
+      vars:
+        sequence:
+          path: image.sequences
+          fact: image_sequence_names
+
+    - name: validate image sequence names
+      when: image_sequence_names | length > 0
+      vars:
+        _sequence_invalid_names: "{{ image_sequence_names
+          | difference((image.sequences | default({},true)).keys() | list) }}"
+      ansible.builtin.assert:
+        that:
+          - _sequence_invalid_names | length == 0
+        fail_msg: |
+          unknown image.sequences key(s): {{ _sequence_invalid_names | join(', ') }}
+          available image.sequences key(s): {{
+            (image.sequences | default({},true)).keys() | list | join(', ')
+          }}
+
+    - name: build image sequence names
+      vars:
+        image_builder: "{{ image.sequences[image_sequence_name].builder }}"
+      when: image.sequences[image_sequence_name].builder is defined
+      ansible.builtin.include_tasks: ansible-tasks.build.yml
+      loop: "{{ image_sequence_names }}"
+      loop_control:
+        loop_var: image_sequence_name
+
+    - name: resize image sequence names
+      vars:
+        image_builder: "{{ image.sequences[image_sequence_name].builder }}"
+        image_resizer: "{{ {'path': image_builder.output.dest}
+          | combine(image.sequences[image_sequence_name].resizer, recursive=True) }}"
+      when: image.sequences[image_sequence_name].resizer is defined
+      ansible.builtin.include_tasks: ansible-tasks.resize.yml
+      loop: "{{ image_sequence_names }}"
+      loop_control:
+        loop_var: image_sequence_name
+
+    - name: convert image sequence names
+      vars:
+        image_builder: "{{ image.sequences[image_sequence_name].builder }}"
+        image_converter: "{{ {'path': image_builder.output.dest}
+          | combine(image.sequences[image_sequence_name].converter, recursive=True) }}"
+      when: image.sequences[image_sequence_name].converter is defined
+      ansible.builtin.include_tasks: ansible-tasks.convert.yml
+      loop: "{{ image_sequence_names }}"
+      loop_control:
+        loop_var: image_sequence_name

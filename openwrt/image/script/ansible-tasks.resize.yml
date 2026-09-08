@@ -1,0 +1,71 @@
+# code: language=ansible
+---
+
+- name: script.resize|assert param
+  ansible.builtin.assert:
+    that:
+      - image_resizer is defined
+      - image_resizer.size is defined
+      - image_resizer.path is defined
+    msg: "param undefined 'image_resizer.size' or 'image_resizer.path'"
+    quiet: true
+
+- name: script.resize|debug param
+  ansible.builtin.debug:
+    msg: "{{ image_resizer }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: script.resize|ensure _params/_path exist
+  ansible.builtin.set_fact:
+    _params:
+      path: <path>
+      id: "{{ lookup('community.general.random_string', upper=false, special=false) }}"
+      regex: '.*\.img\.gz$'
+      size: '<512M,1G>'
+      files: []
+      output:
+        dest: null
+        mode: copy
+    _path:
+      env: <path>
+      script: <path>
+
+- name: script.resize|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.path"
+        value: "{{ image_resizer.path }}"
+      - path: "_params.size"
+        value: "{{ image_resizer.size }}"
+      - path: "_params.regex"
+        value: "{{ image_resizer.regex | default(_params.regex,true) }}"
+      - path: "_params.files"
+        value: "{{ image_resizer.files | default(_params.files,true) }}"
+      - path: "_params.output.dest"
+        value: "{{ image_resizer.output.dest | default(_params.output.dest,true) }}"
+      - path: "_params.output.mode"
+        value: "{{ image_resizer.output.mode | default(_params.output.mode,true) }}"
+      - path: "_path.env"
+        value: "{{ image_resizer.path }}/image-resize.env"
+      - path: "_path.script"
+        value: "{{ image_resizer.path }}/image-resize.bash"
+  register: script_resize
+
+- name: script.resize|mkdir output
+  ansible.builtin.file:
+    state: directory
+    path: "{{ script_resize._path.env | dirname }}"
+
+- name: script.resize|template env file
+  vars:
+    IMAGE_RESIZER: "{{ script_resize._params }}"
+  ansible.builtin.template:
+    dest: "{{ script_resize._path.env }}"
+    src: "image-resize.env.j2"
+
+- name: script.resize|copy bash file
+  ansible.builtin.copy:
+    dest: "{{ script_resize._path.script }}"
+    src: "image-resize.bash"
