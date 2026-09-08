@@ -1,0 +1,83 @@
+# code: language=ansible
+---
+
+- name: openwrt-ssh.approve|compatible param
+  when:
+    - ssh_approver | default(None,true) == None
+    - ssh | default(None,true) != None
+  ansible.builtin.set_fact:
+    ssh_approver: "{{ ssh }}"
+
+- name: openwrt-ssh.approve|assert param
+  ansible.builtin.assert:
+    that:
+      - ssh_approver is defined
+      - ssh_approver.dir is defined
+      - ssh_approver.name is defined
+    msg: "param undefined 'ssh_approver.dir' or 'ssh_approver.name'"
+    quiet: true
+
+- name: openwrt-ssh.approve|debug param
+  ansible.builtin.debug:
+    msg: "{{ ssh_approver }}"
+    verbosity: 3
+
+# This fact is only as a prototype for update_fact.
+# The value will not be updated.
+- name: openwrt-ssh.approve|ensure _params exist
+  ansible.builtin.set_fact:
+    _params:
+      dir: "<base-path>"
+      name: "<folder-name-containing-id_rsa-pub-file>"
+      file: "id_rsa.pub"
+    _pub:
+      path: "<dir>/<name>/<file>"
+      key: "<file-content>"
+      mode: '0600'
+
+- name: openwrt-ssh.approve|append _params attrs
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params.dir"
+        value: "{{ ssh_approver.dir }}"
+      - path: "_params.name"
+        value: "{{ ssh_approver.name }}"
+      - path: "_params.file"
+        value: "{{ ssh_approver.file | default(_params.file,true) }}"
+  register: ssh_approve
+
+- name: openwrt-ssh.approve|append _pub attrs
+  vars:
+    local_pub_parts:
+      - "{{ ssh.dir }}"
+      - "{{ ssh.name }}"
+      - "id_rsa.pub"
+    local_pub_path: "{{ local_pub_parts | path_join }}"
+  ansible.utils.update_fact:
+    updates:
+      - path: "_params"
+        value: "{{ ssh_approve._params }}"
+      - path: "_pub.path"
+        value: "{{ local_pub_path }}"
+      - path: "_pub.key"
+        value: "{{ lookup('file', local_pub_path) }}"
+      - path: "_pub.mode"
+        value: "{{ ssh_approve._params.mode | default(_pub.mode,true) }}"
+  register: ssh_approve
+
+# role included
+
+- name: openwrt-ssh.approve|role gekmihesg
+  when: role.gekmihesg.enable | default(false,true)
+  vars:
+    openwrt_install_recommended_packages: false
+  ansible.builtin.include_role:
+    name: gekmihesg.openwrt
+
+- name: openwrt-ssh.approve|authorized key
+  community.openwrt.lineinfile:
+    path: /etc/dropbear/authorized_keys
+    line: "{{ ssh_approve._pub.key }}"
+    create: yes
+    mode: "{{ ssh_approve._pub.mode }}"
+  register: ssh_approved
